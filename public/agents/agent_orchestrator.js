@@ -89,9 +89,16 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
     console.log("Agent 3 streaming enabled.");
   }
 
-  let messages = [
-    { role: 'system', content: prompt }
-  ];
+  let messages = [];
+
+  if (retryCount > 0) {
+    messages.push({
+      role: 'system',
+      content: `CRITICAL: Your previous response was not valid JSON. You MUST respond with ONLY a JSON object starting with { and ending with }. NO explanatory text before or after the JSON. NO markdown. NO conversational language.`
+    });
+  }
+
+  messages.push({ role: 'system', content: prompt });
 
 
   if (input) {
@@ -110,7 +117,7 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
       body: {
         model: model,
         messages: messages,
-        temperature: 0.5,
+        temperature: retryCount > 0 ? 0.1 : 0.5,
         max_tokens: 6000,
         stream: true
       }
@@ -306,30 +313,88 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
 
     console.log("Agent 1: Deciding next action...");
 
-    const agent1ResponseRaw = await callAgent(agent1Model, agent1SystemPrompt, agent1Input, 0, null, userQuery, userName, userLocalTime);
-
-    if (agent1ResponseRaw instanceof Response && !agent1ResponseRaw.ok) {
-        if (agent1ResponseRaw.status === 429) {
-            const errorData = await agent1ResponseRaw.json();
-            console.error("Query limit exceeded:", errorData.error);
-            return `Error: ${errorData.error} ${errorData.message_from_developer || ''}`;
+    const robustJsonParse = (rawResponse) => {
+        if (typeof rawResponse !== 'string') {
+            console.error("Invalid input to robustJsonParse: not a string.", rawResponse);
+            throw new Error("Invalid input: expected a string.");
         }
-        const errorText = await agent1ResponseRaw.text();
-        return `Error: Agent 1 failed with status ${agent1ResponseRaw.status}. ${errorText}`;
-    }
+
+        // Strategy 1: Direct JSON parse
+        try {
+            return JSON.parse(rawResponse);
+        } catch (e1) {
+            // console.warn("Direct JSON parse failed. Attempting cleanup...");
+        }
+
+        // Strategy 2: Cleanup prefixes, markdown, and backticks
+        const cleanedResponse = rawResponse
+            .replace(/```json/g, '')
+            .replace(/```/g, '')
+            .trim();
+
+        try {
+            return JSON.parse(cleanedResponse);
+        } catch (e2) {
+            // console.warn("Cleaned JSON parse failed. Attempting brace extraction...");
+        }
+
+        // Strategy 3: Extract JSON by finding the first '{' and last '}'
+        const firstBrace = cleanedResponse.indexOf('{');
+        const lastBrace = cleanedResponse.lastIndexOf('}');
+
+        if (firstBrace !== -1 && lastBrace > firstBrace) {
+            const extractedJson = cleanedResponse.substring(firstBrace, lastBrace + 1);
+            try {
+                return JSON.parse(extractedJson);
+            } catch (e3) {
+                console.error("[Error] All JSON parsing strategies failed.");
+                console.error("Raw response:", rawResponse);
+                console.error("Cleaned response:", cleanedResponse);
+                console.error("Extracted JSON:", extractedJson);
+                throw new Error(`Agent 1 response does not contain a valid JSON structure (missing or malformed braces). Final error: ${e3.message}`);
+            }
+        }
+        
+        console.error("[Error] All JSON parsing strategies failed. No valid JSON structure found.");
+        console.error("Raw response:", rawResponse);
+        throw new Error("Agent 1 response does not contain a valid JSON object.");
+    };
 
     let parsedAgent1Response;
-    try {
-        // Clean the response to remove markdown fences before parsing
-        const cleanedResponse = agent1ResponseRaw.replace(/```json/g, '').replace(/```/g, '').trim();
-        parsedAgent1Response = JSON.parse(cleanedResponse);
-    } catch (error) {
-        console.error("[Error] Agent 1 response parsing failed:", error.message);
-        console.error("Raw response:", agent1ResponseRaw);
-        return `Error: Agent 1 returned an invalid JSON response. Error: ${error.message}`;
+    const maxRetries = 2;
+
+    for (let i = 0; i <= maxRetries; i++) {
+        const agent1ResponseRaw = await callAgent(agent1Model, agent1SystemPrompt, agent1Input, i, null, userQuery, userName, userLocalTime);
+
+        if (agent1ResponseRaw instanceof Response && !agent1ResponseRaw.ok) {
+            if (agent1ResponseRaw.status === 429) {
+                const errorData = await agent1ResponseRaw.json();
+                console.error("Query limit exceeded:", errorData.error);
+                return `Error: ${errorData.error} ${errorData.message_from_developer || ''}`;
+            }
+            const errorText = await agent1ResponseRaw.text();
+            return `Error: Agent 1 failed with status ${agent1ResponseRaw.status}. ${errorText}`;
+        }
+
+        try {
+            parsedAgent1Response = robustJsonParse(agent1ResponseRaw);
+            console.log("✓ Agent 1 JSON parsed successfully on attempt " + (i + 1));
+            break; // Success, exit loop
+        } catch (error) {
+            console.warn(`[Warning] Agent 1 returned invalid JSON on attempt ${i + 1}.`);
+            console.warn("Invalid response:", agent1ResponseRaw);
+            if (i === maxRetries) {
+                console.error("[Error] Agent 1 response parsing failed after max retries:", error.message);
+                console.error("Final raw response:", agent1ResponseRaw);
+                return `Error: Agent 1 returned an invalid JSON response. Error: ${error.message}`;
+            }
+        }
     }
 
     try {
+      if (!parsedAgent1Response) {
+        return `Error: Agent 1 returned a null or empty response after parsing.`;
+      }
       const validationErrors = validateAgent1Response(parsedAgent1Response);
       if (validationErrors.length > 0) {
         console.error("[Error] Agent 1 response validation failed:");
