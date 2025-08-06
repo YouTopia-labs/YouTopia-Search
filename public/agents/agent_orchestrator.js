@@ -340,14 +340,21 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
         }
         cleaned = cleaned.substring(jsonStart);
 
-        // Targeted fix for the empty action key
-        cleaned = cleaned.replace(/""\s*:\s*"search"/, '"action": "search"');
+        // Targeted fix for the empty action key, or action appearing as part of a key
+        cleaned = cleaned.replace(/("[^"]*")\s*:\s*("")\s*:\s*("search")/g, '"action":$3');
+        cleaned = cleaned.replace(/""\s*:\s*"search"/, '"action": "search"'); // Keep this for simpler cases
 
-        // Targeted fix for missing colon between a quoted key and its value (e.g., "key" value -> "key":value)
-        // This regex looks for a quoted string (potential key), followed by optional whitespace,
-        // and then a character that is NOT a colon, comma, or closing brace.
-        // If found, it inserts a colon between the quoted string and the next character.
-        cleaned = cleaned.replace(/("[^"]+")\s*([^:,}\]])/g, '$1:$2');
+        // New: Aggressively quote unquoted string values after a colon, if they are not already quoted
+        // This targets values that are simple words or numbers, not objects/arrays.
+        cleaned = cleaned.replace(/:(\s*)([a-zA-Z0-9_]+)([,}\]])/g, ':"$2"$3');
+        // New: Quote unquoted string values that are followed by a quote (e.g., key "value" or value"key")
+        cleaned = cleaned.replace(/([a-zA-Z0-9_]+)"/g, '"$1"');
+
+        // New: Fix instances where a quoted key is directly followed by an unquoted value and then a colon (e.g., "key"value: -> "key":"value":)
+        cleaned = cleaned.replace(/("[^"]+")([a-zA-Z0-9_]+):/g, '$1:"$2":');
+
+        // New: General fix for missing colons between quoted strings (e.g., "key" "value")
+        cleaned = cleaned.replace(/("[^"]+")\s*("[^"]*")/g, '$1:$2');
 
         // Attempt to fix common JSON issues
         try {
