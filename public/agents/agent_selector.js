@@ -4,7 +4,9 @@ import agent3SystemPrompt from './agent3_prompt.js';
 export function selectAgents(selection) {
   let agentConfig = {};
 
-  if (selection === 'amaya') {
+  const lowerCaseSelection = selection.toLowerCase();
+
+  if (lowerCaseSelection === 'amaya') {
     agentConfig = {
       agent1: {
         model: 'mistral-small-latest',
@@ -15,7 +17,7 @@ export function selectAgents(selection) {
         prompt: agent3SystemPrompt
       }
     };
-  } else if (selection === 'amaya lite') {
+  } else if (lowerCaseSelection === 'amaya lite') {
     agentConfig = {
       agent1: {
         model: 'mistral-tiny-latest',
