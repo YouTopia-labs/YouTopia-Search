@@ -335,6 +335,9 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
         }
         cleaned = cleaned.substring(jsonStart);
 
+        // Targeted fix for the empty action key
+        cleaned = cleaned.replace(/""\s*:\s*"search"/, '"action": "search"');
+
         try {
             return JSON.parse(cleaned);
         } catch (e) {
