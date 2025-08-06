@@ -319,6 +319,20 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
 
     console.log("Agent 1: Deciding next action...");
     const agent1ResponseRaw = await callAgent(agent1Model, agent1SystemPrompt, agent1Input, 0, null, userQuery, userName, userLocalTime);
+    
+    // Handle non-ok responses, like 429 rate limits, before attempting to parse
+    if (agent1ResponseRaw instanceof Response && !agent1ResponseRaw.ok) {
+        if (agent1ResponseRaw.status === 429) {
+            const errorData = await agent1ResponseRaw.json();
+            console.error("Query limit exceeded:", errorData.error);
+            // Return a user-friendly message, including the message from the developer if available
+            return `Error: ${errorData.error} ${errorData.message_from_developer || ''}`;
+        }
+        // Handle other potential non-ok responses
+        const errorText = await agent1ResponseRaw.text();
+        return `Error: Agent 1 failed with status ${agent1ResponseRaw.status}. ${errorText}`;
+    }
+    
     let parsedAgent1Response;
 
     const robustJsonParse = (rawResponse) => {

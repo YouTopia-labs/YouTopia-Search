@@ -1,6 +1,21 @@
 // Helper to add CORS headers to a response
-const corsify = (response) => {
-  response.headers.set('Access-Control-Allow-Origin', '*');
+const allowedOrigins = [
+  'https://youtopia.co.in',
+  'https://youtopia-search-e7z.pages.dev',
+  'https://youtopia-worker.youtopialabs.workers.dev',
+  'http://localhost:8788', // For local development with wrangler
+  'http://127.0.0.1:8788'
+];
+
+const corsify = (response, request) => {
+  const origin = request.headers.get('Origin');
+  if (origin && allowedOrigins.includes(origin)) {
+    response.headers.set('Access-Control-Allow-Origin', origin);
+  } else {
+    // For requests from other origins, you might want to handle them differently
+    // For now, let's keep it permissive for simplicity, but you can restrict it
+    response.headers.set('Access-Control-Allow-Origin', '*');
+  }
   response.headers.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   return response;
@@ -8,46 +23,69 @@ const corsify = (response) => {
 
 export default {
   async fetch(request, env, ctx) {
-    // Handle CORS preflight requests
-    if (request.method === 'OPTIONS') {
-      return handleOptions(request);
+    try {
+      // Handle CORS preflight requests
+      if (request.method === 'OPTIONS') {
+        return handleOptions(request, new Headers());
+      }
+
+      const url = new URL(request.url);
+
+      // API route handling
+      if (url.pathname.startsWith('/api/')) {
+        const response = await handleApiRequest(request, env);
+        return corsify(response, request);
+      }
+
+      // For all other requests, serve from Cloudflare Pages assets
+      return env.ASSETS.fetch(request);
+    } catch (error) {
+      console.error('Unhandled fatal error in fetch handler:', error.stack);
+      const errorResponse = new Response(JSON.stringify({ error: `A fatal and unhandled error occurred: ${error.message}` }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+      return corsify(errorResponse, request);
     }
-
-    const url = new URL(request.url);
-
-    // API route handling
-    if (url.pathname.startsWith('/api/')) {
-      return corsify(await handleApiRequest(request, env));
-    }
-
-    // For all other requests, serve from Cloudflare Pages assets
-    return env.ASSETS.fetch(request);
   }
 };
 
 async function handleApiRequest(request, env) {
-  const url = new URL(request.url);
+  try {
+    const url = new URL(request.url);
 
-  // Route for Google Sign-In authentication
-  if (url.pathname === '/api/google-auth') {
-    return handleGoogleAuth(request, env);
+    // Route for Google Sign-In authentication
+    if (url.pathname === '/api/google-auth') {
+      return handleGoogleAuth(request, env);
+    }
+
+    // Central endpoint for all user queries
+    if (url.pathname === '/api/query-proxy') {
+      return handleQueryProxy(request, env);
+    }
+
+    return new Response('Not Found', { status: 404 });
+  } catch (error) {
+    console.error('Unhandled error in handleApiRequest:', error);
+    return new Response(JSON.stringify({ error: 'An unexpected error occurred.' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
-
-  // Central endpoint for all user queries
-  if (url.pathname === '/api/query-proxy') {
-    return handleQueryProxy(request, env);
-  }
-
-  return new Response('Not Found', { status: 404 });
 }
 
 
 // This function is for CORS preflight requests
-function handleOptions(request) {
-  const headers = new Headers();
-  headers.set('Access-Control-Allow-Origin', '*'); // Allow any origin
-  headers.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS'); // Allowed methods
-  headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization'); // Allowed headers
+function handleOptions(request, headers) {
+  const origin = request.headers.get('Origin');
+  if (origin && allowedOrigins.includes(origin)) {
+    headers.set('Access-Control-Allow-Origin', origin);
+  } else {
+    headers.set('Access-Control-Allow-Origin', '*');
+  }
+
+  headers.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+  headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   return new Response(null, { headers });
 }
 
@@ -88,6 +126,7 @@ async function proxyMistral(api_payload, env) {
 
   try {
     const mistralApiUrl = 'https://api.mistral.ai/v1/chat/completions';
+    console.log('Proxying to Mistral with payload:', JSON.stringify(api_payload, null, 2));
     
     const mistralResponse = await fetch(mistralApiUrl, {
       method: 'POST',
@@ -319,113 +358,124 @@ async function handleGoogleAuth(request, env) {
 
 // --- Main Handler for this specific endpoint ---
 async function handleQueryProxy(request, env) {
-  if (request.method !== 'POST') {
-    return new Response('Expected POST for query proxy', { status: 405 });
-  }
-
-  const { query, user_name, user_email, user_local_time, api_target, api_payload, id_token } = await request.json();
-
   try {
-    const tokenInfo = await verifyGoogleToken(id_token, env);
-    if (tokenInfo.email !== user_email) {
-      console.error('Security Alert: Email mismatch between ID token and request body. Token email:', tokenInfo.email, 'Request email:', user_email);
-      return new Response(JSON.stringify({ error: 'Security alert: Token-email mismatch.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+    if (request.method !== 'POST') {
+      return new Response('Expected POST for query proxy', { status: 405 });
+    }
+
+    const { query, user_name, user_email, user_local_time, api_target, api_payload, id_token } = await request.json();
+
+    try {
+      const tokenInfo = await verifyGoogleToken(id_token, env);
+      if (tokenInfo.email !== user_email) {
+        console.error('Security Alert: Email mismatch between ID token and request body. Token email:', tokenInfo.email, 'Request email:', user_email);
+        return new Response(JSON.stringify({ error: 'Security alert: Token-email mismatch.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+      }
+    } catch (error) {
+      console.error('Authentication error in handleQueryProxy:', error.message);
+      return new Response(JSON.stringify({ error: `Authentication failed: ${error.message}` }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    const now = Date.now();
+    const userKvKey = `user:${user_email}`;
+    let userData = await env.YOUTOPIA_DATA.get(userKvKey, { type: 'json' });
+
+    if (!userData) {
+      userData = { queries: [], cooldown_end_timestamp: null, whitelist_start_date: null };
+    }
+
+    const FREE_RATE_LIMIT = 8;
+    const FREE_RATE_LIMIT_WINDOW_MS = 6 * 60 * 60 * 1000;
+    const WHITELIST_RATE_LIMIT = 200;
+    const WHITELIST_RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+    const WHITELIST_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000;
+
+    let currentRateLimit = FREE_RATE_LIMIT;
+    let currentRateLimitWindowMs = FREE_RATE_LIMIT_WINDOW_MS;
+    let messageFromDeveloper = `If you appreciate this project and the answers it provides, please consider supporting it! This is a solo, self-funded research project by a student (me lol).
+  Your donations would help to keep running it for everyone (and fund my coffee for improving it). Contributions over $20 qualify you for the 20x Plus Plan, which includes:
+  ✅ 200 AI-powered queries per day
+  ✅ Valid for a month
+
+  To activate the 20x plan after donating, simply email at support@youtopia.co.in
+
+  Thank you for your support, it truly makes a difference for me to not implement spyware to collect user data and sell it to whoever’s buying on 4chan`;
+
+    const whitelistEmailsString = await env.YOUTOPIA_CONFIG.get('whitelist_emails');
+    const whitelistEmails = whitelistEmailsString ? JSON.parse(whitelistEmailsString) : [];
+
+    if (whitelistEmails.includes(user_email)) {
+      if (!userData.whitelist_start_date) {
+        userData.whitelist_start_date = now;
+      }
+
+      if (now - userData.whitelist_start_date < WHITELIST_VALIDITY_MS) {
+        currentRateLimit = WHITELIST_RATE_LIMIT;
+        currentRateLimitWindowMs = WHITELIST_RATE_LIMIT_WINDOW_MS;
+        messageFromDeveloper = "Thank you for supporting YouTopia! You've reached your daily query limit for the 20x Plus Plan. Your generosity keeps this project running. You can make more queries after the cooldown.";
+      } else {
+        userData.whitelist_start_date = null;
+      }
+    }
+
+    const relevantTimeAgo = now - currentRateLimitWindowMs;
+    userData.queries = userData.queries.filter(q => q.timestamp > relevantTimeAgo);
+    const queryCount = userData.queries.length;
+
+    if (userData.cooldown_end_timestamp && now < userData.cooldown_end_timestamp) {
+      return new Response(JSON.stringify({
+        error: 'Query limit exceeded.',
+        cooldown_end_timestamp: userData.cooldown_end_timestamp,
+        message_from_developer: messageFromDeveloper
+      }), { status: 429, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    if (queryCount >= currentRateLimit) {
+      if (!userData.cooldown_end_timestamp || now >= userData.cooldown_end_timestamp) {
+        const cooldownStart = userData.queries.length > 0 ? userData.queries[currentRateLimit - 1].timestamp : now;
+        userData.cooldown_end_timestamp = cooldownStart + currentRateLimitWindowMs;
+      }
+      await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
+      return new Response(JSON.stringify({
+        error: 'Query limit exceeded.',
+        cooldown_end_timestamp: userData.cooldown_end_timestamp,
+        message_from_developer: messageFromDeveloper
+      }), { status: 429, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    userData.queries.push({
+      timestamp: now,
+      query: query,
+      user_name: user_name,
+      user_email: user_email,
+      user_local_time: user_local_time,
+      api_target: api_target,
+    });
+
+    if (userData.cooldown_end_timestamp && now >= userData.cooldown_end_timestamp) {
+        userData.cooldown_end_timestamp = null;
+    }
+    
+    await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
+
+    switch (api_target) {
+      case 'serper':
+        return proxySerper(api_payload, env);
+      case 'mistral':
+        return proxyMistral(api_payload, env);
+      case 'coingecko':
+        return proxyCoingecko(api_payload, env);
+      default:
+        return new Response(JSON.stringify({ error: 'Invalid API target.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
   } catch (error) {
-    console.error('Authentication error in handleQueryProxy:', error.message);
-    return new Response(JSON.stringify({ error: `Authentication failed: ${error.message}` }), { status: 401, headers: { 'Content-Type': 'application/json' } });
-  }
-
-  const now = Date.now();
-  const userKvKey = `user:${user_email}`;
-  let userData = await env.YOUTOPIA_DATA.get(userKvKey, { type: 'json' });
-
-  if (!userData) {
-    userData = { queries: [], cooldown_end_timestamp: null, whitelist_start_date: null };
-  }
-
-  const FREE_RATE_LIMIT = 8;
-  const FREE_RATE_LIMIT_WINDOW_MS = 6 * 60 * 60 * 1000;
-  const WHITELIST_RATE_LIMIT = 200;
-  const WHITELIST_RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
-  const WHITELIST_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000;
-
-  let currentRateLimit = FREE_RATE_LIMIT;
-  let currentRateLimitWindowMs = FREE_RATE_LIMIT_WINDOW_MS;
-  let messageFromDeveloper = `If you appreciate this project and the answers it provides, please consider supporting it! This is a solo, self-funded research project by a student (me lol).
-Your donations would help to keep running it for everyone (and fund my coffee for improving it). Contributions over $20 qualify you for the 20x Plus Plan, which includes:
-✅ 200 AI-powered queries per day
-✅ Valid for a month
-
-To activate the 20x plan after donating, simply email at support@youtopia.co.in
-
-Thank you for your support, it truly makes a difference for me to not implement spyware to collect user data and sell it to whoever’s buying on 4chan`;
-
-  const whitelistEmailsString = await env.YOUTOPIA_CONFIG.get('whitelist_emails');
-  const whitelistEmails = whitelistEmailsString ? JSON.parse(whitelistEmailsString) : [];
-
-  if (whitelistEmails.includes(user_email)) {
-    if (!userData.whitelist_start_date) {
-      userData.whitelist_start_date = now;
-    }
-
-    if (now - userData.whitelist_start_date < WHITELIST_VALIDITY_MS) {
-      currentRateLimit = WHITELIST_RATE_LIMIT;
-      currentRateLimitWindowMs = WHITELIST_RATE_LIMIT_WINDOW_MS;
-      messageFromDeveloper = "Thank you for supporting YouTopia! You've reached your daily query limit for the 20x Plus Plan. Your generosity keeps this project running. You can make more queries after the cooldown.";
-    } else {
-      userData.whitelist_start_date = null;
-    }
-  }
-
-  const relevantTimeAgo = now - currentRateLimitWindowMs;
-  userData.queries = userData.queries.filter(q => q.timestamp > relevantTimeAgo);
-  const queryCount = userData.queries.length;
-
-  if (userData.cooldown_end_timestamp && now < userData.cooldown_end_timestamp) {
-    return new Response(JSON.stringify({
-      error: 'Query limit exceeded.',
-      cooldown_end_timestamp: userData.cooldown_end_timestamp,
-      message_from_developer: messageFromDeveloper
-    }), { status: 429, headers: { 'Content-Type': 'application/json' } });
-  }
-
-  if (queryCount >= currentRateLimit) {
-    if (!userData.cooldown_end_timestamp || now >= userData.cooldown_end_timestamp) {
-      const cooldownStart = userData.queries.length > 0 ? userData.queries[currentRateLimit - 1].timestamp : now;
-      userData.cooldown_end_timestamp = cooldownStart + currentRateLimitWindowMs;
-    }
-    await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
-    return new Response(JSON.stringify({
-      error: 'Query limit exceeded.',
-      cooldown_end_timestamp: userData.cooldown_end_timestamp,
-      message_from_developer: messageFromDeveloper
-    }), { status: 429, headers: { 'Content-Type': 'application/json' } });
-  }
-
-  userData.queries.push({
-    timestamp: now,
-    query: query,
-    user_name: user_name,
-    user_email: user_email,
-    user_local_time: user_local_time,
-    api_target: api_target,
-  });
-
-  if (userData.cooldown_end_timestamp && now >= userData.cooldown_end_timestamp) {
-      userData.cooldown_end_timestamp = null;
-  }
-  
-  await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
-
-  switch (api_target) {
-    case 'serper':
-      return proxySerper(api_payload, env);
-    case 'mistral':
-      return proxyMistral(api_payload, env);
-    case 'coingecko':
-      return proxyCoingecko(api_payload, env);
-    default:
-      return new Response(JSON.stringify({ error: 'Invalid API target.' }), { status: 400 });
+    console.error('Error in handleQueryProxy:', error.stack);
+    return new Response(JSON.stringify({ error: `Error processing proxy request: ${error.message}` }), {
+      status: 400, // Bad Request for parsing errors
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
   }
 }
