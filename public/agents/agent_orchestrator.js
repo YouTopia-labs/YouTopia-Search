@@ -47,7 +47,8 @@ async function fetchWithProxy(api_target, api_payload) {
     throw new Error('Authentication token not found. Please sign in.');
   }
 
-  const response = await fetch(`/api/query-proxy`, {
+  const WORKER_BASE_URL = 'https://youtopia-worker.youtopialabs.workers.dev/';
+  const response = await fetch(`${WORKER_BASE_URL}api/query-proxy`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

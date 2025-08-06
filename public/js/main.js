@@ -2,7 +2,7 @@ import { orchestrateAgents } from '../agents/agent_orchestrator.js';
 import { renderTable, renderChart, parseChartConfig } from './render_tools.js';
 import { updateChartsTheme } from './chart_utils.js';
 
-const WORKER_BASE_URL = 'https://youtopia-worker.youtopialabs.workers.dev';
+const WORKER_BASE_URL = 'https://youtopia-worker.youtopialabs.workers.dev/';
 
 document.addEventListener('DOMContentLoaded', () => {
     // Function to set the CSS variable for viewport height
