@@ -205,20 +205,7 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
 
     // For Agent 1, validate JSON format before returning
     // If Agent 3 and streaming, skip JSON validation here as partials won't be valid
-    if (prompt.includes('Agent 1:') && retryCount < maxRetries && !(streamCallback && prompt.includes('Agent 3:'))) {
-      try {
-        // Quick JSON validation
-        const trimmed = content.trim();
-        if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
-          throw new Error('Response does not start with { or end with }');
-        }
-        JSON.parse(trimmed);
-      } catch (jsonError) {
-        console.warn(`[Warning] Agent 1 returned invalid JSON on attempt ${retryCount + 1}. Retrying...`);
-        console.warn("Invalid response:", content);
-        return callAgent(model, prompt, input, retryCount + 1, streamCallback); // Pass streamCallback on retry
-      }
-    }
+    // Validation and retry logic has been moved to orchestrateAgents
     
     // If Agent 3 and streaming, the final response is sent via callback, so return null here.
     if (streamCallback && prompt.includes('Agent 3:')) {
@@ -318,22 +305,6 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
     };
 
     console.log("Agent 1: Deciding next action...");
-    const agent1ResponseRaw = await callAgent(agent1Model, agent1SystemPrompt, agent1Input, 0, null, userQuery, userName, userLocalTime);
-    
-    // Handle non-ok responses, like 429 rate limits, before attempting to parse
-    if (agent1ResponseRaw instanceof Response && !agent1ResponseRaw.ok) {
-        if (agent1ResponseRaw.status === 429) {
-            const errorData = await agent1ResponseRaw.json();
-            console.error("Query limit exceeded:", errorData.error);
-            // Return a user-friendly message, including the message from the developer if available
-            return `Error: ${errorData.error} ${errorData.message_from_developer || ''}`;
-        }
-        // Handle other potential non-ok responses
-        const errorText = await agent1ResponseRaw.text();
-        return `Error: Agent 1 failed with status ${agent1ResponseRaw.status}. ${errorText}`;
-    }
-    
-    let parsedAgent1Response;
 
     const robustJsonParse = (rawResponse) => {
         let cleaned = rawResponse
@@ -341,18 +312,15 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
             .replace(/```/g, '')
             .trim();
 
-        // Attempt to find the start of the JSON object
         const jsonStart = cleaned.indexOf('{');
         if (jsonStart === -1) {
             throw new Error("No JSON object found in response");
         }
         cleaned = cleaned.substring(jsonStart);
 
-        // Attempt to parse directly first
         try {
             return JSON.parse(cleaned);
         } catch (e) {
-            // As a last resort, try to extract content between first { and last }
             const firstBrace = cleaned.indexOf('{');
             const lastBrace = cleaned.lastIndexOf('}');
             if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
@@ -374,11 +342,38 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
         }
     };
 
+    let parsedAgent1Response;
+    const maxRetries = 2;
+
+    for (let i = 0; i <= maxRetries; i++) {
+        const agent1ResponseRaw = await callAgent(agent1Model, agent1SystemPrompt, agent1Input, i, null, userQuery, userName, userLocalTime);
+
+        if (agent1ResponseRaw instanceof Response && !agent1ResponseRaw.ok) {
+            if (agent1ResponseRaw.status === 429) {
+                const errorData = await agent1ResponseRaw.json();
+                console.error("Query limit exceeded:", errorData.error);
+                return `Error: ${errorData.error} ${errorData.message_from_developer || ''}`;
+            }
+            const errorText = await agent1ResponseRaw.text();
+            return `Error: Agent 1 failed with status ${agent1ResponseRaw.status}. ${errorText}`;
+        }
+
+        try {
+            parsedAgent1Response = robustJsonParse(agent1ResponseRaw);
+            console.log("✓ Agent 1 JSON parsed successfully on attempt " + (i + 1));
+            break; // Success, exit loop
+        } catch (error) {
+            console.warn(`[Warning] Agent 1 returned invalid JSON on attempt ${i + 1}.`);
+            console.warn("Invalid response:", agent1ResponseRaw);
+            if (i === maxRetries) {
+                console.error("[Error] Agent 1 response parsing failed after max retries:", error.message);
+                console.error("Final raw response:", agent1ResponseRaw);
+                return `Error: Agent 1 returned an invalid JSON response. Error: ${error.message}`;
+            }
+        }
+    }
+
     try {
-      parsedAgent1Response = robustJsonParse(agent1ResponseRaw);
-      console.log("✓ Agent 1 JSON parsed successfully");
-      
-      // Validate the parsed response structure
       const validationErrors = validateAgent1Response(parsedAgent1Response);
       if (validationErrors.length > 0) {
         console.error("[Error] Agent 1 response validation failed:");
@@ -386,13 +381,10 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
         console.error("Response:", JSON.stringify(parsedAgent1Response, null, 2));
         return `Error: Agent 1 response validation failed: ${validationErrors.join('; ')}`;
       }
-      
       console.log("✓ Agent 1 response validation passed");
-      
     } catch (error) {
-      console.error("[Error] Agent 1 response parsing failed:", error.message);
-      console.error("Raw response:", agent1ResponseRaw);
-      return `Error: Agent 1 returned an invalid JSON response. The response must start with { and end with }. Error: ${error.message}`;
+        console.error("[Error] Agent 1 response validation failed unexpectedly:", error.message);
+        return `Error: Agent 1 response validation failed: ${error.message}`;
     }
 
     console.log("Agent 1 Parsed Response:", parsedAgent1Response);
