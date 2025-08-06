@@ -165,33 +165,38 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
         
         // Each chunk might contain multiple JSON objects or partial objects
         const lines = chunk.split('\n');
+        let buffer = ''; // Buffer to accumulate partial JSON
         for (const line of lines) {
-          if (line.startsWith('data:')) {
-            const jsonStr = line.substring(5).trim();
-            if (jsonStr === '[DONE]') {
-              break; // End of stream
-            }
-            if (!jsonStr.trim()) { // Check for empty or whitespace-only string
-              console.warn('Skipping empty or whitespace-only data: line in stream.');
-              continue; // Skip to the next line
-            }
-            try {
-              const data = JSON.parse(jsonStr);
-              if (data.choices && data.choices.length > 0) {
-                const delta = data.choices[0].delta;
-                if (delta && delta.content) {
-                  content += delta.content;
-                  // If Agent 3 and streamCallback is provided, send the content immediately
-                  if (streamCallback && prompt.includes('Agent 3:')) {
-                    streamCallback(delta.content);
-                  }
+            if (line.startsWith('data:')) {
+                const jsonStr = line.substring(5).trim();
+                if (jsonStr === '[DONE]') {
+                    break; // End of stream
                 }
-              }
-            } catch (e) {
-              console.error("Error parsing stream chunk:", e, "Chunk:", jsonStr);
-              // Continue processing other chunks even if one fails
+                if (!jsonStr.trim()) { // Check for empty or whitespace-only string
+                    console.warn('Skipping empty or whitespace-only data: line in stream.');
+                    continue; // Skip to the next line
+                }
+
+                buffer += jsonStr; // Add to buffer
+
+                try {
+                    const data = JSON.parse(buffer); // Try parsing the accumulated buffer
+                    if (data.choices && data.choices.length > 0) {
+                        const delta = data.choices[0].delta;
+                        if (delta && delta.content) {
+                            content += delta.content;
+                            // If Agent 3 and streamCallback is provided, send the content immediately
+                            if (streamCallback && prompt.includes('Agent 3:')) {
+                                streamCallback(delta.content);
+                            }
+                        }
+                    }
+                    buffer = ''; // Clear buffer on successful parse
+                } catch (e) {
+                    // JSON parse error: could be incomplete JSON, continue buffering
+                    // console.warn("Incomplete JSON chunk, buffering:", buffer, "Error:", e);
+                }
             }
-          }
         }
       }
     } catch (streamError) {
