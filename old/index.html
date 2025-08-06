@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTopia - Intelligently Human</title>
+    <link rel="icon" href="search.ico" type="image/x-icon">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    </head>
+    <body>
+    <div class="app-wrapper fade-in">
+        <div class="app-container">
+
+
+            <div class="background-glow"></div>
+            <header class="app-header">
+                <div class="logo">
+                    <div class="logo-text">
+                        <a href="/" style="text-decoration: none; color: inherit;">YouTopia</a>
+                        <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px;">Intelligently Human</span>
+                        <span class="pre-release-tag">[PRE-RELEASE]</span>
+                    </div>
+                </div>
+                <nav class="nav-controls">
+                     <div class="dropdown-container" id="donate-dropdown">
+                        <button class="btn donate-btn dropdown-toggle">
+                            <i class="fas fa-dollar-sign"></i> Donate <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <div class="dropdown-menu right">
+                            <div class="dropdown-item" onclick="window.open('https://coff.ee/ayushhroyy', '_blank');">
+                                <span class="model-name">☕ Buy me a coffee</span>
+                                <span class="model-description">Support via Buy Me a Coffee</span>
+                            </div>
+                            <div class="dropdown-item" onclick="window.open('https://onlychai.neocities.org/support.html?name=Ayush%20Roy&upi=ayushhroyy@okicici#', '_blank');">
+                                <span class="model-name">🫖 Buy me a chai (UPI)</span>
+                                <span class="model-description">Support via UPI payment</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="theme-toggle" class="icon-btn" title="Toggle theme">
+                        <i class="fas fa-sun sun-icon"></i>
+                        <i class="fas fa-moon moon-icon"></i>
+                    </button>
+                </nav>
+            </header>
+            <main class="main-content">
+                <div class="initial-view-content">
+                    <div class="site-title-container">
+                        <img src="svg/search.svg" alt="Search logo" class="search-logo">
+                        <h1 class="site-title">YouTopia Search</h1>
+                    </div>
+                    <p class="site-description">An intelligent search engine that understands your queries and provides readable, visual oriented & clutter free answers.</p>
+                     <div class="search-wrapper">
+                        <div class="search-box">
+                            <div class="search-input-container">
+                                <!-- Rewritten HTML structure for robust alignment -->
+                                <div class="textarea-wrapper">
+                                    <div class="placeholder-content">
+                                        <img src="svg/cat.svg" alt="cat icon" class="placeholder-cat-icon">
+                                        <img src="svg/arrow.svg" alt="arrow icon" class="placeholder-arrow-icon blinking-arrow">
+                                        <span class="placeholder-text-span">type your query</span>
+                                    </div>
+                                    <textarea id="query-input" placeholder="" maxlength="2500"></textarea>
+                                </div>
+                            </div>
+                            <div class="search-controls">
+                                <div class="search-controls-left">
+                                    <div class="dropdown-container" id="model-dropdown">
+                                        <button class="btn dropdown-toggle"><i class="fas fa-snowflake"></i> <span id="selected-model">Amaya</span> <i class="fas fa-chevron-down"></i></button>
+                                        <div class="dropdown-menu">
+                                            <div class="dropdown-item" data-value="Amaya" data-url="/?model=amaya">
+                                                <i class="fas fa-snowflake"></i>
+                                                <div>
+                                                    <span class="model-name">Amaya</span>
+                                                    <span class="model-description">YouTopia's frontier model for detailed responses</span>
+                                                </div>
+                                            </div>
+                                            <div class="dropdown-item" data-value="Amaya Lite" data-url="/?model=amaya-lite">
+                                                <i class="fas fa-snowflake"></i>
+                                                <div>
+                                                    <span class="model-name">Amaya Lite</span>
+                                                    <span class="model-description">YouTopia's flash model for quick responses</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button class="icon-btn" title="Attach file"><i class="fas fa-paperclip"></i></button>
+                                </div>
+                                <div class="search-controls-right">
+                                    <button class="short-response-toggle" id="short-response-toggle" title="Toggle short response">
+                                        <span class="toggle-text">short responses</span>
+                                    </button>
+                                    <button class="send-btn" id="send-btn" title="Send message"><i class="fas fa-arrow-right"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="example-prompts">
+                        <div class="example-prompts-grid">
+                            <div class="example-prompt-btn" data-query="Compare the population growth of the USA and Korea.">
+                                <i class="fas fa-chart-bar"></i>
+                                <span>Visualise Data</span>
+                            </div>
+                            <div class="example-prompt-btn" data-query="What's the latest news about the ISS?">
+                                <i class="fas fa-newspaper"></i>
+                                <span>Check latest news</span>
+                            </div>
+                            <div class="example-prompt-btn" data-query='Research "meditation" and its benefits.'>
+                                <i class="fas fa-search"></i>
+                                <span>Research a topic</span>
+                            </div>
+                            <div class="example-prompt-btn" data-query='Explain "moksha"'>
+                                <i class="fas fa-book-open"></i>
+                                <span>Explain a concept</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="main-results-area">
+                    <div id="query-heading">
+                        <div id="query-text-content"></div>
+                        <div class="query-buttons">
+                            <button id="show-more-btn" class="query-btn">Show More</button>
+                            <button id="show-less-btn" class="query-btn">Show Less</button>
+                        </div>
+                    </div>
+                    <div class="tabs">
+                        <button class="tab-link active" onclick="openTab(event, 'answer-tab')">Answer</button>
+                        <button class="tab-link" onclick="openTab(event, 'sources-tab')">Sources</button>
+                    </div>
+                    <div id="answer-tab" class="tab-content" style="display: block;">
+                        <div id="results-container"></div>
+                    </div>
+                    <div id="sources-tab" class="tab-content">
+                        <div id="sources-container"></div>
+                    </div>
+                </div>
+
+                <div class="search-wrapper" id="bottom-search-wrapper">
+                    <div class="search-box compact-search-box">
+                        <div class="search-input-container">
+                            <div class="textarea-wrapper">
+                                <div class="placeholder-content">
+                                    <img src="svg/cat.svg" alt="cat icon" class="placeholder-cat-icon">
+                                    <img src="svg/arrow.svg" alt="arrow icon" class="placeholder-arrow-icon blinking-arrow">
+                                    <span class="placeholder-text-span">type your query</span>
+                                </div>
+                                <textarea id="query-input-bottom" placeholder="" maxlength="2500"></textarea>
+                            </div>
+                            <button class="send-btn" id="send-btn-bottom" title="Send message"><i class="fas fa-arrow-right"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+        </div>
+        
+        <!-- Social Media Footer - Only visible on homepage -->
+        <footer class="social-footer">
+            <div class="social-links">
+                <a href="mailto:support@youtopia.co.in" class="social-link" title="Email Support">
+                    <i class="fas fa-envelope"></i>
+                </a>
+                <a href="https://instagram.com/youtopialabs" target="_blank" class="social-link" title="Instagram">
+                    <i class="fab fa-instagram"></i>
+                </a>
+                <a href="https://x.com/YouTopia_Labs" target="_blank" class="social-link" title="Twitter">
+                    <i class="fab fa-twitter"></i>
+                </a>
+                <a href="https://youtopia-portal.pages.dev" target="_blank" class="social-link" title="YouTopia Portal">
+                    <i class="fas fa-globe"></i>
+                </a>
+            </div>
+
+        </footer>
+
+
+
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <link href="https://unpkg.com/gridjs/dist/theme/mermaid.min.css" rel="stylesheet" />
+    <script src="https://unpkg.com/gridjs/dist/gridjs.umd.js"></script>
+    <script src="js/main.js" type="module"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const dropdowns = document.querySelectorAll('.dropdown-container');
+
+            const closeAllDropdowns = (except) => {
+                dropdowns.forEach(dropdown => {
+                    if (dropdown !== except) {
+                        dropdown.querySelector('.dropdown-menu').classList.remove('show');
+                    }
+                });
+            };
+
+            dropdowns.forEach(dropdown => {
+                const toggle = dropdown.querySelector('.dropdown-toggle');
+                const menu = dropdown.querySelector('.dropdown-menu');
+
+                toggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isVisible = menu.classList.contains('show');
+                    closeAllDropdowns(dropdown);
+                    if (!isVisible) {
+                        menu.classList.add('show');
+                    }
+                });
+
+                menu.addEventListener('click', (e) => {
+                    const item = e.target.closest('.dropdown-item');
+                    if (item && dropdown.id && dropdown.id.startsWith('model-dropdown')) {
+                        const value = item.getAttribute('data-value');
+                        const url = item.getAttribute('data-url');
+
+                        document.getElementById('selected-model').textContent = value;
+
+                        if (url) {
+                            history.pushState({}, '', url);
+                        }
+                    }
+                });
+            });
+
+            window.addEventListener('click', () => {
+                closeAllDropdowns();
+            });
+
+            const setInitialModel = () => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const model = urlParams.get('model');
+                if (model === 'amaya-lite') {
+                    document.getElementById('selected-model').textContent = 'Amaya Lite';
+                } else {
+                    document.getElementById('selected-model').textContent = 'Amaya';
+                }
+            };
+
+            setInitialModel();
+            window.addEventListener('popstate', setInitialModel);
+        });
+
+        // Function to open specific tab
+        window.openTab = (evt, tabName) => {
+            // Declare all variables
+            let i, tabcontent, tablinks;
+
+            // Get all elements with class="tab-content" and hide them
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+
+            // Get all elements with class="tab-link" and remove the class "active"
+            tablinks = document.getElementsByClassName("tab-link");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
+            }
+
+            // Show the current tab, and add an "active" class to the button that opened the tab
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.classList.add("active");
+        };
+    </script>
+</body>
+</html>
