@@ -39,7 +39,8 @@ async function handleRequest(request, env) {
   return new Response('Not Found', { status: 404 });
 }
 
-export async function proxySerper(api_payload, env) {
+// Internal proxy functions, no longer exposed directly
+async function proxySerper(api_payload, env) {
   const serperApiUrl = api_payload.type === 'search' ? 'https://serper.dev/search' : 'https://serper.dev/news';
 
   const serperResponse = await fetch(serperApiUrl, {
@@ -61,7 +62,67 @@ export async function proxySerper(api_payload, env) {
   });
 }
 
-export async function proxyCoingecko(api_payload, env) {
+async function proxyMistral(api_payload, env) {
+  const mistralApiKey = env.MISTRAL_API_KEY;
+  if (!mistralApiKey) {
+    return new Response(JSON.stringify({ error: 'MISTRAL_API_KEY not set in environment variables' }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+  }
+
+  try {
+    const mistralApiUrl = 'https://api.mistral.ai/v1/chat/completions';
+    
+    const mistralResponse = await fetch(mistralApiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${mistralApiKey}`,
+      },
+      body: JSON.stringify(api_payload.body),
+    });
+
+    if (!mistralResponse.ok) {
+      const errorText = await mistralResponse.text();
+      console.error('Mistral API error response:', errorText);
+      
+      return new Response(errorText || JSON.stringify({ error: `Mistral API error: ${mistralResponse.status}` }), {
+        status: mistralResponse.status,
+        headers: {
+          'Content-Type': mistralResponse.headers.get('Content-Type') || 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
+    }
+
+    return new Response(mistralResponse.body, {
+      status: mistralResponse.status,
+      statusText: mistralResponse.statusText,
+      headers: {
+        'Content-Type': mistralResponse.headers.get('Content-Type') || 'text/plain',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in Mistral API proxy:', error);
+    return new Response(JSON.stringify({ error: `Proxy error: ${error.message}` }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+  }
+}
+
+async function proxyCoingecko(api_payload, env) {
   const coingeckoApiKey = env.COINGECKO_API_KEY;
   if (!coingeckoApiKey) {
     return new Response('COINGECKO_API_KEY not set in environment variables', { status: 500 });
@@ -81,99 +142,6 @@ export async function proxyCoingecko(api_payload, env) {
   response.headers.set('Access-Control-Allow-Origin', '*');
   return response;
 }
-
-// New function to directly call Mistral API from worker
-export async function callMistralApiWorker(model, messages, env, retryCount = 0) {
-  const mistralApiKey = env.MISTRAL_API_KEY;
-  if (!mistralApiKey) {
-    throw new Error('MISTRAL_API_KEY not set in environment variables');
-  }
-
-  try {
-    const mistralApiUrl = 'https://api.mistral.ai/v1/chat/completions';
-    
-    const mistralResponse = await fetch(mistralApiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${mistralApiKey}`,
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: messages,
-        temperature: retryCount > 0 ? 0.3 : 0.7,
-        max_tokens: 6000,
-        stream: true
-      }),
-    });
-
-    if (!mistralResponse.ok) {
-      const errorText = await mistralResponse.text();
-      console.error('Mistral API error response:', errorText);
-      throw new Error(`Mistral API error: ${mistralResponse.status} - ${errorText || mistralResponse.statusText}`);
-    }
-
-    return mistralResponse;
-
-  } catch (error) {
-    console.error('Error in Mistral API call (worker):', error);
-    throw new Error(`Mistral API call error: ${error.message}`);
-  }
-}
-
-// Refactored proxyMistral to use orchestrateAgents
-import { orchestrateAgents } from './agents/agent_orchestrator.js'; // Will be created later
-
-async function proxyMistral(userQuery, api_payload, env, user_name, user_email, user_local_time, agent_selection_type) {
-  // api_payload is not directly used here as orchestrateAgents takes userQuery
-  // and handles its own internal calls to Mistral (via callMistralApiWorker)
-
-  console.log(`proxyMistral called for orchestration with query: "${userQuery}" and selection: "${agent_selection_type}"`);
-  
-  // Create a TransformStream to handle streaming response back to the client
-  const { readable, writable } = new TransformStream();
-  const writer = writable.getWriter();
-  const encoder = new TextEncoder();
-
-  // Define a stream callback for orchestrateAgents to write to this stream
-  const streamCallback = (chunk) => {
-    writer.write(encoder.encode(`data:${JSON.stringify({ content: chunk })}\n\n`));
-  };
-
-  // Define a log callback for orchestrateAgents to send log messages
-  const logCallback = (message) => {
-    writer.write(encoder.encode(`data:${JSON.stringify({ log: message })}\n\n`));
-  };
-
-  // Run orchestration in the background
-  (async () => {
-    try {
-      const finalResponse = await orchestrateAgents(userQuery, agent_selection_type, streamCallback, logCallback, env); // Pass env
-      // If orchestration doesn't stream, or needs a final send
-      if (finalResponse) {
-        writer.write(encoder.encode(`data:${JSON.stringify({ content: finalResponse })}\n\n`));
-      }
-      writer.write(encoder.encode('data:[DONE]\n\n'));
-      writer.close();
-    } catch (error) {
-      console.error('Orchestration error:', error);
-      writer.write(encoder.encode(`data:${JSON.stringify({ error: error.message })}\n\n`));
-      writer.write(encoder.encode('data:[DONE]\n\n'));
-      writer.close();
-    }
-  })();
-
-  // Return a streaming response
-  return new Response(readable, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
-    },
-  });
-}
-
 
 // --- Robust JWT Verification ---
 
@@ -359,7 +327,7 @@ async function handleQueryProxy(request, env) {
     return new Response('Expected POST for query proxy', { status: 405 });
   }
 
-  const { query, user_name, user_email, user_local_time, api_target, api_payload, id_token, agent_selection_type } = await request.json();
+  const { query, user_name, user_email, user_local_time, api_target, api_payload, id_token } = await request.json();
 
   try {
     const tokenInfo = await verifyGoogleToken(id_token, env);
@@ -491,7 +459,7 @@ Thank you for your support, it truly makes a difference for me to not implement 
     case 'serper':
       return proxySerper(api_payload, env);
     case 'mistral':
-      return proxyMistral(query, api_payload, env, user_name, user_email, user_local_time, agent_selection_type);
+      return proxyMistral(api_payload, env);
     case 'coingecko':
       return proxyCoingecko(api_payload, env);
     default:
