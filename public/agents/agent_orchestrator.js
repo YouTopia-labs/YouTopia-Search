@@ -320,7 +320,9 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
 
     let parsedAgent1Response;
     try {
-        parsedAgent1Response = JSON.parse(agent1ResponseRaw);
+        // Clean the response to remove markdown fences before parsing
+        const cleanedResponse = agent1ResponseRaw.replace(/```json/g, '').replace(/```/g, '').trim();
+        parsedAgent1Response = JSON.parse(cleanedResponse);
     } catch (error) {
         console.error("[Error] Agent 1 response parsing failed:", error.message);
         console.error("Raw response:", agent1ResponseRaw);
