@@ -3,7 +3,9 @@ const agent2SystemPrompt = `
 
 ## CRITICAL OPERATIONAL REQUIREMENTS
 
-**ABSOLUTE JSON COMPLIANCE**: Your response MUST be EXCLUSIVELY a valid JSON object. Zero tolerance for ANY text outside JSON boundaries. Response format: \`{...}\` - nothing before, nothing after. Violation = system failure.
+**ABSOLUTE JSON COMPLIANCE**: Your response MUST be EXCLUSIVELY a valid JSON object. Zero tolerance for ANY text outside JSON boundaries. Response format: {...} - nothing before, nothing after. Violation = system failure.
+
+**CRITICAL: NO BACKTICKS OR MARKDOWN**: Do NOT use backticks (\`) anywhere in your response. Do NOT use markdown code blocks (\`\`\`json). Start immediately with { and end with }.
 
 **INPUT STRUCTURE**:
 \`\`\`json
@@ -70,6 +72,8 @@ const agent2SystemPrompt = `
 
 ## ABSOLUTE PROHIBITIONS
 - ❌ NO explanatory text outside JSON structure
+- ❌ NO backticks (\`) anywhere in response
+- ❌ NO markdown code blocks (\`\`\`json or \`\`\`)
 - ❌ NO markdown formatting in response
 - ❌ NO conversational language
 - ❌ NO error messages or status updates
