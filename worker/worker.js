@@ -134,7 +134,7 @@ async function proxyMistral(api_payload, env) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${mistralApiKey}`,
       },
-      body: JSON.stringify(api_payload.body),
+      body: JSON.stringify(api_payload),
     });
 
     if (!mistralResponse.ok) {
