@@ -1181,15 +1181,17 @@ Generated on: ${currentDate}
                 // Before parsing, extract sources if they are present
                 const sourcesRegex = /## Sources\n([\s\S]*)/;
                 const match = aiResponseContent.match(sourcesRegex);
-                let contentToRender = aiResponseContent;
+                let contentToDisplay = aiResponseContent; // Content to display in the main AI response div
                 let sourcesMarkdown = '';
+                let parsedSources = [];
 
                 if (match) {
                     sourcesMarkdown = match[1];
-                    contentToRender = aiResponseContent.replace(sourcesRegex, '').trim();
+                    // Remove sources from the main content for display
+                    contentToDisplay = aiResponseContent.replace(sourcesRegex, '').trim();
 
                     // Preprocess sourcesMarkdown to convert plain URLs into markdown links
-                    const parsedSources = sourcesMarkdown.split('\n').map(line => {
+                    parsedSources = sourcesMarkdown.split('\n').map(line => {
                         const sourceRegex = /^(\d+)\.\s*\[([^\]]+)\]\((https?:\/\/[^\)]+)\)(?:\s*-\s*(.*))?$/;
                         const match = line.match(sourceRegex);
                         if (match) {
@@ -1203,7 +1205,7 @@ Generated on: ${currentDate}
                         const urlMatch = line.match(/^(\d+\.\s*)(https?:\/\/\S+)$/);
                         if (urlMatch) {
                             const number = urlMatch[1].replace('.', '');
-                            const url = urlUrl[2];
+                            const url = urlMatch[2]; // Corrected from urlUrl[2]
                             let title = url; // Default title is the URL
                             try {
                                 const urlObj = new URL(url);
@@ -1217,7 +1219,7 @@ Generated on: ${currentDate}
                     renderSourceCards(parsedSources, sourcesContainer);
                 }
 
-                aiResponseElement.innerHTML = marked.parse(contentToRender);
+                aiResponseElement.innerHTML = marked.parse(contentToDisplay);
                 renderCodeHighlighting(aiResponseElement); // Re-render highlights
                 // Only auto-scroll if the user is near the bottom
                 const isScrolledToBottom = resultsContainer.scrollHeight - resultsContainer.clientHeight <= resultsContainer.scrollTop + 1; // +1 for a small buffer
