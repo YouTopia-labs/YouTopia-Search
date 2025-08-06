@@ -236,35 +236,37 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
 // Sanitize and parse JSON, attempting to fix common errors.
 function sanitizeAndParseJson(jsonString) {
     console.log("Attempting to sanitize and parse JSON...");
-    let sanitizedString = jsonString
+    
+    // 1. Strip markdown fences first. This is the most common failure.
+    let sanitizedString = jsonString.replace(/```json/g, '').replace(/```/g, '');
+
+    // 2. Extract the first valid-looking JSON object.
+    const match = sanitizedString.match(/\{[\s\S]*\}/);
+    if (!match) {
+        throw new Error("No valid JSON object found in the response.");
+    }
+    sanitizedString = match[0];
+
+    // 3. Basic syntax corrections
+    sanitizedString = sanitizedString
         .trim()
         .replace(/[\x00-\x1F\x7F-\x9F]/g, "") // Remove control characters
-        .replace(/\\n/g, "\\n") // Escape newlines
-        .replace(/\\"/g, '"'); // Un-escape double quotes that were escaped
+        .replace(/\\n/g, "\\n")
+        .replace(/\\"/g, '"');
 
-    // Add missing colons after keys
+    // 4. Attempt to fix common structural errors
+    // Add missing colons (e.g., "key" "value" -> "key": "value")
     sanitizedString = sanitizedString.replace(/([{,]\s*)("([^"]+)")\s*("([^"]+)")/g, '$1$2:$4');
-
-    // Add missing quotes around keys and values that need them
+    // Add missing quotes around keys
     sanitizedString = sanitizedString.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
-    
-    // Attempt to fix trailing commas
+    // Remove trailing commas
     sanitizedString = sanitizedString.replace(/,\s*([}\]])/g, '$1');
 
     try {
         return JSON.parse(sanitizedString);
     } catch (error) {
-        console.error("Sanitization failed. Could not parse JSON.", error);
-        // As a last resort, try to extract a JSON object from the string
-        const match = sanitizedString.match(/\{[\s\S]*\}/);
-        if (match) {
-            try {
-                return JSON.parse(match[0]);
-            } catch (e) {
-                throw new Error(`Failed to parse JSON even after sanitization and extraction: ${e.message}`);
-            }
-        }
-        throw new Error(`Failed to parse JSON after all attempts: ${error.message}`);
+        console.error("Final parsing attempt failed after sanitization.", error);
+        throw new Error(`Failed to parse JSON after all sanitization attempts: ${error.message}`);
     }
 }
 
