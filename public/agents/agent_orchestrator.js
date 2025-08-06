@@ -68,7 +68,12 @@ async function fetchWithProxy(api_target, api_payload, query, userName, userLoca
     if (response.status === 429) {
       return response; // Pass the 429 response back to the caller
     }
-    const errorData = await response.json();
+    let errorData;
+    try {
+        errorData = await response.json();
+    } catch (e) {
+        errorData = { error: await response.text() };
+    }
     throw new Error(errorData.error || `API proxy error: ${response.status}`);
   }
 
