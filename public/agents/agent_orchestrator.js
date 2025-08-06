@@ -93,12 +93,6 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
     { role: 'system', content: prompt }
   ];
 
-  if (retryCount > 0) {
-    messages.push({
-      role: 'system',
-      content: `CRITICAL: Your previous response was not valid JSON. You MUST respond with ONLY a JSON object starting with { and ending with }. NO explanatory text before or after the JSON. NO markdown. NO conversational language.`
-    });
-  }
 
   if (input) {
     const userInputContent = typeof input === 'string' ? input : JSON.stringify(input);
@@ -340,61 +334,29 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
         }
         cleaned = cleaned.substring(jsonStart);
 
-        // Targeted fix for the empty action key, or action appearing as part of a key
-        cleaned = cleaned.replace(/("[^"]*")\s*:\s*("")\s*:\s*("search")/g, '"action":$3');
-        cleaned = cleaned.replace(/""\s*:\s*"search"/, '"action": "search"'); // Keep this for simpler cases
-
-        // New: Aggressively quote unquoted string values after a colon, if they are not already quoted
-        // This targets values that are simple words or numbers, not objects/arrays.
-        cleaned = cleaned.replace(/:(\s*)([a-zA-Z0-9_]+)([,}\]])/g, ':"$2"$3');
-        // New: Quote unquoted string values that are followed by a quote (e.g., key "value" or value"key")
-        cleaned = cleaned.replace(/([a-zA-Z0-9_]+)"/g, '"$1"');
-
-        // New: Fix instances where a quoted key is directly followed by an unquoted value and then a colon (e.g., "key"value: -> "key":"value":)
-        cleaned = cleaned.replace(/("[^"]+")([a-zA-Z0-9_]+):/g, '$1:"$2":');
-
-        // New: General fix for missing colons between quoted strings (e.g., "key" "value")
-        cleaned = cleaned.replace(/("[^"]+")\s*("[^"]*")/g, '$1:$2');
-
-        // Attempt to fix common JSON issues
+        // Attempt to parse directly first
         try {
             return JSON.parse(cleaned);
         } catch (e) {
-            // Remove trailing commas
-            let repaired = cleaned.replace(/,\s*([}\]])/g, '$1');
-            try {
-                return JSON.parse(repaired);
-            } catch (e2) {
-                // Try to fix unquoted keys (simple case)
-                repaired = repaired.replace(/(\w+)\s*:/g, '"$1":');
+            // As a last resort, try to extract content between first { and last }
+            const firstBrace = cleaned.indexOf('{');
+            const lastBrace = cleaned.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                const extracted = cleaned.substring(firstBrace, lastBrace + 1);
                 try {
-                    return JSON.parse(repaired);
-                } catch (e3) {
-                    // Try to extract content between first { and last }
-                    const firstBrace = repaired.indexOf('{');
-                    const lastBrace = repaired.lastIndexOf('}');
-                    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-                        const extracted = repaired.substring(firstBrace, lastBrace + 1);
-                        try {
-                            return JSON.parse(extracted);
-                        } catch (e4) {
-                            console.error("[Error] All JSON parsing strategies failed.");
-                            console.error("Raw response:", rawResponse);
-                            console.error("Cleaned response:", cleaned);
-                            console.error("Repaired response (step 1):", cleaned.replace(/,\s*([}\]])/g, '$1'));
-                            console.error("Repaired response (step 2):", cleaned.replace(/(\w+)\s*:/g, '"$1":'));
-                            console.error("Extracted JSON:", extracted);
-                            throw new Error(`JSON parsing failed: ${e4.message}`);
-                        }
-                    }
+                    return JSON.parse(extracted);
+                } catch (e4) {
                     console.error("[Error] All JSON parsing strategies failed.");
                     console.error("Raw response:", rawResponse);
                     console.error("Cleaned response:", cleaned);
-                    console.error("Repaired response (step 1):", cleaned.replace(/,\s*([}\]])/g, '$1'));
-                    console.error("Repaired response (step 2):", cleaned.replace(/(\w+)\s*:/g, '"$1":'));
-                    throw new Error(`JSON parsing failed: ${e3.message}`);
+                    console.error("Extracted JSON:", extracted);
+                    throw new Error(`JSON parsing failed: ${e4.message}`);
                 }
             }
+            console.error("[Error] All JSON parsing strategies failed.");
+            console.error("Raw response:", rawResponse);
+            console.error("Cleaned response:", cleaned);
+            throw new Error(`JSON parsing failed: ${e.message}`);
         }
     };
 
