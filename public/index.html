@@ -193,7 +193,7 @@
         </footer>
 
         <!-- Rate Limit Popup -->
-        <div id="rate-limit-popup-overlay" class="popup-overlay" style="display: none;">
+        <div id="rate-limit-popup-overlay" class="popup-overlay">
             <div class="popup-content">
                 <h2>Query Limit Exceeded</h2>
                 <p>You are out of free queries until <span id="cooldown-time"></span></p>
@@ -229,7 +229,7 @@
         </div>
 
         <!-- Sign In Required Popup -->
-        <div id="signin-required-popup-overlay" class="popup-overlay" style="display: none;">
+        <div id="signin-required-popup-overlay" class="popup-overlay">
             <div class="popup-content">
                 <h2>Sign In Required</h2>
                 <p>Please sign in to continue using YouTopia.</p>
@@ -241,16 +241,15 @@
     
     <script src="js/main.js" type="module"></script>
 
-    <script src="lib/marked/marked.min.js"></script>
-    <script src="lib/chartjs/chart.umd.js"></script>
-    <script src="lib/chartjs/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <link href="lib/gridjs/mermaid.min.css" rel="stylesheet" />
-    <script src="lib/gridjs/gridjs.umd.js"></script>
-    <link href="lib/prism/prism-dark.min.css" rel="stylesheet" />
-    <script src="lib/prism/prism.js"></script>
-    <script src="lib/prism/prism-json.min.js"></script>
-    <script src="lib/prism/prism-css.min.js"></script>
-    <script src="lib/prism/prism-javascript.min.js"></script>
+    <!-- Switched to CDN links to fix library loading errors -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/gridjs/dist/theme/mermaid.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/gridjs/dist/gridjs.umd.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
 
     <script type="module">
         // Import the functions you need from the SDKs you need
