@@ -4,6 +4,7 @@ compatibility_date = "2023-08-01"
 
 [vars]
 GOOGLE_CLIENT_ID = "450557144881-necfmjts3gdvkp5o6a7dsar6o34ns2mf.apps.googleusercontent.com"
+FIREBASE_PROJECT_ID = "youtopia-search-prod"
 
 [[kv_namespaces]]
 binding = "YOUTOPIA_DATA"
