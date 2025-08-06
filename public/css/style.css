@@ -3439,3 +3439,57 @@ body.dark-mode .export-btn:hover {
         font-size: 0.85rem;
     }
 }
+
+/* --- Custom Google Sign-In Button --- */
+.google-signin-btn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background-color: #ffffff;
+    color: #3c4043;
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    font-family: 'Roboto', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 10px 15px;
+    cursor: pointer;
+    width: 100%;
+    text-align: center;
+}
+
+.google-signin-btn:hover {
+    background-color: #f8f9fa;
+    border-color: #c6c9cc;
+}
+
+.google-signin-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* Dark Mode Styles */
+body.dark-mode .google-signin-btn {
+    background-color: #4285F4; /* Google Blue */
+    color: #ffffff;
+    border-color: #4285F4;
+}
+
+body.dark-mode .google-signin-btn:hover {
+    background-color: #5a95f5;
+    border-color: #5a95f5;
+}
+
+/* Specific style for the button in the popup to ensure it's always full width */
+#signin-required-popup-overlay .google-signin-btn {
+    width: 100%;
+    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+}
+
+/* Style for the button in the dropdown */
+.user-dropdown-menu .google-signin-btn {
+    width: auto; /* Allow it to fit content */
+    margin: 8px 15px; /* Add some margin */
+    padding: 8px 12px; /* Slightly smaller padding */
+}

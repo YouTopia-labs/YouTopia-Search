@@ -7,11 +7,11 @@ GOOGLE_CLIENT_ID = "450557144881-necfmjts3gdvkp5o6a7dsar6o34ns2mf.apps.googleuse
 
 [[kv_namespaces]]
 binding = "YOUTOPIA_DATA"
-id = "28bd582fa11048588c8cc165a51f4eaa"
+id = "0a5569479dc94d15aa6e45879acf7393"
 
 [[kv_namespaces]]
 binding = "YOUTOPIA_CONFIG"
-id = "e03629d681524b07acf027d226f05220"
+id = "4a4e8de04c8240e994b8986536785345"
 # wrangler.toml (wrangler v3.88.0^)
 [observability.logs]
 enabled = true

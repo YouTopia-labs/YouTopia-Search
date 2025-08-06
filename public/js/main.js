@@ -2,6 +2,8 @@ import { orchestrateAgents } from '../agents/agent_orchestrator.js';
 import { renderTable, renderChart, parseChartConfig } from './render_tools.js';
 import { updateChartsTheme } from './chart_utils.js';
 
+const WORKER_BASE_URL = 'https://youtopia-worker.youtopialabs.workers.dev';
+
 document.addEventListener('DOMContentLoaded', () => {
     // Function to set the CSS variable for viewport height
     const setAppHeight = () => {
@@ -96,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const rateLimitPopupOverlay = document.getElementById('rate-limit-popup-overlay');
     const rateLimitCooldownTimer = document.getElementById('rate-limit-cooldown-timer');
     const rateLimitDeveloperMessage = document.getElementById('rate-limit-developer-message');
-    const rateLimitWaitButton = document.getElementById('rate-limit-wait-button');
+    const rateLimitCloseButton = document.getElementById('rate-limit-close-button');
     const signinRequiredPopupOverlay = document.getElementById('signin-required-popup-overlay');
 
     const body = document.body;
@@ -277,7 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.removeItem('user_name');
             localStorage.removeItem('user_email');
             localStorage.removeItem('user_profile_pic');
-            localStorage.removeItem('id_token');
+            localStorage.removeItem('id_token'); // Remove the Firebase token
         }
     };
 
@@ -345,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
    userDropdown.addEventListener('click', (e) => e.stopPropagation()); // Prevent closing when clicking inside
    signoutButton.addEventListener('click', window.firebaseSignOut); // Sign out button listener
-   rateLimitWaitButton.addEventListener('click', () => hidePopup(rateLimitPopupOverlay)); // "I'll wait" button listener
+   rateLimitCloseButton.addEventListener('click', () => hidePopup(rateLimitPopupOverlay)); // "Close" button listener
 
 
     // Hide the bottom bar initially
@@ -1521,7 +1523,7 @@ Generated on: ${currentDate}
                     user_local_time: userLocalTime,
                     short_response_enabled: isShortResponseEnabled
                 });
-                const response = await fetch('/api/query-proxy', {
+                const response = await fetch(`${WORKER_BASE_URL}/api/query-proxy`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

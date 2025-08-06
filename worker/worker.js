@@ -1,21 +1,32 @@
+// Helper to add CORS headers to a response
+const corsify = (response) => {
+  response.headers.set('Access-Control-Allow-Origin', '*');
+  response.headers.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  return response;
+};
+
 addEventListener('fetch', event => {
-  event.respondWith(handleRequest(event.request, event.env));
+  // Handle CORS preflight requests
+  if (event.request.method === 'OPTIONS') {
+    event.respondWith(handleOptions(event.request));
+  } else {
+    event.respondWith(handleRequest(event.request, event.env).then(corsify));
+  }
 });
 
 async function handleRequest(request, env) {
-  // Handle CORS preflight requests
-  if (request.method === 'OPTIONS') {
-    return handleOptions(request);
-  }
-
   const url = new URL(request.url);
 
-  // New central endpoint for all frontend queries
+  // Route for Google Sign-In authentication
+  if (url.pathname === '/api/google-auth') {
+    return handleGoogleAuth(request, env);
+  }
+
+  // Central endpoint for all user queries
   if (url.pathname === '/api/query-proxy') {
     return handleQueryProxy(request, env);
   }
-
-  // Google OAuth2 callback handler - kept separate as it's not a 'query'
 
   return new Response('Not Found', { status: 404 });
 }
@@ -124,6 +135,53 @@ async function proxyCoingecko(api_payload, env) {
   return response;
 }
 
+async function verifyGoogleToken(id_token, env) {
+  if (!id_token) {
+    throw new Error('Authentication token is missing.');
+  }
+
+  const verifyUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${id_token}`;
+  const response = await fetch(verifyUrl);
+  const tokenInfo = await response.json();
+
+  if (tokenInfo.error || !response.ok) {
+    throw new Error(`Token verification failed: ${tokenInfo.error_description || 'Invalid token'}`);
+  }
+
+  if (tokenInfo.aud !== env.GOOGLE_CLIENT_ID) {
+    console.error('Security Alert: Token audience (aud) does not match GOOGLE_CLIENT_ID.');
+    throw new Error('Invalid token audience.');
+  }
+  
+  console.log('Google ID token verified successfully for email:', tokenInfo.email);
+  return tokenInfo;
+}
+
+async function handleGoogleAuth(request, env) {
+  if (request.method !== 'POST') {
+    return new Response('Expected POST for Google auth', { status: 405 });
+  }
+
+  try {
+    const { id_token } = await request.json();
+    const tokenInfo = await verifyGoogleToken(id_token, env);
+    
+    // You can optionally store user sign-in event here if needed
+    
+    return new Response(JSON.stringify({ success: true, email: tokenInfo.email }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Error in handleGoogleAuth:', error.message);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
 async function handleQueryProxy(request, env) {
   if (request.method !== 'POST') {
     return new Response('Expected POST for query proxy', { status: 405 });
@@ -131,51 +189,17 @@ async function handleQueryProxy(request, env) {
 
   const { query, user_name, user_email, user_local_time, api_target, api_payload, id_token } = await request.json();
 
-  console.log('Received query-proxy request:');
-  console.log('  user_email:', user_email);
-  console.log('  query:', query);
-  console.log('  api_target:', api_target);
-
-  // --- Strict Token Verification ---
-  if (!id_token) {
-    console.error('Authentication error: Missing id_token in request.');
-    return new Response(JSON.stringify({ error: 'Authentication token is missing. Please sign in again.' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
-  }
-
   try {
-    console.log('Verifying Firebase ID token...');
-    const firebaseVerifyUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${id_token}`;
-    const verifyResponse = await fetch(firebaseVerifyUrl);
-    const tokenInfo = await verifyResponse.json();
-
-    if (tokenInfo.error || !verifyResponse.ok) {
-      console.error('Firebase ID token verification failed:', tokenInfo.error_description || 'Invalid token');
-      return new Response(JSON.stringify({ error: `Your session has expired or is invalid. Please sign in again. Reason: ${tokenInfo.error_description || 'Invalid Token'}` }), { status: 401, headers: { 'Content-Type': 'application/json' } });
-    }
-
-    // CRITICAL: Ensure the email from the token matches the user_email sent from the frontend.
-    // This prevents a user from sending a valid token but claiming to be someone else.
+    const tokenInfo = await verifyGoogleToken(id_token, env);
+    // CRITICAL: Ensure the email from the verified token matches the user_email sent from the frontend.
     if (tokenInfo.email !== user_email) {
       console.error('Security Alert: Email mismatch between ID token and request body. Token email:', tokenInfo.email, 'Request email:', user_email);
       return new Response(JSON.stringify({ error: 'Security alert: Token-email mismatch.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
     }
-
-    // Temporarily relaxed audience check for debugging.
-    // TODO: Re-enable with Firebase Project ID.
-    console.log('Token audience (aud) from Google:', tokenInfo.aud);
-    console.log('GOOGLE_CLIENT_ID from env:', env.GOOGLE_CLIENT_ID);
-    // if (tokenInfo.aud !== env.GOOGLE_CLIENT_ID) {
-    //     console.error('Security Alert: Token audience (aud) does not match GOOGLE_CLIENT_ID.');
-    //     return new Response(JSON.stringify({ error: 'Security alert: Invalid token audience.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
-    // }
-
-    console.log('Firebase ID token verified successfully for email:', tokenInfo.email);
-
   } catch (error) {
-    console.error('Internal error during Firebase ID token verification:', error);
-    return new Response(JSON.stringify({ error: `Server error during token verification: ${error.message}` }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    console.error('Authentication error in handleQueryProxy:', error.message);
+    return new Response(JSON.stringify({ error: `Authentication failed: ${error.message}` }), { status: 401, headers: { 'Content-Type': 'application/json' } });
   }
-  // --- End of Strict Token Verification ---
 
   const now = Date.now(); // Current timestamp in milliseconds
 
@@ -246,7 +270,7 @@ Thank you for your support, it truly makes a difference for me to not implement 
       error: 'Query limit exceeded.',
       cooldown_end_timestamp: userData.cooldown_end_timestamp,
       message_from_developer: messageFromDeveloper
-    }), { status: 429, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+    }), { status: 429, headers: { 'Content-Type': 'application/json' } });
   }
 
   // Check if query limit is exceeded
@@ -263,7 +287,7 @@ Thank you for your support, it truly makes a difference for me to not implement 
       error: 'Query limit exceeded.',
       cooldown_end_timestamp: userData.cooldown_end_timestamp,
       message_from_developer: messageFromDeveloper
-    }), { status: 429, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+    }), { status: 429, headers: { 'Content-Type': 'application/json' } });
   }
 
   // If not rate-limited, record the query and proceed
@@ -306,8 +330,8 @@ Thank you for your support, it truly makes a difference for me to not implement 
 
 function handleOptions(request) {
   const headers = new Headers();
-  headers.set('Access-Control-Allow-Origin', '*');
-  headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  headers.set('Access-control-allow-headers', 'Content-Type');
+  headers.set('Access-Control-Allow-Origin', '*'); // Allow any origin
+  headers.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS'); // Allowed methods
+  headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization'); // Allowed headers
   return new Response(null, { headers });
 }
