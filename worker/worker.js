@@ -135,26 +135,108 @@ async function proxyCoingecko(api_payload, env) {
   return response;
 }
 
+// --- Robust JWT Verification ---
+
+// A more robust JWT decoder that handles Base64URL encoding.
+function decodeJwt(token) {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      throw new Error('JWT must have 3 parts');
+    }
+    const [header, payload, signature] = parts;
+    
+    // Decode header
+    const decodedHeader = JSON.parse(atob(header.replace(/-/g, '+').replace(/_/g, '/')));
+
+    // Decode payload
+    const decodedPayload = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+
+    return {
+      header: decodedHeader,
+      payload: decodedPayload,
+      signature: signature,
+      raw: { header, payload, signature }
+    };
+  } catch (e) {
+    console.error("Failed to decode JWT:", e.message);
+    throw new Error("Invalid token format");
+  }
+}
+
+// Fetches and caches Google's public keys.
+async function getGooglePublicKeys() {
+  const certsUrl = 'https://www.googleapis.com/oauth2/v3/certs';
+  const response = await fetch(certsUrl);
+  if (!response.ok) {
+    throw new Error('Failed to fetch Google public keys');
+  }
+  const certs = await response.json();
+  return certs.keys;
+}
+
+// Verifies the Google ID token locally using Web Crypto API.
 async function verifyGoogleToken(id_token, env) {
   if (!id_token) {
     throw new Error('Authentication token is missing.');
   }
+  
+  console.log("Starting token verification for token:", id_token.substring(0, 30) + "...");
 
-  const verifyUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${id_token}`;
-  const response = await fetch(verifyUrl);
-  const tokenInfo = await response.json();
+  const decodedToken = decodeJwt(id_token);
+  const { header, payload, raw } = decodedToken;
 
-  if (tokenInfo.error || !response.ok) {
-    throw new Error(`Token verification failed: ${tokenInfo.error_description || 'Invalid token'}`);
+  // Step 1: Verify issuer and audience
+  if (payload.iss !== 'https://accounts.google.com' && payload.iss !== 'accounts.google.com') {
+    throw new Error(`Invalid issuer: ${payload.iss}`);
   }
-
-  if (tokenInfo.aud !== env.GOOGLE_CLIENT_ID) {
-    console.error('Security Alert: Token audience (aud) does not match GOOGLE_CLIENT_ID.');
+  if (payload.aud !== env.GOOGLE_CLIENT_ID) {
     throw new Error('Invalid token audience.');
   }
-  
-  console.log('Google ID token verified successfully for email:', tokenInfo.email);
-  return tokenInfo;
+
+  // Step 2: Verify expiration
+  if (payload.exp * 1000 < Date.now()) {
+    throw new Error('Token has expired.');
+  }
+
+  // Step 3: Verify signature
+  const keys = await getGooglePublicKeys();
+  const key = keys.find(k => k.kid === header.kid);
+  if (!key) {
+    throw new Error('Public key not found for token.');
+  }
+
+  const jwk = {
+    kty: key.kty,
+    n: key.n,
+    e: key.e,
+  };
+
+  const cryptoKey = await crypto.subtle.importKey(
+    'jwk',
+    jwk,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['verify']
+  );
+
+  const signatureInput = `${raw.header}.${raw.payload}`;
+  const signatureBytes = new Uint8Array(atob(raw.signature.replace(/-/g, '+').replace(/_/g, '/')).split('').map(c => c.charCodeAt(0)));
+  const dataBytes = new TextEncoder().encode(signatureInput);
+
+  const isValid = await crypto.subtle.verify(
+    'RSASSA-PKCS1-v1_5',
+    cryptoKey,
+    signatureBytes,
+    dataBytes
+  );
+
+  if (!isValid) {
+    throw new Error('Invalid token signature.');
+  }
+
+  console.log('Google ID token verified successfully for email:', payload.email);
+  return payload; // Return the entire payload which includes email, name, etc.
 }
 
 async function handleGoogleAuth(request, env) {
