@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 66 100" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;">
+    <g transform="matrix(1,0,0,1,-19,-0.5)">
+        <rect x="31" y="11" width="6" height="6"/>
+        <rect x="37" y="17" width="6" height="6"/>
+        <rect x="43" y="23" width="6" height="6"/>
+        <rect x="49" y="29" width="6" height="6"/>
+        <rect x="55" y="35" width="6" height="6"/>
+        <rect x="61" y="41" width="6" height="6"/>
+        <rect x="67" y="47" width="6" height="6"/>
+        <path d="M25,11L31,11L31,5L25,5L25,0L19,0L19,89L25,89L25,83L31,83L31,77L25,77L25,11Z" style="fill-rule:nonzero;"/>
+        <rect x="43" y="71" width="6" height="12"/>
+        <rect x="37" y="65" width="6" height="6"/>
+        <rect x="31" y="71" width="6" height="6"/>
+        <rect x="61" y="71" width="6" height="12"/>
+        <rect x="67" y="83" width="6" height="11"/>
+        <rect x="49" y="83" width="6" height="11"/>
+        <rect x="55" y="94" width="12" height="6" style="fill-rule:nonzero;"/>
+        <path d="M85,65L85,59L79,59L79,53L73,53L73,59L55,59L55,71L61,71L61,65L85,65Z" style="fill-rule:nonzero;"/>
+    </g>
+</svg>

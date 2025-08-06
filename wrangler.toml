@@ -1,0 +1,17 @@
+name = "youtopia-worker"
+main = "worker/worker.js"
+compatibility_date = "2023-08-01"
+
+[vars]
+GOOGLE_CLIENT_ID = "450557144881-necfmjts3gdvkp5o6a7dsar6o34ns2mf.apps.googleusercontent.com"
+
+[[kv_namespaces]]
+binding = "YOUTOPIA_DATA"
+id = "28bd582fa11048588c8cc165a51f4eaa"
+
+[[kv_namespaces]]
+binding = "YOUTOPIA_CONFIG"
+id = "e03629d681524b07acf027d226f05220"
+# wrangler.toml (wrangler v3.88.0^)
+[observability.logs]
+enabled = true

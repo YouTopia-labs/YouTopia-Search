@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wikipedia Content Explorer</title>
+    <style>
+        :root {
+            --bg-color: #f0f2f5; --container-bg: #ffffff; --primary-color: #3366cc;
+            --primary-hover: #2c56a8; --text-color: #333333; --border-color: #d1d5db;
+            --shadow-color: rgba(0, 0, 0, 0.08); --success-color: #16a34a; --error-color: #dc2626;
+            --info-color: #555; --table-header-bg: #f8f9fa; --table-border-color: #dee2e6;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0; padding: 20px; background-color: var(--bg-color); color: var(--text-color);
+            display: flex; justify-content: center; align-items: flex-start; min-height: 100vh;
+        }
+        .container {
+            width: 100%; max-width: 900px; background-color: var(--container-bg);
+            border-radius: 8px; padding: 25px 30px; box-shadow: 0 4px 12px var(--shadow-color);
+        }
+        h1 { text-align: center; color: var(--text-color); margin-top: 0; margin-bottom: 20px; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 20px; }
+        #langSelector {
+            padding: 0 10px; border: 1px solid var(--border-color); border-radius: 6px;
+            background-color: #fff; font-size: 16px;
+        }
+        #searchInput {
+            flex-grow: 1; padding: 12px 15px; border: 1px solid var(--border-color);
+            border-radius: 6px; font-size: 16px; transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        #searchInput:focus {
+            outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(51, 102, 204, 0.2);
+        }
+        #fetchBtn {
+            padding: 12px 20px; border: none; background-color: var(--primary-color); color: white;
+            font-size: 16px; font-weight: 500; border-radius: 6px; cursor: pointer; transition: background-color 0.2s;
+        }
+        #fetchBtn:hover { background-color: var(--primary-hover); }
+        
+        .status-container {
+            display: flex; align-items: center; justify-content: center;
+            min-height: 24px; margin-bottom: 20px;
+        }
+        .loader {
+            border: 4px solid var(--bg-color); border-top: 4px solid var(--primary-color);
+            border-radius: 50%; width: 24px; height: 24px;
+            animation: spin 1s linear infinite; display: none;
+        }
+        #status { font-weight: 500; text-align: center; }
+        #status.success { color: var(--success-color); }
+        #status.error { color: var(--error-color); }
+        #status.info { color: var(--info-color); }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        #result { border-top: 1px solid var(--border-color); padding-top: 20px; }
+        #result h2 { border-bottom: 2px solid var(--primary-color); padding-bottom: 0.5em; margin-top: 30px; margin-bottom: 20px; color: var(--primary-color); }
+        
+        /* --- Gallery Styles --- */
+        .gallery-container {
+            display: flex; flex-wrap: wrap; gap: 15px; justify-content: center;
+        }
+        .gallery-item {
+            flex: 1 1 250px; max-width: 300px; border: 1px solid var(--border-color);
+            border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px var(--shadow-color);
+            display: flex; flex-direction: column;
+        }
+        .gallery-item a { display: block; }
+        .gallery-item img {
+            width: 100%; height: 200px; object-fit: cover; display: block; background-color: #eee;
+        }
+        .gallery-item-title {
+            padding: 10px; font-size: 13px; background-color: #f8f9fa; word-break: break-all;
+            flex-grow: 1;
+        }
+
+        /* --- Article Styles --- */
+        .article-container { line-height: 1.6; }
+        .article-container .infobox { float: right; margin: 0 0 1em 1em; }
+        .article-container a { color: var(--primary-color); text-decoration: none; }
+        .article-container a:hover { text-decoration: underline; }
+        .article-container img { max-width: 100%; height: auto; border-radius: 6px; }
+
+        /* --- Table Styles --- */
+        .tables-container { display: flex; flex-direction: column; gap: 30px; }
+        .table-wrapper { overflow-x: auto; } /* For responsive tables */
+        .wiki-table {
+            width: 100%; border-collapse: collapse; margin-bottom: 1em;
+            font-size: 0.9em;
+        }
+        .wiki-table th, .wiki-table td {
+            border: 1px solid var(--table-border-color); padding: 8px 12px; text-align: left;
+        }
+        .wiki-table th { background-color: var(--table-header-bg); font-weight: 600; }
+        .wiki-table tr:nth-child(even) { background-color: #f8f9fa; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Wikipedia Content Explorer</h1>
+        <div class="input-group">
+            <select id="langSelector">
+                <option value="en">English (en)</option> <option value="de">German (de)</option>
+                <option value="fr">French (fr)</option> <option value="es">Spanish (es)</option>
+                <option value="ja">Japanese (ja)</option> <option value="ru">Russian (ru)</option>
+                <option value="it">Italian (it)</option> <option value="zh">Chinese (zh)</option>
+                <option value="pt">Portuguese (pt)</option> <option value="ar">Arabic (ar)</option>
+                <option value="hi">Hindi (hi)</option>
+            </select>
+            <input type="text" id="searchInput" placeholder="Enter a search term or paste a URL" required>
+            <button id="fetchBtn">Fetch Content</button>
+        </div>
+        <div class="status-container">
+            <div id="status"></div>
+            <div class="loader" id="loader"></div>
+        </div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const searchInput = document.getElementById('searchInput');
+        const fetchButton = document.getElementById('fetchBtn');
+        const langSelector = document.getElementById('langSelector');
+        const resultDiv = document.getElementById('result');
+        const loader = document.getElementById('loader');
+        const statusMsg = document.getElementById('status');
+
+        // --- Event Listeners ---
+        fetchButton.addEventListener('click', startSearch);
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') startSearch();
+        });
+
+        /**
+         * Main function to initiate the search process.
+         */
+        async function startSearch() {
+            clearState();
+            const query = searchInput.value.trim();
+            if (!query) {
+                displayStatus("Please enter a search term or a Wikipedia URL.", "error");
+                return;
+            }
+            loader.style.display = 'block';
+
+            try {
+                // Step 1: Resolve input to a canonical article title.
+                const { lang, title, isUrl } = parseInput(query);
+                let canonicalTitle;
+                if (isUrl) {
+                    canonicalTitle = title;
+                } else {
+                    displayStatus("Resolving article title...", "info");
+                    canonicalTitle = await resolveSearchTermToTitle(lang, title);
+                    if (!canonicalTitle) {
+                        throw new Error(`No article found for "${title}".`);
+                    }
+                }
+
+                // Step 2: Fetch all content concurrently.
+                displayStatus(`Fetching all content for "${canonicalTitle}"...`, "info");
+                const [articleHtml, images] = await Promise.all([
+                    fetchArticleContent(lang, canonicalTitle),
+                    fetchAllImages(lang, canonicalTitle)
+                ]);
+
+                if (!articleHtml && (!images || images.length === 0)) {
+                    throw new Error(`Could not find any content for "${canonicalTitle}".`);
+                }
+
+                // Step 3: Display all fetched content.
+                displayAllContent(articleHtml, images, canonicalTitle);
+
+            } catch (error) {
+                console.error("Fetch Error:", error);
+                displayStatus(error.message, "error");
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+        
+        /**
+         * Parses the user input to determine if it's a URL or a search term.
+         * @param {string} query - The user's input.
+         * @returns {{lang: string, title: string, isUrl: boolean}}
+         */
+        function parseInput(query) {
+            try {
+                const urlObj = new URL(query);
+                const hostParts = urlObj.hostname.split('.');
+                if (hostParts.includes('wikipedia') && hostParts.includes('org')) {
+                    const pathParts = urlObj.pathname.split('/wiki/');
+                    if (pathParts[1]) {
+                        const lang = hostParts[0];
+                        setLanguageSelector(lang);
+                        return { lang, title: decodeURIComponent(pathParts[1].replace(/_/g, ' ')), isUrl: true };
+                    }
+                }
+            } catch (e) { /* Not a URL, treat as search term */ }
+            return { lang: langSelector.value, title: query, isUrl: false };
+        }
+
+        /**
+         * Finds the most relevant Wikipedia article title for a given search term.
+         * @param {string} lang - The language code (e.g., 'en').
+         * @param {string} searchTerm - The term to search for.
+         * @returns {Promise<string|null>} The canonical article title.
+         */
+        async function resolveSearchTermToTitle(lang, searchTerm) {
+            const params = new URLSearchParams({
+                action: 'query', format: 'json', formatversion: 2, origin: '*',
+                generator: 'search', gsrsearch: searchTerm, gsrlimit: 1, gsrwhat: 'text'
+            });
+            const url = `https://${lang}.wikipedia.org/w/api.php?${params.toString()}`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Network error during title resolution: ${response.status}`);
+            const data = await response.json();
+            return (data.query && data.query.pages) ? data.query.pages[0].title : null;
+        }
+
+        /**
+         * Fetches the parsed HTML content of a Wikipedia article.
+         * @param {string} lang - The language code.
+         * @param {string} title - The article title.
+         * @returns {Promise<string|null>} The article's HTML content.
+         */
+        async function fetchArticleContent(lang, title) {
+            const params = new URLSearchParams({
+                action: 'parse', page: title, prop: 'text', format: 'json',
+                formatversion: 2, origin: '*', redirects: 1,
+            });
+            const url = `https://${lang}.wikipedia.org/w/api.php?${params.toString()}`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Network error fetching article content: ${response.status}`);
+            const data = await response.json();
+            return data.parse ? data.parse.text : null;
+        }
+
+        /**
+         * Fetches all image URLs from a Wikipedia article.
+         * @param {string} lang - The language code.
+         * @param {string} title - The article title.
+         * @returns {Promise<Array<{title: string, url: string}>>} A list of image objects.
+         */
+        async function fetchAllImages(lang, title) {
+            const params = new URLSearchParams({
+                action: 'query', format: 'json', formatversion: 2, origin: '*',
+                prop: 'imageinfo', iiprop: 'url',
+                generator: 'images', gimlimit: '50',
+                titles: title, redirects: 1
+            });
+            const url = `https://${lang}.wikipedia.org/w/api.php?${params.toString()}`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Network error fetching images: ${response.status}`);
+            const data = await response.json();
+            return processImageApiResponse(data);
+        }
+
+        /**
+         * Processes the API response to filter and extract relevant images.
+         * @param {object} data - The JSON data from the Wikipedia API.
+         * @returns {Array<{title: string, url: string}>}
+         */
+        function processImageApiResponse(data) {
+            if (!data.query || !data.query.pages) return [];
+            
+            const images = [];
+            for (const page of data.query.pages) {
+                if (page.imageinfo) {
+                    const filename = page.title.toLowerCase();
+                    // Filter out common non-content images like icons, logos, etc.
+                    const isGoodCandidate = /\.(jpe?g|png|gif|webp|tiff)$/i.test(filename) && !/logo|icon|badge|flag|map|button|svg|disambig|infobox|wikidata|commons|speaker|sound|rhymes/i.test(filename);
+                    if (isGoodCandidate) {
+                        images.push({
+                            title: page.title,
+                            url: page.imageinfo[0].url
+                        });
+                    }
+                }
+            }
+            return images;
+        }
+
+        /**
+         * Renders all fetched content into the result area, filtering out unwanted sections.
+         * @param {string} articleHtml - The HTML content of the article.
+         * @param {Array<{title: string, url: string}>} images - A list of image objects.
+         * @param {string} articleTitle - The title of the article.
+         */
+        function displayAllContent(articleHtml, images, articleTitle) {
+            displayStatus(`Successfully loaded content for "${articleTitle}"`, "success");
+            
+            let finalHtml = '';
+
+            // Part 1: Images
+            if (images && images.length > 0) {
+                const galleryHtml = images.map(image => `
+                    <div class="gallery-item">
+                        <a href="${image.url}" target="_blank" rel="noopener noreferrer">
+                            <img src="${image.url}" alt="${image.title}" loading="lazy" onerror="this.style.display='none'">
+                        </a>
+                        <div class="gallery-item-title">${image.title}</div>
+                    </div>
+                `).join('');
+                finalHtml += `<h2>Images (${images.length})</h2><div class="gallery-container">${galleryHtml}</div>`;
+            }
+
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(articleHtml || '', 'text/html');
+
+            // Part 2: Tables
+            const tables = doc.querySelectorAll('table.wikitable');
+            if (tables.length > 0) {
+                let tablesHtml = '';
+                tables.forEach((table, index) => {
+                    table.classList.add('wiki-table');
+                    tablesHtml += `<h3>Table ${index + 1}</h3><div class="table-wrapper">${table.outerHTML}</div>`;
+                });
+                finalHtml += `<h2>Tables (${tables.length})</h2><div class="tables-container">${tablesHtml}</div>`;
+            }
+
+            // Part 3: Full Article (with unwanted sections removed)
+            if (articleHtml) {
+                // Find the first headline of a section to be removed.
+                const firstUnwantedHeadline = doc.querySelector('#References, #See_also, #External_links');
+                
+                if (firstUnwantedHeadline) {
+                    let element = firstUnwantedHeadline.parentElement; // This is the H2 tag
+                    // Remove that headline and all subsequent sibling elements.
+                    while(element) {
+                        const next = element.nextElementSibling;
+                        element.remove();
+                        element = next;
+                    }
+                }
+                
+                // Also remove common container classes for these sections just in case.
+                doc.querySelectorAll('.reflist, .navbox, .mw-references-wrap').forEach(el => el.remove());
+
+                const cleanedArticleHtml = doc.body.innerHTML;
+                finalHtml += `<h2>Article: ${articleTitle}</h2><div class="article-container">${cleanedArticleHtml}</div>`;
+            }
+
+            resultDiv.innerHTML = finalHtml;
+        }
+
+
+        // --- Utility Functions ---
+
+        function setLanguageSelector(langCode) {
+            let found = Array.from(langSelector.options).some(opt => {
+                if (opt.value === langCode) { opt.selected = true; return true; }
+            });
+            if (!found) {
+                const newOption = new Option(`${langCode} (from URL)`, langCode, true, true);
+                langSelector.add(newOption);
+            }
+        }
+        
+        function displayStatus(message, type) {
+            statusMsg.textContent = message;
+            statusMsg.className = type;
+        }
+
+        function clearState() {
+            resultDiv.innerHTML = '';
+            statusMsg.textContent = '';
+            statusMsg.className = '';
+            loader.style.display = 'none';
+        }
+    </script>
+</body>
+</html>

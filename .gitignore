@@ -1,0 +1,9 @@
+# macOS
+.DS_Store
+
+# Cloudflare Wrangler
+.wrangler/
+node_modules/
+
+# Logs
+*.log
