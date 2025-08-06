@@ -6,7 +6,7 @@ import { fetchWheatData } from '../tools/wheat_tool.js'; // Import the new Wheat
 import { wikiEye } from '../tools/wiki_eye.js'; // Import the new wiki_eye tool
 
 // Validate API configuration
-async function executeTool(toolName, query, params = {}) {
+async function executeTool(toolName, query, params = {}, userQuery, userName, userLocalTime) {
   console.log(`Executing tool: ${toolName} with query: ${query} and params:`, params);
 
   let api_target;
@@ -36,7 +36,7 @@ async function executeTool(toolName, query, params = {}) {
   }
 
   // All API calls now go through the worker proxy
-  const response = await fetchWithProxy(api_target, api_payload);
+  const response = await fetchWithProxy(api_target, api_payload, userQuery, userName, userLocalTime);
   return response;
 }
 
@@ -82,7 +82,7 @@ async function fetchWithProxy(api_target, api_payload, query, userName, userLoca
 }
 
 export async function callAgent(model, prompt, input, retryCount = 0, streamCallback = null, query, userName, userLocalTime) {
-  console.log(`Calling agent with model: ${model}, prompt: ${prompt}, input:`, input);
+  console.log(`Calling agent with model: ${model}, input:`, input);
   const maxRetries = 2;
 
   if (streamCallback && prompt.includes('Agent 3:')) {
@@ -338,19 +338,44 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
         // Targeted fix for the empty action key
         cleaned = cleaned.replace(/""\s*:\s*"search"/, '"action": "search"');
 
+        // Attempt to fix common JSON issues
         try {
             return JSON.parse(cleaned);
         } catch (e) {
-            // If parsing fails, try to repair the JSON
-            let repaired = cleaned.replace(/,\s*([}\]])/g, '$1'); // Remove trailing commas
+            // Remove trailing commas
+            let repaired = cleaned.replace(/,\s*([}\]])/g, '$1');
             try {
                 return JSON.parse(repaired);
             } catch (e2) {
-                console.error("[Error] All JSON parsing strategies failed.");
-                console.error("Raw response:", rawResponse);
-                console.error("Cleaned response:", cleaned);
-                console.error("Repaired response:", repaired);
-                throw new Error(`JSON parsing failed: ${e2.message}`);
+                // Try to fix unquoted keys (simple case)
+                repaired = repaired.replace(/(\w+)\s*:/g, '"$1":');
+                try {
+                    return JSON.parse(repaired);
+                } catch (e3) {
+                    // Try to extract content between first { and last }
+                    const firstBrace = repaired.indexOf('{');
+                    const lastBrace = repaired.lastIndexOf('}');
+                    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                        const extracted = repaired.substring(firstBrace, lastBrace + 1);
+                        try {
+                            return JSON.parse(extracted);
+                        } catch (e4) {
+                            console.error("[Error] All JSON parsing strategies failed.");
+                            console.error("Raw response:", rawResponse);
+                            console.error("Cleaned response:", cleaned);
+                            console.error("Repaired response (step 1):", cleaned.replace(/,\s*([}\]])/g, '$1'));
+                            console.error("Repaired response (step 2):", cleaned.replace(/(\w+)\s*:/g, '"$1":'));
+                            console.error("Extracted JSON:", extracted);
+                            throw new Error(`JSON parsing failed: ${e4.message}`);
+                        }
+                    }
+                    console.error("[Error] All JSON parsing strategies failed.");
+                    console.error("Raw response:", rawResponse);
+                    console.error("Cleaned response:", cleaned);
+                    console.error("Repaired response (step 1):", cleaned.replace(/,\s*([}\]])/g, '$1'));
+                    console.error("Repaired response (step 2):", cleaned.replace(/(\w+)\s*:/g, '"$1":'));
+                    throw new Error(`JSON parsing failed: ${e3.message}`);
+                }
             }
         }
     };
