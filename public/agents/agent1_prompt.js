@@ -59,11 +59,23 @@ If the user query is "hello", your response must be:
   "response": "hello"
 }
 
-### BAD EXAMPLE (Incorrect Key):
+### Critically Important Syntax Rules:
+- Keys and string values must be enclosed in double quotes.
+- A colon (:) must separate keys from values.
+- Do not use trailing commas.
+
+### BAD EXAMPLE (Missing Colon - THIS WILL CAUSE A CRITICAL ERROR):
 {
   "classification": "direct",
   "action": "direct",
-  "": "hello"
+  "response" "hello"
+}
+
+### GOOD EXAMPLE (Correct Syntax):
+{
+  "classification": "direct",
+  "action": "direct",
+  "response": "hello"
 }
 
 MANDATORY JSON STRUCTURE & FIELD RULES:
