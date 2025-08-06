@@ -90,8 +90,8 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
   console.log(`Calling agent with model: ${model}, input:`, input);
   const maxRetries = 2;
 
-  if (streamCallback && prompt.includes('Agent 3:')) {
-    console.log("Agent 3 streaming enabled.");
+  if (streamCallback) {
+    console.log("Streaming enabled.");
   }
 
   let messages = [
@@ -185,7 +185,7 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
                         if (delta && delta.content) {
                             content += delta.content;
                             // If Agent 3 and streamCallback is provided, send the content immediately
-                            if (streamCallback && prompt.includes('Agent 3:')) {
+                            if (streamCallback) {
                                 streamCallback(delta.content);
                             }
                         }
@@ -213,8 +213,8 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
     // Validation and retry logic has been moved to orchestrateAgents
     
     // If Agent 3 and streaming, the final response is sent via callback, so return null here.
-    if (streamCallback && prompt.includes('Agent 3:')) {
-        console.log("Agent 3 streaming: callAgent returning null as content is streamed via callback.");
+    if (streamCallback) {
+        console.log("Streaming: callAgent returning null as content is streamed via callback.");
         return null;
     }
 
