@@ -343,6 +343,12 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
         // Targeted fix for the empty action key
         cleaned = cleaned.replace(/""\s*:\s*"search"/, '"action": "search"');
 
+        // Targeted fix for missing colon between a quoted key and its value (e.g., "key" value -> "key":value)
+        // This regex looks for a quoted string (potential key), followed by optional whitespace,
+        // and then a character that is NOT a colon, comma, or closing brace.
+        // If found, it inserts a colon between the quoted string and the next character.
+        cleaned = cleaned.replace(/("[^"]+")\s*([^:,}\]])/g, '$1:$2');
+
         // Attempt to fix common JSON issues
         try {
             return JSON.parse(cleaned);
