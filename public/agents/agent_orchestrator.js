@@ -62,6 +62,9 @@ async function fetchWithProxy(api_target, api_payload) {
   });
 
   if (!response.ok) {
+    if (response.status === 429) {
+      return response; // Pass the 429 response back to the caller
+    }
     const errorData = await response.json();
     throw new Error(errorData.error || `API proxy error: ${response.status}`);
   }
@@ -120,6 +123,9 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
     const response = await Promise.race([fetchPromise, timeoutPromise]);
 
     if (!response.ok) {
+        if (response.status === 429) {
+            return response; // Pass the 429 response back to the caller
+        }
       let errorData;
       try {
         errorData = await response.json();

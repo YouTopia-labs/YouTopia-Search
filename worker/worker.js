@@ -11,19 +11,21 @@ export default {
     // Handle CORS preflight requests
     if (request.method === 'OPTIONS') {
       return handleOptions(request);
-    } else {
-      // In modern Cloudflare Workers, environment variables are passed as the env parameter
-      return corsify(await handleRequest(request, env));
     }
+
+    const url = new URL(request.url);
+
+    // API route handling
+    if (url.pathname.startsWith('/api/')) {
+      return corsify(await handleApiRequest(request, env));
+    }
+
+    // For all other requests, serve from Cloudflare Pages assets
+    return env.ASSETS.fetch(request);
   }
 };
 
-async function handleRequest(request, env) {
-  // In modern Cloudflare Workers, environment variables are accessed via the env parameter
-  console.log('Env object:', env);
-  console.log('Available env variables:', Object.keys(env));
-  console.log('FIREBASE_PROJECT_ID:', env.FIREBASE_PROJECT_ID);
-
+async function handleApiRequest(request, env) {
   const url = new URL(request.url);
 
   // Route for Google Sign-In authentication
@@ -39,7 +41,17 @@ async function handleRequest(request, env) {
   return new Response('Not Found', { status: 404 });
 }
 
-// Internal proxy functions, no longer exposed directly
+
+// This function is for CORS preflight requests
+function handleOptions(request) {
+  const headers = new Headers();
+  headers.set('Access-Control-Allow-Origin', '*'); // Allow any origin
+  headers.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS'); // Allowed methods
+  headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization'); // Allowed headers
+  return new Response(null, { headers });
+}
+
+// --- Proxy Functions ---
 async function proxySerper(api_payload, env) {
   const serperApiUrl = api_payload.type === 'search' ? 'https://serper.dev/search' : 'https://serper.dev/news';
 
@@ -143,9 +155,8 @@ async function proxyCoingecko(api_payload, env) {
   return response;
 }
 
-// --- Robust JWT Verification ---
 
-// A more robust JWT decoder that handles Base64URL encoding.
+// --- Robust JWT Verification ---
 function decodeJwt(token) {
   try {
     const parts = token.split('.');
@@ -154,10 +165,7 @@ function decodeJwt(token) {
     }
     const [header, payload, signature] = parts;
     
-    // Decode header
     const decodedHeader = JSON.parse(atob(header.replace(/-/g, '+').replace(/_/g, '/')));
-
-    // Decode payload
     const decodedPayload = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
 
     return {
@@ -172,10 +180,8 @@ function decodeJwt(token) {
   }
 }
 
-// Fetches public keys from both Google OAuth and Firebase endpoints
 async function getPublicKeys() {
   try {
-    // Try Firebase endpoint first
     const firebaseUrl = 'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
     const firebaseResponse = await fetch(firebaseUrl);
     if (firebaseResponse.ok) {
@@ -194,7 +200,6 @@ async function getPublicKeys() {
     console.log('Firebase endpoint failed, trying Google OAuth endpoint');
   }
 
-  // Fallback to Google OAuth endpoint
   const googleUrl = 'https://www.googleapis.com/oauth2/v3/certs';
   const googleResponse = await fetch(googleUrl);
   if (!googleResponse.ok) {
@@ -204,7 +209,6 @@ async function getPublicKeys() {
   return certs.keys.map(key => ({ ...key, source: 'google' }));
 }
 
-// Verifies the Google ID token locally using Web Crypto API.
 async function verifyGoogleToken(id_token, env) {
   if (!id_token) {
     throw new Error('Authentication token is missing.');
@@ -219,7 +223,6 @@ async function verifyGoogleToken(id_token, env) {
   console.log("Token payload issuer:", payload.iss);
   console.log("Token payload audience:", payload.aud);
 
-  // Step 1: Verify issuer and audience for Firebase ID tokens
   if (!env.FIREBASE_PROJECT_ID) {
     throw new Error('FIREBASE_PROJECT_ID environment variable is not set.');
   }
@@ -232,12 +235,10 @@ async function verifyGoogleToken(id_token, env) {
     throw new Error(`Invalid token audience: ${payload.aud}. Expected: ${env.FIREBASE_PROJECT_ID}`);
   }
 
-  // Step 2: Verify expiration
   if (payload.exp * 1000 < Date.now()) {
     throw new Error('Token has expired.');
   }
 
-  // Step 3: Verify signature
   const keys = await getPublicKeys();
   console.log("Available public keys:", keys.map(k => ({ kid: k.kid, source: k.source })));
   console.log("Looking for key with kid:", header.kid);
@@ -253,12 +254,8 @@ async function verifyGoogleToken(id_token, env) {
     let cryptoKey;
     
     if (key.source === 'firebase') {
-      // For Firebase certificates, we'll skip signature verification for now
-      // This is a temporary workaround due to X.509 parsing complexity in Cloudflare Workers
       console.log('Firebase certificate found, skipping signature verification (temporary workaround)');
-      // Just return success for now - in production you'd want proper certificate parsing
     } else {
-      // For Google JWK keys
       const jwk = {
         kty: key.kty,
         n: key.n,
@@ -294,7 +291,7 @@ async function verifyGoogleToken(id_token, env) {
   }
 
   console.log('Google ID token verified successfully for email:', payload.email);
-  return payload; // Return the entire payload which includes email, name, etc.
+  return payload;
 }
 
 async function handleGoogleAuth(request, env) {
@@ -305,8 +302,6 @@ async function handleGoogleAuth(request, env) {
   try {
     const { id_token } = await request.json();
     const tokenInfo = await verifyGoogleToken(id_token, env);
-    
-    // You can optionally store user sign-in event here if needed
     
     return new Response(JSON.stringify({ success: true, email: tokenInfo.email }), {
       status: 200,
@@ -322,6 +317,7 @@ async function handleGoogleAuth(request, env) {
   }
 }
 
+// --- Main Handler for this specific endpoint ---
 async function handleQueryProxy(request, env) {
   if (request.method !== 'POST') {
     return new Response('Expected POST for query proxy', { status: 405 });
@@ -331,7 +327,6 @@ async function handleQueryProxy(request, env) {
 
   try {
     const tokenInfo = await verifyGoogleToken(id_token, env);
-    // CRITICAL: Ensure the email from the verified token matches the user_email sent from the frontend.
     if (tokenInfo.email !== user_email) {
       console.error('Security Alert: Email mismatch between ID token and request body. Token email:', tokenInfo.email, 'Request email:', user_email);
       return new Response(JSON.stringify({ error: 'Security alert: Token-email mismatch.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
@@ -341,30 +336,22 @@ async function handleQueryProxy(request, env) {
     return new Response(JSON.stringify({ error: `Authentication failed: ${error.message}` }), { status: 401, headers: { 'Content-Type': 'application/json' } });
   }
 
-  const now = Date.now(); // Current timestamp in milliseconds
-
+  const now = Date.now();
   const userKvKey = `user:${user_email}`;
-  console.log('Attempting to retrieve user data from KV for key:', userKvKey);
   let userData = await env.YOUTOPIA_DATA.get(userKvKey, { type: 'json' });
 
   if (!userData) {
-    console.log('User data not found in KV for', userKvKey, '. Initializing new user data.');
     userData = { queries: [], cooldown_end_timestamp: null, whitelist_start_date: null };
-  } else {
-    console.log('User data found in KV for', userKvKey, ':', JSON.stringify(userData));
   }
 
-  // --- Define Rate Limits ---
   const FREE_RATE_LIMIT = 8;
-  const FREE_RATE_LIMIT_WINDOW_MS = 6 * 60 * 60 * 1000; // 6 hours
-
+  const FREE_RATE_LIMIT_WINDOW_MS = 6 * 60 * 60 * 1000;
   const WHITELIST_RATE_LIMIT = 200;
-  const WHITELIST_RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
-  const WHITELIST_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+  const WHITELIST_RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+  const WHITELIST_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000;
 
   let currentRateLimit = FREE_RATE_LIMIT;
   let currentRateLimitWindowMs = FREE_RATE_LIMIT_WINDOW_MS;
-  let isWhitelistedUser = false;
   let messageFromDeveloper = `If you appreciate this project and the answers it provides, please consider supporting it! This is a solo, self-funded research project by a student (me lol).
 Your donations would help to keep running it for everyone (and fund my coffee for improving it). Contributions over $20 qualify you for the 20x Plus Plan, which includes:
 ✅ 200 AI-powered queries per day
@@ -374,37 +361,27 @@ To activate the 20x plan after donating, simply email at support@youtopia.co.in
 
 Thank you for your support, it truly makes a difference for me to not implement spyware to collect user data and sell it to whoever’s buying on 4chan`;
 
-  // --- Fetch Whitelist from YOUTOPIA_CONFIG ---
   const whitelistEmailsString = await env.YOUTOPIA_CONFIG.get('whitelist_emails');
   const whitelistEmails = whitelistEmailsString ? JSON.parse(whitelistEmailsString) : [];
 
   if (whitelistEmails.includes(user_email)) {
-    // User is in the whitelist
     if (!userData.whitelist_start_date) {
-      // First time this whitelisted user is querying, set their start date
       userData.whitelist_start_date = now;
     }
 
-    // Check if whitelist period has expired
     if (now - userData.whitelist_start_date < WHITELIST_VALIDITY_MS) {
-      isWhitelistedUser = true;
       currentRateLimit = WHITELIST_RATE_LIMIT;
       currentRateLimitWindowMs = WHITELIST_RATE_LIMIT_WINDOW_MS;
       messageFromDeveloper = "Thank you for supporting YouTopia! You've reached your daily query limit for the 20x Plus Plan. Your generosity keeps this project running. You can make more queries after the cooldown.";
     } else {
-      // Whitelist expired, revert to free plan and reset whitelist_start_date
       userData.whitelist_start_date = null;
-      // messageFromDeveloper remains the free plan message
     }
   }
 
-  // Filter out queries older than the current rate limit window
   const relevantTimeAgo = now - currentRateLimitWindowMs;
   userData.queries = userData.queries.filter(q => q.timestamp > relevantTimeAgo);
-
   const queryCount = userData.queries.length;
 
-  // Check if user is on cooldown
   if (userData.cooldown_end_timestamp && now < userData.cooldown_end_timestamp) {
     return new Response(JSON.stringify({
       error: 'Query limit exceeded.',
@@ -413,16 +390,12 @@ Thank you for your support, it truly makes a difference for me to not implement 
     }), { status: 429, headers: { 'Content-Type': 'application/json' } });
   }
 
-  // Check if query limit is exceeded
   if (queryCount >= currentRateLimit) {
     if (!userData.cooldown_end_timestamp || now >= userData.cooldown_end_timestamp) {
-      // The cooldown starts from the timestamp of the query that caused the exceed
       const cooldownStart = userData.queries.length > 0 ? userData.queries[currentRateLimit - 1].timestamp : now;
       userData.cooldown_end_timestamp = cooldownStart + currentRateLimitWindowMs;
     }
-
     await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
-
     return new Response(JSON.stringify({
       error: 'Query limit exceeded.',
       cooldown_end_timestamp: userData.cooldown_end_timestamp,
@@ -430,31 +403,21 @@ Thank you for your support, it truly makes a difference for me to not implement 
     }), { status: 429, headers: { 'Content-Type': 'application/json' } });
   }
 
-  // If not rate-limited, record the query and proceed
   userData.queries.push({
     timestamp: now,
     query: query,
     user_name: user_name,
-    user_email: user_email, // Store email with query for easier debugging/analysis
+    user_email: user_email,
     user_local_time: user_local_time,
     api_target: api_target,
   });
 
-  // Reset cooldown if it was active and now queries are below limit or period passed
   if (userData.cooldown_end_timestamp && now >= userData.cooldown_end_timestamp) {
       userData.cooldown_end_timestamp = null;
   }
   
-  console.log('Attempting to write user data to KV for key:', userKvKey, 'Data:', JSON.stringify(userData));
-  try {
-    await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
-    console.log('Successfully wrote user data to KV for key:', userKvKey);
-  } catch (kvError) {
-    console.error('Error writing user data to KV for key:', userKvKey, 'Error:', kvError);
-    return new Response(JSON.stringify({ error: `Failed to save user data: ${kvError.message}` }), { status: 500 });
-  }
+  await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
 
-  // Proxy to the target API
   switch (api_target) {
     case 'serper':
       return proxySerper(api_payload, env);
@@ -463,15 +426,6 @@ Thank you for your support, it truly makes a difference for me to not implement 
     case 'coingecko':
       return proxyCoingecko(api_payload, env);
     default:
-      console.warn('Invalid API target received:', api_target);
       return new Response(JSON.stringify({ error: 'Invalid API target.' }), { status: 400 });
   }
-}
-
-function handleOptions(request) {
-  const headers = new Headers();
-  headers.set('Access-Control-Allow-Origin', '*'); // Allow any origin
-  headers.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS'); // Allowed methods
-  headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization'); // Allowed headers
-  return new Response(null, { headers });
 }

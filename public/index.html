@@ -199,17 +199,19 @@
         <div id="rate-limit-popup-overlay" class="popup-overlay">
             <div class="popup-content">
                 <h2>Query Limit Exceeded</h2>
-                <p>You are out of free queries until <span id="cooldown-time"></span></p>
-                <p>
-                    <span style="font-weight: bold;">If you appreciate this project and the answers it provides, please consider supporting it!</span> This is a solo, self-funded research project by a student (me lol).
-                    Your donations would help to keep running it for everyone (and fund my coffee for improving it). Contributions over $20 qualify you for the 20x Plus Plan, which includes:
-                </p>
-                <ul>
-                    <li>✅ 200 AI-powered queries per day</li>
-                    <li>✅ Valid for an entire month</li>
-                </ul>
-                <p>To activate the 20x plan after donating, simply email us at <a href="mailto:support@youtopia.co.in">support@youtopia.co.in</a></p>
-                <p>Thank you for your support, it truly makes a difference for me to not implement spyware to collect user data and sell it to whoever’s buying on 4chan</p>
+                <p>You are out of free queries until <span id="rate-limit-cooldown-timer"></span></p>
+                <div id="rate-limit-developer-message">
+                    <p>
+                        <span style="font-weight: bold;">If you appreciate this project and the answers it provides, please consider supporting it!</span> This is a solo, self-funded research project by a student (me lol).
+                        Your donations would help to keep running it for everyone (and fund my coffee for improving it). Contributions over $20 qualify you for the 20x Plus Plan, which includes:
+                    </p>
+                    <ul>
+                        <li>✅ 200 AI-powered queries per day</li>
+                        <li>✅ Valid for an entire month</li>
+                    </ul>
+                    <p>To activate the 20x plan after donating, simply email us at <a href="mailto:support@youtopia.co.in">support@youtopia.co.in</a></p>
+                    <p>Thank you for your support, it truly makes a difference for me to not implement spyware to collect user data and sell it to whoever’s buying on 4chan</p>
+                </div>
                 <div class="popup-actions">
                     <div class="dropdown-container" id="donate-popup-dropdown">
                         <button class="btn donate-btn dropdown-toggle">

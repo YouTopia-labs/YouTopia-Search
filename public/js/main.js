@@ -1515,41 +1515,25 @@ Generated on: ${currentDate}
             };
 
             try {
-                await orchestrateAgents(query, selectedModel, streamCallback, logCallback, isShortResponseEnabled);
+            const response = await orchestrateAgents(query, selectedModel, streamCallback, logCallback, isShortResponseEnabled);
 
-                if (response.status === 429) {
-                    const errorData = await response.json();
-                    displayRateLimitPopup(errorData.cooldown_end_timestamp, errorData.message_from_developer);
-                    logStep('<i class="fas fa-hourglass-half" style="color: #FBBF24;"></i> Query limit exceeded.');
-                    setSendButtonState(false); // Ensure button is reset
-                    const logContainer = document.getElementById('live-log-container');
-                    if (logContainer) {
-                        logContainer.classList.remove('is-active');
-                        logContainer.classList.add('has-error'); // Indicate an error state
-                        await new Promise(resolve => setTimeout(resolve, 1200));
-                        logContainer.classList.add('collapsed');
-                        setTimeout(() => {
-                            logContainer.classList.remove('has-error');
-                        }, 1000);
-                    }
-                    return; // Stop further processing for 429
+            if (response && response.status === 429) {
+                const errorData = await response.json();
+                displayRateLimitPopup(errorData.cooldown_end_timestamp, errorData.message_from_developer);
+                logStep('<i class="fas fa-hourglass-half" style="color: #FBBF24;"></i> Query limit exceeded.');
+                setSendButtonState(false); // Ensure button is reset
+                const logContainer = document.getElementById('live-log-container');
+                if (logContainer) {
+                    logContainer.classList.remove('is-active');
+                    logContainer.classList.add('has-error'); // Indicate an error state
+                    await new Promise(resolve => setTimeout(resolve, 1200));
+                    logContainer.classList.add('collapsed');
+                    setTimeout(() => {
+                        logContainer.classList.remove('has-error');
+                    }, 1000);
                 }
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-                }
-
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let done = false;
-
-                while (!done) {
-                    const { value, done: readerDone } = await reader.read();
-                    done = readerDone;
-                    const chunk = decoder.decode(value);
-                    streamCallback(chunk);
-                }
+                return; // Stop further processing for 429
+            }
 
                 addExportPanel(aiResponseElement, aiResponseContent);
                 logStep('<i class="fas fa-check-circle" style="color: #10B981;"></i> Response completed successfully.');
