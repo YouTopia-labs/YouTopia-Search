@@ -311,7 +311,25 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
 
     console.log("Agent 1: Deciding next action...");
 
-    const agent1ResponseRaw = await callAgent(agent1Model, agent1SystemPrompt, agent1Input, 0, null, userQuery, userName, userLocalTime);
+    let agent1ResponseRaw;
+    let parsedAgent1Response;
+    let attempt = 0;
+    const maxAttempts = 2;
+
+    while (attempt < maxAttempts) {
+      attempt++;
+      console.log(`Agent 1: Attempt ${attempt} to get a valid JSON response.`);
+      
+      let currentPrompt = agent1SystemPrompt;
+      let currentInput = agent1Input;
+
+      if (attempt > 1 && agent1ResponseRaw) {
+        // If this is a retry, modify the prompt to ask for a fix
+        console.log("Retrying with a request to fix the malformed JSON.");
+        currentPrompt += `\n\nTHE PREVIOUS ATTEMPT FAILED DUE TO INVALID JSON. PLEASE CORRECT THE FOLLOWING RESPONSE TO BE A VALID JSON OBJECT. DO NOT ADD ANY EXTRA TEXT. HERE IS THE FAILED RESPONSE:\n${agent1ResponseRaw}`;
+      }
+
+      agent1ResponseRaw = await callAgent(agent1Model, currentPrompt, currentInput, 0, null, userQuery, userName, userLocalTime);
 
     if (agent1ResponseRaw instanceof Response && !agent1ResponseRaw.ok) {
         if (agent1ResponseRaw.status === 429) {
@@ -323,13 +341,17 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
         return `Error: Agent 1 failed with status ${agent1ResponseRaw.status}. ${errorText}`;
     }
 
-    let parsedAgent1Response;
-    try {
+      try {
         parsedAgent1Response = JSON.parse(agent1ResponseRaw);
-    } catch (error) {
-        console.error("[Error] Agent 1 response parsing failed:", error.message);
+        // If parsing is successful, break the loop
+        break;
+      } catch (error) {
+        console.error(`[Error] Agent 1 response parsing failed on attempt ${attempt}:`, error.message);
         console.error("Raw response:", agent1ResponseRaw);
-        return `Error: Agent 1 returned an invalid JSON response. Error: ${error.message}`;
+        if (attempt >= maxAttempts) {
+          return `Error: Agent 1 failed to return a valid JSON response after ${maxAttempts} attempts. Last error: ${error.message}`;
+        }
+      }
     }
 
     try {

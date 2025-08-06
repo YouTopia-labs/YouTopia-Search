@@ -78,6 +78,19 @@ If the user query is "hello", your response must be:
   "response": "hello"
 }
 
+### GOOD EXAMPLE (Tool Search Query):
+If the user query is "what is the weather in New Delhi?", your response must be:
+{
+  "classification": "tool_web_search",
+  "action": "search",
+  "search_plan": [
+    {
+      "tool": "wheat",
+      "query": "New Delhi"
+    }
+  ]
+}
+
 MANDATORY JSON STRUCTURE & FIELD RULES:
 - "classification": Required. One of: tool_web_search, direct, hybrid, unclear.
 - "action": Required. For "direct" classification, this MUST be "direct". For "tool_web_search" or "hybrid", this MUST be "search".
@@ -85,6 +98,8 @@ MANDATORY JSON STRUCTURE & FIELD RULES:
   - For "direct" classification, this field MUST contain the exact, original user query.
   - For "unclear" classification, this field should contain a message asking for clarification.
 - "search_plan": REQUIRED for "tool_web_search" or "hybrid" classification. Contains a list of tool-use objects.
+  - Each object in the list must have a "tool" and a "query" field.
+  - The "query" field within the "search_plan" MUST ACCURATELY REFLECT the relevant part of the user's original query.
 - "direct_component": REQUIRED for "hybrid" classification. Contains the part of the query for the LLM to answer directly.
 
 FINAL REMINDER: Your response must be PURE JSON. Start with { and end with }. No other text allowed.
