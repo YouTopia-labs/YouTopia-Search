@@ -5,6 +5,8 @@ import agent3SystemPrompt from './agent3_prompt.js';
 import { fetchWheatData } from '../tools/wheat_tool.js'; // Import the new Wheat tool
 import { wikiEye } from '../tools/wiki_eye.js'; // Import the new wiki_eye tool
 
+const MISTRAL_API_KEY = 'YOUR_MISTRAL_API_KEY'; // Placeholder: Replace with actual key or load securely
+
 // Validate API configuration
 async function executeTool(toolName, query, params = {}, userQuery, userName, userLocalTime) {
   console.log(`Executing tool: ${toolName} with query: ${query} and params:`, params);
@@ -121,8 +123,23 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
       }
     };
 
-    const fetchPromise = fetchWithProxy('mistral', api_payload, query, userName, userLocalTime);
-    const response = await Promise.race([fetchPromise, timeoutPromise]);
+    const response = await Promise.race([
+      fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${MISTRAL_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: messages,
+          temperature: 0.5,
+          max_tokens: 6000,
+          stream: true
+        })
+      }),
+      timeoutPromise
+    ]);
 
     if (!response.ok) {
         if (response.status === 429) {
@@ -147,20 +164,44 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
     const decoder = new TextDecoder('utf-8');
 
     try {
+      let buffer = ''; // Buffer for accumulating partial JSON lines
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         
         const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
         
-        // Accumulate content for non-streaming agents or for final parsing
-        content += chunk;
-
-        // If Agent 3 and streamCallback is provided, send the content immediately
-        // Agent 1 and Agent 2 do NOT stream their content for JSON parsing.
-        if (streamCallback && prompt.includes('Agent 3:')) {
-            streamCallback(chunk); // Send chunk to UI
+        for (const line of lines) {
+            if (line.startsWith('data:')) {
+                const jsonStr = line.substring(5).trim();
+                if (jsonStr === '[DONE]') {
+                    break; // End of stream
+                }
+                buffer += jsonStr;
+                
+                // For Agent 3, send the content immediately via streamCallback
+                if (streamCallback && prompt.includes('Agent 3:')) {
+                    try {
+                        const data = JSON.parse(jsonStr);
+                        if (data.choices && data.choices.length > 0 && data.choices[0].delta && data.choices[0].delta.content) {
+                            streamCallback(data.choices[0].delta.content);
+                        }
+                    } catch (e) {
+                        // This handles partial JSON from the Mistral stream for Agent 3.
+                        // We accumulate content into 'buffer' for full parse later,
+                        // but for immediate streaming to UI, we try to extract what's available.
+                        console.warn("Error parsing streamed chunk for Agent 3 display:", e);
+                    }
+                }
+            } else {
+                // Handle any non-data lines or leftover buffer if necessary
+                buffer += line;
+            }
         }
+        // Accumulate full content for non-streaming agents or final parsing
+        content += buffer;
+        buffer = ''; // Clear buffer after processing
       }
     } catch (streamError) {
       console.error('Error reading stream:', streamError);
