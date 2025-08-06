@@ -41,7 +41,7 @@ async function executeTool(toolName, query, params = {}) {
 }
 
 // Helper function to proxy requests through the Cloudflare Worker
-async function fetchWithProxy(api_target, api_payload) {
+async function fetchWithProxy(api_target, api_payload, query, userName, userLocalTime) {
   const idToken = localStorage.getItem('id_token');
   if (!idToken) {
     throw new Error('Authentication token not found. Please sign in.');
@@ -54,6 +54,9 @@ async function fetchWithProxy(api_target, api_payload) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
+      query,
+      user_name: userName,
+      user_local_time: userLocalTime,
       api_target,
       api_payload,
       id_token: idToken,
@@ -78,7 +81,7 @@ async function fetchWithProxy(api_target, api_payload) {
   return response.json();
 }
 
-export async function callAgent(model, prompt, input, retryCount = 0, streamCallback = null) {
+export async function callAgent(model, prompt, input, retryCount = 0, streamCallback = null, query, userName, userLocalTime) {
   console.log(`Calling agent with model: ${model}, prompt: ${prompt}, input:`, input);
   const maxRetries = 2;
 
@@ -119,7 +122,7 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
       }
     };
 
-    const fetchPromise = fetchWithProxy('mistral', api_payload);
+    const fetchPromise = fetchWithProxy('mistral', api_payload, query, userName, userLocalTime);
     const response = await Promise.race([fetchPromise, timeoutPromise]);
 
     if (!response.ok) {
@@ -288,7 +291,7 @@ if (['conversational', 'math', 'code', 'direct', 'unclear'].includes(response.cl
   return errors;
 }
 
-export async function orchestrateAgents(userQuery, agentSelectionType, streamCallback = null, logCallback = null, isShortResponseEnabled = false) {
+export async function orchestrateAgents(userQuery, userName, userLocalTime, agentSelectionType, streamCallback = null, logCallback = null, isShortResponseEnabled = false) {
   console.log(`Starting orchestration for query: "${userQuery}" with selection: "${agentSelectionType}", short responses: ${isShortResponseEnabled}`);
 
   // Validate API configuration before proceeding
@@ -316,69 +319,41 @@ export async function orchestrateAgents(userQuery, agentSelectionType, streamCal
     };
 
     console.log("Agent 1: Deciding next action...");
-    const agent1ResponseRaw = await callAgent(agent1Model, agent1SystemPrompt, agent1Input);
+    const agent1ResponseRaw = await callAgent(agent1Model, agent1SystemPrompt, agent1Input, 0, null, userQuery, userName, userLocalTime);
     let parsedAgent1Response;
 
-    // Enhanced JSON parsing with multiple fallback strategies
-    const parseJsonResponse = (rawResponse) => {
-      // Strategy 1: Direct parse (for properly formatted responses)
-      try {
-        return JSON.parse(rawResponse.trim());
-      } catch (e) {
-        console.warn("[Warning] Direct JSON parse failed. Trying cleanup strategies...");
-      }
+    const robustJsonParse = (rawResponse) => {
+        let cleaned = rawResponse
+            .replace(/```json/g, '')
+            .replace(/```/g, '')
+            .trim();
 
-      // Strategy 2: Remove common prefixes and markdown
-      let cleaned = rawResponse
-        .replace(/^.*?(?=\{)/s, '') // Remove everything before first {
-        .replace(/```json\s*|```/g, '') // Remove markdown fences
-        .replace(/`/g, '') // Remove backticks
-        .trim();
-
-      // Strategy 2.5: If the cleaned string is entirely wrapped in quotes, unwrap it.
-      if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
-        // Ensure it's not a JSON string literal inside (e.g., "{\"key\":\"value\"}")
-        // but rather a string that contains the entire JSON object as its content.
-        try {
-          const tempParsed = JSON.parse(cleaned);
-          if (typeof tempParsed === 'object' && tempParsed !== null) {
-            return tempParsed; // If it's already valid JSON, return it.
-          }
-        } catch (e) {
-          // If parsing fails, it means the quotes are part of the malformed output, so unwrap.
-          cleaned = cleaned.substring(1, cleaned.length - 1).trim();
+        // Attempt to find the start of the JSON object
+        const jsonStart = cleaned.indexOf('{');
+        if (jsonStart === -1) {
+            throw new Error("No JSON object found in response");
         }
-      }
+        cleaned = cleaned.substring(jsonStart);
 
-      try {
-        return JSON.parse(cleaned);
-      } catch (e) {
-        console.warn("[Warning] Cleaned JSON parse failed. Attempting brace extraction...");
-      }
-
-      // Strategy 3: Extract JSON object by finding matching braces
-      const firstBrace = cleaned.indexOf('{');
-      const lastBrace = cleaned.lastIndexOf('}');
-      
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        const extracted = cleaned.substring(firstBrace, lastBrace + 1);
         try {
-          return JSON.parse(extracted);
+            return JSON.parse(cleaned);
         } catch (e) {
-          console.error("[Error] All JSON parsing strategies failed.");
-          console.error("Raw response:", rawResponse);
-          console.error("Cleaned response:", cleaned);
-          console.error("Extracted JSON:", extracted);
-          console.error("Parse error:", e.message);
-          throw new Error(`JSON parsing failed: ${e.message}`);
+            // If parsing fails, try to repair the JSON
+            let repaired = cleaned.replace(/,\s*([}\]])/g, '$1'); // Remove trailing commas
+            try {
+                return JSON.parse(repaired);
+            } catch (e2) {
+                console.error("[Error] All JSON parsing strategies failed.");
+                console.error("Raw response:", rawResponse);
+                console.error("Cleaned response:", cleaned);
+                console.error("Repaired response:", repaired);
+                throw new Error(`JSON parsing failed: ${e2.message}`);
+            }
         }
-      }
-      
-      throw new Error("No valid JSON structure found in response");
     };
 
     try {
-      parsedAgent1Response = parseJsonResponse(agent1ResponseRaw);
+      parsedAgent1Response = robustJsonParse(agent1ResponseRaw);
       console.log("✓ Agent 1 JSON parsed successfully");
       
       // Validate the parsed response structure
@@ -408,7 +383,7 @@ export async function orchestrateAgents(userQuery, agentSelectionType, streamCal
       // For 'direct' classification, pass the original userQuery as the query to Agent 3
       // For other direct classifications, Agent 1's response field already contains the relevant part.
       const queryForAgent3 = (classification === 'direct' || classification === 'conversational') ? userQuery : agent1DirectResponse;
-      const finalResponse = await callAgent(agent3Model, agent3SystemPrompt, { rawQuery: userQuery, query: queryForAgent3, classification: classification, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback);
+      const finalResponse = await callAgent(agent3Model, agent3SystemPrompt, { rawQuery: userQuery, query: queryForAgent3, classification: classification, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime);
       console.log("Final Response Generated by Agent 3. Value from callAgent:", finalResponse);
       // If streaming, callAgent returns null, so we return early
       if (streamCallback) {
@@ -451,10 +426,10 @@ export async function orchestrateAgents(userQuery, agentSelectionType, streamCal
             logCallback(`<i class="fas fa-tools"></i> Looking up ${toolDisplayName} for: "<b>${step.query}</b>"`);
           }
           if (step.tool === 'serper_web_search') {
-            const result = await executeTool(step.tool, step.query, step.params);
+            const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
             return { type: 'web_search', data: result.results || [result] };
           } else if (step.tool === 'coingecko' || step.tool === 'wheat') {
-            const result = await executeTool(step.tool, step.query, step.params);
+            const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
             // Ensure result.data is an array for consistency
             const otherToolData = Array.isArray(result.data) ? result.data : [result.data];
             return { type: 'other_tool', data: otherToolData, sourceUrl: result.sourceUrl };
@@ -516,7 +491,7 @@ export async function orchestrateAgents(userQuery, agentSelectionType, streamCal
       };
 
       console.log("Sending combined data to Agent 3:", dataForAgent3);
-      const finalResponse = await callAgent(agent3Model, agent3SystemPrompt, { ...dataForAgent3, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback);
+      const finalResponse = await callAgent(agent3Model, agent3SystemPrompt, { ...dataForAgent3, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime);
 
       return finalResponse; // Return the final response from Agent 3
     }

@@ -1515,7 +1515,7 @@ Generated on: ${currentDate}
             };
 
             try {
-            const response = await orchestrateAgents(query, selectedModel, streamCallback, logCallback, isShortResponseEnabled);
+            const response = await orchestrateAgents(query, userName, userLocalTime, selectedModel, streamCallback, logCallback, isShortResponseEnabled);
 
             if (response && response.status === 429) {
                 const errorData = await response.json();
