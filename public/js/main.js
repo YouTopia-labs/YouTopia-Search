@@ -1517,22 +1517,24 @@ Generated on: ${currentDate}
             try {
                 console.log('Sending request to /api/query-proxy with payload:', {
                     query: query,
-                    api_target: selectedModel.toLowerCase(),
+api_target: "mistral", // Always route to mistral proxy for agent orchestration
                     user_email: userEmail,
                     user_name: userName,
                     user_local_time: userLocalTime,
-                    short_response_enabled: isShortResponseEnabled
+                    short_response_enabled: isShortResponseEnabled,
+                    agent_selection_type: selectedModel, // Pass the selected model (e.g., "Amaya") for orchestration
                 });
                 const response = await fetch(`${WORKER_BASE_URL}/api/query-proxy`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         query: query,
-                        api_target: selectedModel.toLowerCase(), // This will be used by the worker to route
+                        api_target: "mistral", // Always route to mistral proxy for agent orchestration
                         user_email: userEmail,
                         user_name: userName,
                         user_local_time: userLocalTime,
                         short_response_enabled: isShortResponseEnabled,
+                        agent_selection_type: selectedModel, // Pass the selected model (e.g., "Amaya") for orchestration
                         id_token: idToken // Add the ID token to the request
                     }),
                 });
