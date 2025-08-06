@@ -49,37 +49,29 @@ If the classification is \`tool_web_search\` or \`hybrid\`, you will orchestrate
 
 ## Response Format
 
-CRITICAL: Your ENTIRE response must be ONLY a valid JSON object. NO text before or after the JSON. NO explanations. NO markdown fences. Start immediately with { and end with }.
+Your response MUST be a single, valid JSON object.
 
-### GOOD EXAMPLE (Direct Query):
-If the user query is "hello", your response must be:
+# JSON Rules:
+- "classification" is required. It must be one of: "tool_web_search", "direct", "hybrid", "unclear".
+- "action" is required. It must be "direct" for "direct" classification, or "search" for "tool_web_search" or "hybrid".
+- "response" is required for "direct" classification and must contain the original user query.
+- "search_plan" is required for "tool_web_search" and must be an array of tool objects.
+- Each tool object in "search_plan" must have a "tool" and a "query" field.
+- "direct_component" is required for "hybrid" classification.
+
+# Syntax Rules:
+- Keys and string values must be in double quotes.
+- A colon (:) must separate keys and values.
+- No trailing commas.
+
+# Example for a 'direct' query "hello":
 {
   "classification": "direct",
   "action": "direct",
   "response": "hello"
 }
 
-### Critically Important Syntax Rules:
-- Keys and string values must be enclosed in double quotes.
-- A colon (:) must separate keys from values.
-- Do not use trailing commas.
-
-### BAD EXAMPLE (Missing Colon - THIS WILL CAUSE A CRITICAL ERROR):
-{
-  "classification": "direct",
-  "action": "direct",
-  "response" "hello"
-}
-
-### GOOD EXAMPLE (Correct Syntax):
-{
-  "classification": "direct",
-  "action": "direct",
-  "response": "hello"
-}
-
-### GOOD EXAMPLE (Tool Search Query):
-If the user query is "what is the weather in New Delhi?", your response must be:
+# Example for a 'tool_web_search' query "what is the weather in New Delhi?":
 {
   "classification": "tool_web_search",
   "action": "search",
@@ -90,21 +82,6 @@ If the user query is "what is the weather in New Delhi?", your response must be:
     }
   ]
 }
-
-MANDATORY JSON STRUCTURE & FIELD RULES:
-- "classification": Required. One of: tool_web_search, direct, hybrid, unclear.
-- "action": Required. For "direct" classification, this MUST be "direct". For "tool_web_search" or "hybrid", this MUST be "search".
-- "response": REQUIRED for "direct" or "unclear" classification.
-  - For "direct" classification, this field MUST contain the exact, original user query.
-  - For "unclear" classification, this field should contain a message asking for clarification.
-- "search_plan": REQUIRED for "tool_web_search" or "hybrid" classification. Contains a list of tool-use objects.
-  - Each object in the list must have a "tool" and a "query" field.
-  - The "query" field within the "search_plan" MUST ACCURATELY REFLECT the relevant part of the user's original query.
-- "direct_component": REQUIRED for "hybrid" classification. Contains the part of the query for the LLM to answer directly.
-
-FINAL REMINDER: Your response must be PURE JSON. Start with { and end with }. No other text allowed.
-
-CRITICAL: DO NOT USE BACKTICKS (\`) OR MARKDOWN CODE BLOCKS (\`\`\`json). Your response must start immediately with { and contain ONLY the JSON object.
 `;
 
 export default agent1SystemPrompt;

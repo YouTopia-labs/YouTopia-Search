@@ -233,51 +233,82 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
   }
 }
 
+// Sanitize and parse JSON, attempting to fix common errors.
+function sanitizeAndParseJson(jsonString) {
+    console.log("Attempting to sanitize and parse JSON...");
+    let sanitizedString = jsonString
+        .trim()
+        .replace(/[\x00-\x1F\x7F-\x9F]/g, "") // Remove control characters
+        .replace(/\\n/g, "\\n") // Escape newlines
+        .replace(/\\"/g, '"'); // Un-escape double quotes that were escaped
+
+    // Add missing colons after keys
+    sanitizedString = sanitizedString.replace(/([{,]\s*)("([^"]+)")\s*("([^"]+)")/g, '$1$2:$4');
+
+    // Add missing quotes around keys and values that need them
+    sanitizedString = sanitizedString.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+    
+    // Attempt to fix trailing commas
+    sanitizedString = sanitizedString.replace(/,\s*([}\]])/g, '$1');
+
+    try {
+        return JSON.parse(sanitizedString);
+    } catch (error) {
+        console.error("Sanitization failed. Could not parse JSON.", error);
+        // As a last resort, try to extract a JSON object from the string
+        const match = sanitizedString.match(/\{[\s\S]*\}/);
+        if (match) {
+            try {
+                return JSON.parse(match[0]);
+            } catch (e) {
+                throw new Error(`Failed to parse JSON even after sanitization and extraction: ${e.message}`);
+            }
+        }
+        throw new Error(`Failed to parse JSON after all attempts: ${error.message}`);
+    }
+}
+
 // Validate Agent 1 JSON response structure
 function validateAgent1Response(response) {
   const errors = [];
   
   // Required fields
   if (!response.classification) errors.push("Missing 'classification' field");
-  // Reasoning field is no longer mandatory for Agent 1.
-  // if (!response.reasoning) errors.push("Missing 'reasoning' field");
   
-// Valid classification values
-const validClassifications = ['tool_web_search', 'math', 'code', 'conversational', 'direct', 'hybrid', 'unclear'];
-if (response.classification && !validClassifications.includes(response.classification)) {
-  errors.push(`Invalid classification: ${response.classification}. Must be one of: ${validClassifications.join(', ')}`);
-}
-
-// Action field validation based on classification
-if (['tool_web_search', 'hybrid'].includes(response.classification)) {
-  if (!response.action) {
-    errors.push("Missing 'action' field for tool_web_search/hybrid classification");
-  } else if (response.action !== 'search') {
-    errors.push(`Invalid action: ${response.action}. Must be 'search' for tool_web_search/hybrid classification.`);
+  const validClassifications = ['tool_web_search', 'math', 'code', 'conversational', 'direct', 'hybrid', 'unclear'];
+  if (response.classification && !validClassifications.includes(response.classification)) {
+    errors.push(`Invalid classification: ${response.classification}. Must be one of: ${validClassifications.join(', ')}`);
   }
-} else if (response.classification === 'direct') {
-  if (!response.action) {
-    errors.push("Missing 'action' field for 'direct' classification");
-  } else if (response.action !== 'direct') {
-    errors.push(`Invalid action: ${response.action}. Must be 'direct' for 'direct' classification.`);
+
+  // Action field validation based on classification
+  if (['tool_web_search', 'hybrid'].includes(response.classification)) {
+    if (!response.action) {
+      errors.push("Missing 'action' field for tool_web_search/hybrid classification");
+    } else if (response.action !== 'search') {
+      errors.push(`Invalid action: ${response.action}. Must be 'search' for tool_web_search/hybrid classification.`);
+    }
+  } else if (response.classification === 'direct') {
+    if (!response.action) {
+      errors.push("Missing 'action' field for 'direct' classification");
+    } else if (response.action !== 'direct') {
+      errors.push(`Invalid action: ${response.action}. Must be 'direct' for 'direct' classification.`);
+    }
   }
-}
 
-// Field-specific validation
-if (response.classification === 'tool_web_search' && !response.search_plan) {
-  errors.push("Missing 'search_plan' field when classification is 'tool_web_search'");
-}
-
-if (response.classification === 'hybrid') {
-  if (!response.search_plan && !response.direct_component) {
-    errors.push("For 'hybrid' classification, either 'search_plan' or 'direct_component' must be present.");
+  // Field-specific validation
+  if (response.classification === 'tool_web_search' && !response.search_plan) {
+    errors.push("Missing 'search_plan' field when classification is 'tool_web_search'");
   }
-}
 
-// For direct response classifications, 'response' field is required.
-if (['conversational', 'math', 'code', 'direct', 'unclear'].includes(response.classification) && !response.response) {
-  errors.push("Missing 'response' field for direct response classifications");
-}
+  if (response.classification === 'hybrid') {
+    if (!response.search_plan && !response.direct_component) {
+      errors.push("For 'hybrid' classification, either 'search_plan' or 'direct_component' must be present.");
+    }
+  }
+
+  if (['conversational', 'math', 'code', 'direct', 'unclear'].includes(response.classification) && !response.response) {
+    errors.push("Missing 'response' field for direct response classifications");
+  }
   
   return errors;
 }
@@ -342,7 +373,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
     }
 
       try {
-        parsedAgent1Response = JSON.parse(agent1ResponseRaw);
+        parsedAgent1Response = sanitizeAndParseJson(agent1ResponseRaw);
         // If parsing is successful, break the loop
         break;
       } catch (error) {
