@@ -5,8 +5,6 @@ import agent3SystemPrompt from './agent3_prompt.js';
 import { fetchWheatData } from '../tools/wheat_tool.js'; // Import the new Wheat tool
 import { wikiEye } from '../tools/wiki_eye.js'; // Import the new wiki_eye tool
 
-const MISTRAL_API_KEY = 'YOUR_MISTRAL_API_KEY'; // Placeholder: Replace with actual key or load securely
-
 // Validate API configuration
 async function executeTool(toolName, query, params = {}, userQuery, userName, userLocalTime) {
   console.log(`Executing tool: ${toolName} with query: ${query} and params:`, params);
@@ -90,6 +88,7 @@ async function fetchWithProxy(api_target, api_payload, query, userName, userLoca
 
 export async function callAgent(model, prompt, input, retryCount = 0, streamCallback = null, query, userName, userLocalTime) {
   console.log(`Calling agent with model: ${model}, input:`, input);
+  const apiUrl = 'https://api.mistral.ai/v1/chat/completions'; // Define apiUrl here
   const MAX_AGENT_1_RETRIES = 2; // Max retries for Agent 1's JSON
 
   if (streamCallback && prompt.includes('Agent 3:')) {
@@ -119,27 +118,13 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
         messages: messages,
         temperature: 0.5,
         max_tokens: 6000,
-        stream: true
+        // Stream only if streamCallback is provided and it's Agent 3
+        stream: (streamCallback && prompt.includes('Agent 3:'))
       }
     };
 
-    const response = await Promise.race([
-      fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${MISTRAL_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: messages,
-          temperature: 0.5,
-          max_tokens: 6000,
-          stream: true
-        })
-      }),
-      timeoutPromise
-    ]);
+    const fetchPromise = fetchWithProxy('mistral', api_payload, query, userName, userLocalTime);
+    const response = await Promise.race([fetchPromise, timeoutPromise]);
 
     if (!response.ok) {
         if (response.status === 429) {
