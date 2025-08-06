@@ -186,12 +186,17 @@ async function verifyGoogleToken(id_token, env) {
   const decodedToken = decodeJwt(id_token);
   const { header, payload, raw } = decodedToken;
 
-  // Step 1: Verify issuer and audience
-  if (payload.iss !== 'https://accounts.google.com' && payload.iss !== 'accounts.google.com') {
-    throw new Error(`Invalid issuer: ${payload.iss}`);
+  // Step 1: Verify issuer and audience for Firebase ID tokens
+  if (!env.FIREBASE_PROJECT_ID) {
+    throw new Error('FIREBASE_PROJECT_ID environment variable is not set.');
   }
-  if (payload.aud !== env.GOOGLE_CLIENT_ID) {
-    throw new Error('Invalid token audience.');
+
+  const expectedIssuer = `https://securetoken.google.com/${env.FIREBASE_PROJECT_ID}`;
+  if (payload.iss !== expectedIssuer) {
+    throw new Error(`Invalid issuer: ${payload.iss}. Expected: ${expectedIssuer}`);
+  }
+  if (payload.aud !== env.FIREBASE_PROJECT_ID) {
+    throw new Error(`Invalid token audience: ${payload.aud}. Expected: ${env.FIREBASE_PROJECT_ID}`);
   }
 
   // Step 2: Verify expiration
