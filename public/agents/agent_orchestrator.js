@@ -8,71 +8,84 @@ import { wikiEye } from '../tools/wiki_eye.js'; // Import the new wiki_eye tool
 // Validate API configuration
 async function executeTool(toolName, query, params = {}) {
   console.log(`Executing tool: ${toolName} with query: ${query} and params:`, params);
-  
+
+  let api_target;
+  let api_payload;
+
   switch (toolName) {
     case 'serper_web_search':
-      const webResponse = await fetch('/api/serper-search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ q: query }),
-      });
-      if (!webResponse.ok) {
-        const errorText = await webResponse.text();
-        throw new Error(`Serper API error: ${webResponse.status} - ${errorText}`);
-      }
-      const webData = await webResponse.json();
-      return { results: webData.organic };
-
+      api_target = 'serper';
+      api_payload = { type: 'search', body: { q: query } };
+      break;
     case 'serper_news_search':
-      const newsResponse = await fetch('/api/serper-news', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ q: query }),
-      });
-      const newsData = await newsResponse.json();
-      return { results: newsData.news };
-
+      api_target = 'serper';
+      api_payload = { type: 'news', body: { q: query } };
+      break;
     case 'coingecko':
-      const apiKey = env.COINGECKO_API_KEY;
-      const coingeckoParams = new URLSearchParams({
-        ids: query,
-        vs_currencies: 'usd',
-        x_cg_demo_api_key: apiKey
-      }).toString();
-      const coingeckoResponse = await fetch(`https://api.coingecko.com/api/v3/simple/price?${coingeckoParams}`);
-      const coingeckoData = await coingeckoResponse.json();
-      return { data: coingeckoData, sourceUrl: 'https://www.coingecko.com/' };
-
-
+      api_target = 'coingecko';
+      api_payload = { params: { ids: query, vs_currencies: 'usd' } };
+      break;
     case 'wheat':
+      // This tool appears to be a local function, not a worker API call.
+      // It needs to be handled differently or proxied if it requires external access.
+      // For now, assuming it's a local function.
       console.log(`Calling fetchWheatData for location: ${query}`);
       return { data: await fetchWheatData(query), sourceUrl: 'https://open-meteo.com/en/docs' };
-
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
+
+  // All API calls now go through the worker proxy
+  const response = await fetchWithProxy(api_target, api_payload);
+  return response;
+}
+
+// Helper function to proxy requests through the Cloudflare Worker
+async function fetchWithProxy(api_target, api_payload) {
+  const idToken = localStorage.getItem('id_token');
+  if (!idToken) {
+    throw new Error('Authentication token not found. Please sign in.');
+  }
+
+  const response = await fetch(`/api/query-proxy`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      api_target,
+      api_payload,
+      id_token: idToken,
+      user_email: localStorage.getItem('user_email'), // Include for verification
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || `API proxy error: ${response.status}`);
+  }
+
+  // For streaming responses (like Mistral), return the response object directly
+  if (response.headers.get('Content-Type')?.includes('text/event-stream')) {
+    return response;
+  }
+
+  // For non-streaming responses, parse and return the JSON
+  return response.json();
 }
 
 export async function callAgent(model, prompt, input, retryCount = 0, streamCallback = null) {
   console.log(`Calling agent with model: ${model}, prompt: ${prompt}, input:`, input);
   const maxRetries = 2;
 
-  // For Agent 3, if a streamCallback is provided, ensure JSON validation is skipped
-  // as partial responses will not be valid JSON until complete.
   if (streamCallback && prompt.includes('Agent 3:')) {
-    console.log("Agent 3 streaming enabled. Skipping JSON validation for partials.");
+    console.log("Agent 3 streaming enabled.");
   }
-  
-  // Construct messages array based on agent and input
+
   let messages = [
     { role: 'system', content: prompt }
   ];
 
-  // Add retry-specific instructions for JSON compliance
   if (retryCount > 0) {
     messages.push({
       role: 'system',
@@ -81,55 +94,37 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
   }
 
   if (input) {
-    // For Agent 1, input is a direct query string or an object. For Agent 3, it's an object.
     const userInputContent = typeof input === 'string' ? input : JSON.stringify(input);
     messages.push({ role: 'user', content: userInputContent });
   }
 
-  // Create timeout promise
   const timeoutPromise = new Promise((_, reject) => {
     setTimeout(() => {
       reject(new Error('Request timeout: Mistral API took too long to respond (30 seconds)'));
-    }, 30000); // 30 second timeout
+    }, 30000);
   });
 
   try {
-    // Proxy Mistral API calls through the worker
-    const fetchPromise = fetch('/api/mistral-chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    const api_payload = {
+      body: {
         model: model,
         messages: messages,
-        temperature: retryCount > 0 ? 0.3 : 0.7, // Lower temperature for retries
-        max_tokens: 6000, // Adjust as needed
-        stream: true // Enable streaming
-      })
-    });
+        temperature: retryCount > 0 ? 0.3 : 0.7,
+        max_tokens: 6000,
+        stream: true
+      }
+    };
 
+    const fetchPromise = fetchWithProxy('mistral', api_payload);
     const response = await Promise.race([fetchPromise, timeoutPromise]);
 
-    // Enhanced error handling for API response
     if (!response.ok) {
       let errorData;
-      const contentType = response.headers.get('content-type');
-      
       try {
-        if (contentType && contentType.includes('application/json')) {
-          errorData = await response.json();
-        } else {
-          // If response is not JSON, get text content
-          const errorText = await response.text();
-          console.error('Non-JSON error response:', errorText);
-          throw new Error(`Mistral API error: ${response.status} - ${errorText || response.statusText}`);
-        }
-      } catch (parseError) {
-        console.error('Failed to parse error response:', parseError);
-        throw new Error(`Mistral API error: ${response.status} - ${response.statusText}`);
+        errorData = await response.json();
+      } catch (e) {
+        errorData = { message: await response.text() };
       }
-      
       throw new Error(`Mistral API error: ${response.status} - ${errorData.message || response.statusText}`);
     }
 

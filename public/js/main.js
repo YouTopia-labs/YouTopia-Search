@@ -1515,28 +1515,7 @@ Generated on: ${currentDate}
             };
 
             try {
-                console.log('Sending request to /api/query-proxy with payload:', {
-                    query: query,
-                    api_target: selectedModel.toLowerCase(),
-                    user_email: userEmail,
-                    user_name: userName,
-                    user_local_time: userLocalTime,
-                    short_response_enabled: isShortResponseEnabled
-                });
-                const response = await fetch(`${WORKER_BASE_URL}/api/query-proxy`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        query: query,
-                        api_target: selectedModel.toLowerCase(), // This will be used by the worker to route
-                        user_email: userEmail,
-                        user_name: userName,
-                        user_local_time: userLocalTime,
-                        short_response_enabled: isShortResponseEnabled,
-                        id_token: idToken // Add the ID token to the request
-                    }),
-                });
-                console.log('Received response from /api/query-proxy. Status:', response.status, 'OK:', response.ok);
+                await orchestrateAgents(query, selectedModel, streamCallback, logCallback, isShortResponseEnabled);
 
                 if (response.status === 429) {
                     const errorData = await response.json();
