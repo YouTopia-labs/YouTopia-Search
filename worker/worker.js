@@ -83,7 +83,7 @@ function handleOptions(request, headers) {
 
 // --- Proxy Functions ---
 async function proxySerper(api_payload, env) {
-  const serperApiUrl = api_payload.type === 'search' ? 'https://serper.dev/search' : 'https://serper.dev/news';
+  const serperApiUrl = api_payload.type === 'search' ? 'https://google.serper.dev/search' : 'https://google.serper.dev/news';
 
   if (!env.SERPER_API_KEY) {
     console.error('SERPER_API_KEY is not set in environment variables.');
@@ -379,7 +379,7 @@ async function verifyGoogleToken(id_token, env) {
 
 async function handleGoogleAuth(request, env) {
   if (request.method !== 'POST') {
-    return new Response('Expected POST for Google auth', { status: 405 });
+    return new Response('Request mis-routed to Google Auth handler', { status: 405 });
   }
 
   try {
@@ -514,7 +514,7 @@ async function handleQueryProxy(request, env) {
       }), { status: 429, headers: { 'Content-Type': 'application/json' } });
     }
 
-    if (queryCount >= currentRateLimit) {
+    if (queryCount > currentRateLimit) {
       if (!userData.cooldown_end_timestamp || now >= userData.cooldown_end_timestamp) {
         const cooldownStart = userData.queries.length > 0 ? userData.queries[currentRateLimit - 1].timestamp : now;
         userData.cooldown_end_timestamp = cooldownStart + currentRateLimitWindowMs;

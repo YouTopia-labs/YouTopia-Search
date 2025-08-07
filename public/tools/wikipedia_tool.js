@@ -167,15 +167,14 @@ function processImageApiResponse(data) {
     const images = [];
     for (const page of data.query.pages) {
         if (page.imageinfo) {
-            const filename = page.title.toLowerCase();
-            // Filter out common non-content images like icons, logos, etc.
-            const isGoodCandidate = /\.(jpe?g|png|gif|webp|tiff)$/i.test(filename) && !/logo|icon|badge|flag|map|button|svg|disambig|infobox|wikidata|commons|speaker|sound|rhymes/i.test(filename);
-            if (isGoodCandidate) {
-                images.push({
-                    title: page.title,
-                    url: page.imageinfo[0].url
-                });
-            }
+            // Relax filtering to allow more images, including SVGs.
+            // Main image of an article might be an SVG or contain keywords like 'logo' in its filename.
+            // We should prioritize showing *any* image associated with the article.
+            // The `imageinfo` array should contain the primary image if available.
+            images.push({
+                title: page.title, // Use the page title as the image title
+                url: page.imageinfo[0].url // Use the first image URL found
+            });
         }
     }
     return images;

@@ -39,7 +39,12 @@ export async function wikiEye(searchResults, userQuery) {
                 const parsedWikiDataRaw = await callAgent('mistral-3b-latest', agent2SystemPrompt, agent2Input);
                 try {
                     const parsedWikiData = JSON.parse(parsedWikiDataRaw);
-                    processedWikiData.push(parsedWikiData);
+                    processedWikiData.push({
+                        ...parsedWikiData, // Include the parsed data from Agent 2
+                        articleHtml: wikiResult.articleContentHtml, // Add the raw article HTML
+                        imageResults: wikiResult.imageResults, // Add the image results
+                        sourceArticleUrl: wikiResult.sourceArticleUrl // Add the source URL
+                    });
                 } catch (jsonError) {
                     console.error("Error parsing Agent 2 response in wikiEye:", jsonError.message);
                 }
