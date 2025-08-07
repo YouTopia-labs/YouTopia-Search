@@ -162,63 +162,38 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
 
     let content = '';
     const reader = response.body.getReader();
-    const decoder = new TextDecoder('utf-8');
+    const decoder = new TextDecoder();
+    let buffer = '';
 
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        if (!value) {
-          console.warn('Received empty chunk from stream');
-          continue;
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+            break;
         }
-        
-        const chunk = decoder.decode(value, { stream: true });
-        
-        if (!chunk.trim()) {
-          continue; // Skip empty chunks
-        }
-        
-        // Each chunk might contain multiple JSON objects or partial objects
-        const lines = chunk.split('\n');
-        let buffer = ''; // Buffer to accumulate partial JSON
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // Keep the last partial line in the buffer
+
         for (const line of lines) {
-            if (line.startsWith('data:')) {
-                const jsonStr = line.substring(5).trim();
+            if (line.startsWith('data: ')) {
+                const jsonStr = line.substring(6);
                 if (jsonStr === '[DONE]') {
-                    break; // End of stream
+                    break;
                 }
-                if (!jsonStr.trim()) { // Check for empty or whitespace-only string
-                    console.warn('Skipping empty or whitespace-only data: line in stream.');
-                    continue; // Skip to the next line
-                }
-
-                buffer += jsonStr; // Add to buffer
-
                 try {
-                    const data = JSON.parse(buffer); // Try parsing the accumulated buffer
-                    if (data.choices && data.choices.length > 0) {
-                        const delta = data.choices[0].delta;
-                        if (delta && delta.content) {
-                            content += delta.content;
-                            // If Agent 3 and streamCallback is provided, send the content immediately
-                            if (streamCallback) {
-                                streamCallback(delta.content);
-                            }
+                    const parsed = JSON.parse(jsonStr);
+                    if (parsed.choices && parsed.choices[0].delta && parsed.choices[0].delta.content) {
+                        const chunk = parsed.choices[0].delta.content;
+                        content += chunk;
+                        if (streamCallback) {
+                            streamCallback(chunk);
                         }
                     }
-                    buffer = ''; // Clear buffer on successful parse
                 } catch (e) {
-                    // JSON parse error: could be incomplete JSON, continue buffering
-                    // console.warn("Incomplete JSON chunk, buffering:", buffer, "Error:", e);
+                    console.error('Error parsing stream chunk:', e);
                 }
             }
         }
-      }
-    } catch (streamError) {
-      console.error('Error reading stream:', streamError);
-      throw new Error(`Stream reading error: ${streamError.message}`);
     }
 
     // Check if we got any content

@@ -173,7 +173,14 @@ Your response must:
 - Be highly readable, engaging, and provide a complete answer, demonstrating a deep understanding of the query and the provided data.
 - Avoid any JSON formatting in your final output. Your output should be a direct, natural language response, formatted purely with Markdown.
 `;
-  return prompt;
+
+if (isShortResponseEnabled) {
+  prompt += `
+CRITICAL: Short response mode is enabled. Your response must be very short, concise, and to the point. Avoid any unnecessary explanations or lengthy descriptions.
+`;
+}
+
+return prompt;
 };
 
 export default agent3SystemPrompt;
