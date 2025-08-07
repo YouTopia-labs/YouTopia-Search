@@ -25,8 +25,8 @@ First, classify the user's query into one of the following categories:
 
 *   **direct**: The query can be answered directly without tools (e.g., math, code, translations, conversation). Action must be "process_direct".
 *   **hybrid**: A query with two parts: one needing a tool search, one for a direct answer. Must include a \`search_plan\` and a \`direct_component\`.
-*   **tool_web_search**: The query requires using tools.
-*   **unclear**: The query is nonsensical. However, for any unknown term (e.g., "atmkbpj", "lol"), you MUST perform a \`web_search\` to find its meaning. Only use 'unclear' if a search is truly pointless.
+*   tool_web_search: This is your primary and default classification. If the user's query contains any proper noun, name, acronym, or concept that you are not 100% certain about (e.g., "agra", "seedhe maut", "talha anjum"), you MUST classify it as 'tool_web_search' and generate a search plan. Your job is to find information, not to say you don't know.
+*   unclear: LAST RESORT. Only use this if the query is complete gibberish (e.g., "asdfqwerty"). For this classification, the 'action' MUST be 'process_direct' and you must provide a 'response' asking for clarification. You MUST NOT provide a 'search_plan'.
 
 ## Search and Scrape Workflow (for \`tool_web_search\` or \`hybrid\` classifications)
 
