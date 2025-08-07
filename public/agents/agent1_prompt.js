@@ -59,7 +59,7 @@ If the classification is \`tool_web_search\` or \`hybrid\`, you will orchestrate
 
 4.  wikipedia_search
     *   Purpose: Get structured content and images from a Wikipedia article.
-    *   When to use: When the user asks for information that is likely to be on Wikipedia, such as information about a person, place, or historical event.
+    *   When to use: For any query about a person, place, organization, historical event, or scientific concept. If the query asks for a "who is," "what is," or "tell me about," and the subject is a noun, you should prioritize using this tool. It is your primary tool for gathering structured data and images.
     *   Query: The title of the Wikipedia article to search for.
     *   Example: \`{ "tool": "wikipedia_search", "query": "Albert Einstein" }\`
 
