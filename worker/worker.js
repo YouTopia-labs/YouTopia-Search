@@ -93,23 +93,48 @@ function handleOptions(request, headers) {
 async function proxySerper(api_payload, env) {
   const serperApiUrl = api_payload.type === 'search' ? 'https://serper.dev/search' : 'https://serper.dev/news';
 
-  const serperResponse = await fetch(serperApiUrl, {
-    method: 'POST',
-    headers: {
-      'X-API-KEY': env.SERPER_API_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(api_payload.body),
-  });
+  if (!env.SERPER_API_KEY) {
+    console.error('SERPER_API_KEY is not set in environment variables.');
+    return new Response(JSON.stringify({ error: 'SERPER_API_KEY is missing.' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    });
+  }
 
-  const serperData = await serperResponse.json();
-  return new Response(JSON.stringify(serperData), {
-    status: serperResponse.status,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-    },
-  });
+  try {
+    const serperResponse = await fetch(serperApiUrl, {
+      method: 'POST',
+      headers: {
+        'X-API-KEY': env.SERPER_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(api_payload.body),
+    });
+
+    if (!serperResponse.ok) {
+      const errorText = await serperResponse.text();
+      console.error(`Serper API error: ${serperResponse.status} - ${errorText}`);
+      return new Response(JSON.stringify({ error: `Serper API error: ${serperResponse.status}`, details: errorText }), {
+        status: serperResponse.status,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      });
+    }
+
+    const serperData = await serperResponse.json();
+    return new Response(JSON.stringify(serperData), {
+      status: serperResponse.status,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
+  } catch (error) {
+    console.error('Error in proxySerper:', error.stack);
+    return new Response(JSON.stringify({ error: `Error proxying to Serper: ${error.message}` }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    });
+  }
 }
 
 async function proxyMistral(api_payload, env) {
@@ -176,22 +201,43 @@ async function proxyMistral(api_payload, env) {
 async function proxyCoingecko(api_payload, env) {
   const coingeckoApiKey = env.COINGECKO_API_KEY;
   if (!coingeckoApiKey) {
-    return new Response('COINGECKO_API_KEY not set in environment variables', { status: 500 });
+    console.error('COINGECKO_API_KEY is not set in environment variables.');
+    return new Response(JSON.stringify({ error: 'COINGECKO_API_KEY is missing.' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    });
   }
 
-  const queryParams = new URLSearchParams(api_payload.params).toString(); // Assuming params is an object
-  const coingeckoApiUrl = `https://api.coingecko.com/api/v3/simple/price?${queryParams}`;
+  try {
+    const queryParams = new URLSearchParams(api_payload.params).toString();
+    const coingeckoApiUrl = `https://api.coingecko.com/api/v3/simple/price?${queryParams}`;
 
-  const coingeckoResponse = await fetch(coingeckoApiUrl, {
-    method: 'GET',
-    headers: {
-      'x-cg-demo-api-key': coingeckoApiKey,
-    },
-  });
+    const coingeckoResponse = await fetch(coingeckoApiUrl, {
+      method: 'GET',
+      headers: {
+        'x-cg-demo-api-key': coingeckoApiKey,
+      },
+    });
 
-  const response = new Response(coingeckoResponse.body, coingeckoResponse);
-  response.headers.set('Access-Control-Allow-Origin', '*');
-  return response;
+    if (!coingeckoResponse.ok) {
+      const errorText = await coingeckoResponse.text();
+      console.error(`CoinGecko API error: ${coingeckoResponse.status} - ${errorText}`);
+      return new Response(JSON.stringify({ error: `CoinGecko API error: ${coingeckoResponse.status}`, details: errorText }), {
+        status: coingeckoResponse.status,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      });
+    }
+
+    const response = new Response(coingeckoResponse.body, coingeckoResponse);
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    return response;
+  } catch (error) {
+    console.error('Error in proxyCoingecko:', error.stack);
+    return new Response(JSON.stringify({ error: `Error proxying to CoinGecko: ${error.message}` }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    });
+  }
 }
 
 
