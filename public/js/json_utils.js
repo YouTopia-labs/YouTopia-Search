@@ -14,15 +14,18 @@ export function safeParse(jsonString, allowFallback = false) {
         throw new Error('Invalid input: JSON string is required');
     }
 
+    // Aggressively strip markdown and other non-JSON text
+    let cleanJson = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
+
     // Find the first '{' and the last '}' to extract the JSON object
-    const startIndex = jsonString.indexOf('{');
-    const endIndex = jsonString.lastIndexOf('}');
+    const startIndex = cleanJson.indexOf('{');
+    const endIndex = cleanJson.lastIndexOf('}');
     
     if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) {
         throw new Error("Could not find a valid JSON object in the response.");
     }
     
-    let potentialJson = jsonString.substring(startIndex, endIndex + 1);
+    let potentialJson = cleanJson.substring(startIndex, endIndex + 1);
     
     // First attempt: try parsing as-is
     try {
@@ -33,39 +36,30 @@ export function safeParse(jsonString, allowFallback = false) {
         // Apply multiple sanitization strategies
         let fixedJson = potentialJson;
         
-        // Strategy 1: Fix common property name issues
-        fixedJson = fixedJson.replace(/"\s*ification\s*",?\s*/g, '"classification":');
+        // Strategy 1: More robust property name fixing
+        fixedJson = fixedJson.replace(/"\s*ification\s*"/g, '"classification"');
         
-        // Strategy 2: Fix missing quotes around property names
+        // Strategy 2: Fix missing quotes around property names (more aggressive)
         fixedJson = fixedJson.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
         
         // Strategy 3: Fix trailing commas in objects and arrays
         fixedJson = fixedJson.replace(/,(\s*[}\]])/g, '$1');
         
-        // Strategy 4: Fix missing commas between properties
-        fixedJson = fixedJson.replace(/"\s*\n\s*"/g, '",\n"');
-        fixedJson = fixedJson.replace(/}\s*\n\s*{/g, '},\n{');
+        // Strategy 4: Add missing commas between properties
+        fixedJson = fixedJson.replace(/""/g, '","');
         
-        // Strategy 5: Normalize quotes
-        fixedJson = fixedJson.replace(/[""'']/g, '"');
-        fixedJson = fixedJson.replace(/[\u2018\u2019]/g, "'");
-        fixedJson = fixedJson.replace(/[\u201C\u201D]/g, '"');
+        // Strategy 5: Normalize all quotes to double quotes
+        fixedJson = fixedJson.replace(/'/g, '"');
         
-        // Strategy 6: Fix incomplete strings and missing quotes around string values
-        fixedJson = fixedJson.replace(/:\s*([a-zA-Z_][a-zA-Z0-9_\s]*)\s*([,}])/g, ': "$1"$2');
+        // Strategy 6: Remove problematic newlines and tabs
+        fixedJson = fixedJson.replace(/\n/g, ' ').replace(/\r/g, '').replace(/\t/g, '');
         
-        // Strategy 7: Clean up whitespace and control characters
-        fixedJson = fixedJson.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
-        fixedJson = fixedJson.replace(/\r\n/g, ' ').replace(/\n/g, ' ').replace(/\r/g, ' ').replace(/\t/g, ' ');
+        // Strategy 7: Remove unkeyed values (like the "orea statistics" issue)
+        fixedJson = fixedJson.replace(/,\s*"[^"]+"\s*}/g, '}');
+
+        // Strategy 8: Final cleanup of extra whitespace
         fixedJson = fixedJson.replace(/\s+/g, ' ');
-        
-        // Strategy 8: Ensure proper JSON structure
-        const cleanStart = fixedJson.indexOf('{');
-        const cleanEnd = fixedJson.lastIndexOf('}');
-        if (cleanStart !== -1 && cleanEnd !== -1) {
-            fixedJson = fixedJson.substring(cleanStart, cleanEnd + 1);
-        }
-        
+
         // Try parsing the fixed JSON
         try {
             console.log("Attempting to parse sanitized JSON...");
