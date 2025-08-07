@@ -244,38 +244,25 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
 
 // Sanitize and parse JSON, attempting to fix common errors.
 function sanitizeAndParseJson(jsonString) {
-    console.log("Attempting to sanitize and parse JSON...");
+    console.log("Attempting to parse JSON...");
     
-    // 1. Strip markdown fences first. This is the most common failure.
-    let sanitizedString = jsonString.replace(/```json/g, '').replace(/```/g, '');
-
-    // 2. Extract the first valid-looking JSON object.
-    const match = sanitizedString.match(/\{[\s\S]*\}/);
-    if (!match) {
-        throw new Error("No valid JSON object found in the response.");
+    // Find the first '{' and the last '}' to extract the JSON object
+    const startIndex = jsonString.indexOf('{');
+    const endIndex = jsonString.lastIndexOf('}');
+    
+    if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) {
+        throw new Error("Could not find a valid JSON object in the response.");
     }
-    sanitizedString = match[0];
-
-    // 3. Basic syntax corrections
-    sanitizedString = sanitizedString
-        .trim()
-        .replace(/[\x00-\x1F\x7F-\x9F]/g, "") // Remove control characters
-        .replace(/\\n/g, "\\n")
-        .replace(/\\"/g, '"');
-
-    // 4. Attempt to fix common structural errors
-    // Add missing colons (e.g., "key" "value" -> "key": "value")
-    sanitizedString = sanitizedString.replace(/([{,]\s*)("([^"]+)")\s*("([^"]+)")/g, '$1$2:$4');
-    // Add missing quotes around keys
-    sanitizedString = sanitizedString.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
-    // Remove trailing commas
-    sanitizedString = sanitizedString.replace(/,\s*([}\]])/g, '$1');
-
+    
+    const potentialJson = jsonString.substring(startIndex, endIndex + 1);
+    
     try {
-        return JSON.parse(sanitizedString);
+        // Attempt to parse the extracted string
+        return JSON.parse(potentialJson);
     } catch (error) {
-        console.error("Final parsing attempt failed after sanitization.", error);
-        throw new Error(`Failed to parse JSON after all sanitization attempts: ${error.message}`);
+        console.error("JSON parsing failed.", error);
+        // Throw a new error with a clear message, including the problematic string
+        throw new Error(`Failed to parse JSON: ${error.message}. Raw content: ${potentialJson}`);
     }
 }
 
@@ -368,7 +355,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
       if (attempt > 1 && agent1ResponseRaw) {
         // If this is a retry, modify the prompt to ask for a fix
         console.log("Retrying with a request to fix the malformed JSON.");
-        currentPrompt += `\n\nTHE PREVIOUS ATTEMPT FAILED DUE TO INVALID JSON. PLEASE CORRECT THE FOLLOWING RESPONSE TO BE A VALID JSON OBJECT. DO NOT ADD ANY EXTRA TEXT. HERE IS THE FAILED RESPONSE:\n${agent1ResponseRaw}`;
+        currentPrompt = `${agent1SystemPrompt}\n\nYour previous response was not valid JSON and could not be parsed. Please review the following error and the malformed response, then provide a corrected and valid JSON object. Do not include any text or markdown formatting outside of the JSON object.\n\nMalformed Response:\n${agent1ResponseRaw}`;
       }
 
       agent1ResponseRaw = await callAgent(agent1Model, currentPrompt, currentInput, 0, null, userQuery, userName, userLocalTime);
