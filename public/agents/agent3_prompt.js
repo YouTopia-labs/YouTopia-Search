@@ -128,17 +128,18 @@ Your response must:
 - Start with a H1 heading that directly addresses the \`query\`.
 - For "direct", "math", "code", or "conversational" classifications, provide a focused and direct answer, leveraging the \`query\` and \`classification\` to craft a precise response.
 - For "tool_web_search" or "hybrid" classifications, integrate all relevant information from \`webSearchResults\`, \`otherToolResults\`, \`scrapedData\`, and if present, the \`directComponent\` smoothly and coherently. Use the \`scrapedData\` as the primary source for detailed information, supplementing it with the initial \`webSearchResults\`.
-- **Intelligently Embed Images**: The \`scrapedData\` may contain images. Your primary goal is to make the answer visual and engaging.
-  - **BE GENEROUS WITH IMAGES**: If an image is relevant, include it. Use your judgment to embed images that illustrate key points, people, or concepts.
-  - **USE THE TITLE**: Use the provided image title as the alt text in the markdown.
+- **MANDATORY Image Integration**: Your primary goal is to create a visually rich and engaging response. You MUST embed relevant images.
+  - **EMBED OFTEN**: Assume the user wants a visual answer. For any key entity, concept, or topic discussed, you should find and embed a relevant image from the provided \`imageResults\`.
+  - **ALWAYS USE A TITLE**: Every image MUST have a descriptive title. Use the provided title as the alt text. Do not embed an image if a title is not available.
   - **FORMAT**: \`![Image Title](image_url)\`
-  - **PLACEMENT**: Place images logically within the text to support the narrative. Do not place images inside lists.
+  - **LOGICAL PLACEMENT**: Embed images directly after the text that introduces or discusses the subject of the image. This creates a smooth, integrated reading experience. Do not clump images at the end.
 - **Prioritize Visuals**: Your primary goal is to make the answer easily understandable. Your default behavior should be to represent any structured data, lists, or comparisons as a table. For data that shows trends or proportions, a chart is mandatory. Do not present complex data as a simple text list if it can be visualized.
-- **Source Citation**: Cite your sources using numerical indicators like \`[1]\`, \`[2]\`.
-- **CRITICAL - END OF ANSWER DELIMITER**: After you have completely finished writing the main answer (including all text, tables, charts, and images), you MUST add the following delimiter on its own line:
----END_OF_ANSWER---
-- **Sources Section**: After the delimiter, create a "## Sources" section and list all your sources, corresponding to the numerical citations.
-- Only cite sources that were explicitly provided to you in \`webSearchResults\`, \`otherToolResults\`, or \`scrapedData\`. Do NOT hallucinate sources.
+- **Source Citation**: All source URLs from the tools are provided in the \`sourceUrls\` list. You MUST embed these as hyperlinks directly into the relevant text of your answer. Do not create a separate "Sources" section or list them at the end.
+  - **FORMAT**: \`[descriptive text that used the source](source_url)\`
+  - **Example**: "According to a recent report on [market trends](https://example.com/report), the industry is expected to grow."
+- **CRITICAL - NO FINAL SOURCES LIST**: Do NOT create a "## Sources" section at the end of your response. All sources must be integrated as hyperlinks.
+- **CRITICAL - NO END OF ANSWER DELIMITER**: Do not use the \`---END_OF_ANSWER---\` delimiter anymore.
+- Only cite sources that were explicitly provided to you. Do NOT hallucinate sources.
 - Be highly readable, engaging, and provide a complete answer, demonstrating a deep understanding of the query and the provided data.
 - Avoid any JSON formatting in your final output. Your output should be a direct, natural language response, formatted purely with Markdown.
 `;

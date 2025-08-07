@@ -4,6 +4,7 @@ import agent2SystemPrompt from './agent2_prompt.js'; // New import for Agent 2 p
 import agent3SystemPrompt from './agent3_prompt.js';
 import { fetchWheatData } from '../tools/wheat_tool.js'; // Import the new Wheat tool
 import { scrapeWebsite } from '../tools/scraper_tool.js'; // Import the new scraper tool
+import { wikipediaSearch } from '../tools/wikipedia_tool.js'; // Import the new Wikipedia tool
 import { safeParse } from '../js/json_utils.js';
 
 // Validate API configuration
@@ -23,15 +24,15 @@ async function executeTool(toolName, query, params = {}, userQuery, userName, us
       api_payload = { type: 'news', body: { q: query } };
       break;
     case 'coingecko':
-      api_target = 'coingecko';
-      api_payload = { params: { ids: query, vs_currencies: 'usd' } };
-      break;
+        return { data: await fetchWithProxy('coingecko', { params: { ids: query, vs_currencies: 'usd' } }), sourceUrl: `https://www.coingecko.com/en/coins/${query}` };
     case 'wheat':
       // This tool appears to be a local function, not a worker API call.
       // It needs to be handled differently or proxied if it requires external access.
       // For now, assuming it's a local function.
       console.log(`Calling fetchWheatData for location: ${query}`);
       return { data: await fetchWheatData(query), sourceUrl: 'https://open-meteo.com/en/docs' };
+    case 'wikipedia_search':
+        return await wikipediaSearch(query);
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
@@ -501,6 +502,43 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
       let otherToolResults = [];
       let scrapedData = [];
 
+      // --- Proactive Wikipedia Search ---
+      if (logCallback) logCallback(`<i class="fab fa-wikipedia-w"></i> Proactively searching Wikipedia for "${userQuery}"...`);
+      try {
+          const wikiResult = await wikipediaSearch(userQuery);
+          if (wikiResult && !wikiResult.error) {
+              if (logCallback) logCallback(`<i class="fas fa-check-circle"></i> Found relevant Wikipedia article: <b>${wikiResult.articleTitle}</b>. Processing...`);
+              
+              const agent2Input = {
+                  query: userQuery,
+                  rawQuery: userQuery,
+                  articleHtml: wikiResult.articleContentHtml,
+                  imageResults: wikiResult.imageResults,
+                  sourceArticleUrl: wikiResult.sourceArticleUrl
+              };
+              
+              const parsedWikiDataRaw = await callAgent('mistral-small-latest', agent2SystemPrompt, agent2Input, 0, null, userQuery, userName, userLocalTime);
+              const parsedWikiData = safeParse(parsedWikiDataRaw, true);
+              
+              otherToolResults.push(parsedWikiData); // Add parsed data to results
+              
+              // Also, "scrape" the full article content to make it available to Agent 3
+              scrapedData.push({
+                  success: true,
+                  url: wikiResult.sourceArticleUrl,
+                  content: wikiResult.articleContentHtml.substring(0, 15000) // Limit size
+              });
+              
+              if (logCallback) logCallback(`<i class="fas fa-check-double"></i> Successfully processed and integrated Wikipedia data.`);
+          } else {
+              if (logCallback) logCallback(`<i class="fas fa-info-circle"></i> No direct Wikipedia article found.`);
+          }
+      } catch (e) {
+          console.error("Proactive Wikipedia search failed:", e);
+          if (logCallback) logCallback(`<i class="fas fa-exclamation-triangle"></i> Proactive Wikipedia search failed.`);
+      }
+      // --- End Proactive Wikipedia Search ---
+
       if (search_plan && search_plan.length > 0) {
         console.log(`Executing search plan (${search_plan.length} steps) in parallel...`);
 
@@ -508,7 +546,8 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
           'serper_web_search': 'Web Search',
           'serper_news_search': 'News Search',
           'coingecko': 'Crypto',
-          'wheat': 'Open-Meteo'
+          'wheat': 'Open-Meteo',
+          'wikipedia_search': 'Wikipedia'
         };
 
         const searchPromises = search_plan.map(async (step) => {
@@ -519,7 +558,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
           if (step.tool === 'serper_web_search') {
             const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
             return { type: 'web_search', data: result.results };
-          } else if (step.tool === 'coingecko' || step.tool === 'wheat') {
+          } else if (step.tool === 'coingecko' || step.tool === 'wheat' || step.tool === 'wikipedia_search') {
             const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
             return { type: 'other_tool', data: result.data, sourceUrl: result.sourceUrl };
           } else {
