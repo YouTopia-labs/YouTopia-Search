@@ -37,7 +37,20 @@ async function executeTool(toolName, query, params = {}, userQuery, userName, us
 
   // All API calls now go through the worker proxy
   const response = await fetchWithProxy(api_target, api_payload, userQuery, userName, userLocalTime);
-  return response;
+  
+  // Process the response based on the tool that was called
+  switch (toolName) {
+    case 'serper_web_search':
+    case 'serper_news_search':
+      // Serper's results are in the `results` property of the response
+      return { results: response.results || [response] };
+    case 'coingecko':
+      // CoinGecko's response is the data itself
+      return { data: [response] };
+    default:
+      // For any other tools, return the response as is
+      return response;
+  }
 }
 
 // Helper function to proxy requests through the Cloudflare Worker
@@ -450,12 +463,10 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
           }
           if (step.tool === 'serper_web_search') {
             const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
-            return { type: 'web_search', data: result.results || [result] };
+            return { type: 'web_search', data: result.results };
           } else if (step.tool === 'coingecko' || step.tool === 'wheat') {
             const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
-            // Ensure result.data is an array for consistency
-            const otherToolData = Array.isArray(result.data) ? result.data : [result.data];
-            return { type: 'other_tool', data: otherToolData, sourceUrl: result.sourceUrl };
+            return { type: 'other_tool', data: result.data, sourceUrl: result.sourceUrl };
           } else {
             throw new Error(`Unhandled tool in search_plan: ${step.tool}`);
           }

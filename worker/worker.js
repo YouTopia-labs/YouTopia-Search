@@ -21,17 +21,32 @@ const corsify = (response, request) => {
   return response;
 };
 
+// A new router function to handle all API requests.
+async function handleApiRequest(request, env) {
+  const url = new URL(request.url);
+
+  if (url.pathname === '/api/google-auth') {
+    return handleGoogleAuth(request, env);
+  }
+
+  if (url.pathname === '/api/query-proxy') {
+    return handleQueryProxy(request, env);
+  }
+
+  return new Response('API route not found.', { status: 404 });
+}
+
 export default {
   async fetch(request, env, ctx) {
     try {
+      const url = new URL(request.url);
+
       // Handle CORS preflight requests
       if (request.method === 'OPTIONS') {
         return handleOptions(request, new Headers());
       }
 
-      const url = new URL(request.url);
-
-      // API route handling
+      // Check if the request is for an API endpoint
       if (url.pathname.startsWith('/api/')) {
         const response = await handleApiRequest(request, env);
         return corsify(response, request);
@@ -39,6 +54,7 @@ export default {
 
       // For all other requests, serve from Cloudflare Pages assets
       return env.ASSETS.fetch(request);
+
     } catch (error) {
       console.error('Unhandled fatal error in fetch handler:', error.stack);
       const errorResponse = new Response(JSON.stringify({ error: `A fatal and unhandled error occurred: ${error.message}` }), {
@@ -49,30 +65,6 @@ export default {
     }
   }
 };
-
-async function handleApiRequest(request, env) {
-  try {
-    const url = new URL(request.url);
-
-    // Route for Google Sign-In authentication
-    if (url.pathname === '/api/google-auth') {
-      return handleGoogleAuth(request, env);
-    }
-
-    // Central endpoint for all user queries
-    if (url.pathname === '/api/query-proxy') {
-      return handleQueryProxy(request, env);
-    }
-
-    return new Response('Not Found', { status: 404 });
-  } catch (error) {
-    console.error('Unhandled error in handleApiRequest:', error);
-    return new Response(JSON.stringify({ error: 'An unexpected error occurred.' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-}
 
 
 // This function is for CORS preflight requests
@@ -411,9 +403,6 @@ async function handleGoogleAuth(request, env) {
 // --- Main Handler for this specific endpoint ---
 async function handleQueryProxy(request, env) {
   try {
-    if (request.method !== 'POST') {
-      return new Response('Expected POST for query proxy', { status: 405 });
-    }
 
     const { query, user_name, user_email, user_local_time, api_target, api_payload, id_token } = await request.json();
 
