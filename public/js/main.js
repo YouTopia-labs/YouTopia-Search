@@ -632,26 +632,50 @@ const renderSourceCards = (sources, container) => {
     function parseContentSections(element) {
         const sections = [];
         const children = Array.from(element.children);
-        
+    
         for (const child of children) {
-            if (child.tagName.toLowerCase() === 'img') {
-                sections.push({ type: 'image', element: child });
-            } else if (child.classList.contains('chart-display') || child.classList.contains('chart-wrapper')) {
-                sections.push({ type: 'chart', element: child });
-            } else if (child.classList.contains('table-display') || child.classList.contains('gridjs-wrapper')) {
-                sections.push({ type: 'table', element: child });
-            } else if (child.classList.contains('export-panel')) {
-                // Skip export panels
+            if (child.classList.contains('export-panel')) {
                 continue;
-            } else {
-                // Text content
-                const textContent = child.textContent.trim();
-                if (textContent) {
-                    sections.push({ type: 'text', content: textContent });
+            }
+    
+            // Check for specific containers first
+            if (child.classList.contains('chart-display') || child.classList.contains('chart-wrapper')) {
+                sections.push({ type: 'chart', element: child });
+                continue;
+            }
+            if (child.classList.contains('table-display') || child.classList.contains('gridjs-wrapper')) {
+                sections.push({ type: 'table', element: child });
+                continue;
+            }
+    
+            // Now, process content. We can have text and images inside the same 'child' (e.g., a <p> tag).
+            // Let's walk through the child nodes to correctly separate them.
+            let currentText = '';
+            Array.from(child.childNodes).forEach(node => {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    currentText += node.textContent;
+                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                    if (node.tagName.toLowerCase() === 'img') {
+                        // If we have accumulated text, push it first.
+                        if (currentText.trim()) {
+                            sections.push({ type: 'text', content: currentText.trim() });
+                            currentText = '';
+                        }
+                        // Push the image.
+                        sections.push({ type: 'image', element: node });
+                    } else {
+                        // For other elements (like <strong>, <em>), just get their text content.
+                        currentText += node.textContent;
+                    }
                 }
+            });
+    
+            // Push any remaining text from the child.
+            if (currentText.trim()) {
+                sections.push({ type: 'text', content: currentText.trim() });
             }
         }
-        
+    
         return sections;
     }
     

@@ -137,7 +137,7 @@ Your response must:
 - **Source Citation**: Cite your sources using numerical indicators like \`[1]\`, \`[2]\`.
 - **CRITICAL - END OF ANSWER DELIMITER**: After you have completely finished writing the main answer (including all text, tables, charts, and images), you MUST add the following delimiter on its own line:
 ---END_OF_ANSWER---
-- **Sources Section**: After the delimiter, create the "## Sources" section and list all your sources, corresponding to the numerical citations.
+- **Sources Section**: After the delimiter, create a "## Sources" section and list all your sources, corresponding to the numerical citations.
 - Only cite sources that were explicitly provided to you in \`webSearchResults\`, \`otherToolResults\`, or \`scrapedData\`. Do NOT hallucinate sources.
 - Be highly readable, engaging, and provide a complete answer, demonstrating a deep understanding of the query and the provided data.
 - Avoid any JSON formatting in your final output. Your output should be a direct, natural language response, formatted purely with Markdown.
