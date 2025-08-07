@@ -1175,14 +1175,15 @@ body:not(.dark-mode) .placeholder-text-span {
     align-items: center;
     padding: 0 4px 4px 4px; /* Reduced from 0 6px 6px 6px */
     gap: 8px; /* Tighter gap */
-    /* Removed flex-wrap to keep everything in single line */
+    flex-wrap: wrap; /* Allow wrapping on small screens */
 }
 
 .search-controls-left {
     display: flex;
     align-items: center;
     gap: 8px; /* Tighter gap */
-    /* Removed flex-wrap to keep everything in single line */
+    flex-grow: 1; /* Allow it to take up available space */
+    min-width: 150px; /* Prevent it from becoming too small */
 }
 
 .search-controls-right {
@@ -1481,23 +1482,24 @@ body.dark-mode .send-btn:active {
 
 /* --- Search Active State (Floating Search Box) --- */
 body.search-active {
-    /* Scrolling is now handled by .main-content */
+    overflow-y: auto; /* Let the body handle scrolling */
+    -webkit-overflow-scrolling: touch;
 }
 
 body.search-active .app-container {
-    height: auto; /* Allow height to adjust to content */
-    overflow-y: visible; /* Allow content to overflow and be scrolled by body */
+    height: auto;
+    overflow: visible;
 }
 
 body.search-active .main-content {
-    height: 100vh;
+    height: auto; /* Let content define height */
+    min-height: 100vh; /* Ensure it at least fills the screen */
     padding: 0;
     max-width: 100%;
     justify-content: flex-start;
     display: flex;
     flex-direction: column;
-    overflow-y: auto; /* Enable vertical scrolling */
-    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    overflow-y: visible; /* Disable scrolling here, body handles it */
 }
 
 /* Hide initial search wrapper when search is active */
@@ -2460,10 +2462,14 @@ body.search-active .social-footer {
 
 /* Mobile adjustments for social footer */
 @media (max-width: 768px) {
+    .initial-view-content {
+        padding-bottom: 50px; /* Add space for the fixed footer */
+    }
+
     .social-footer {
         bottom: 0px;
     }
-    
+
     .social-links {
         gap: 12px; /* Increased from 10px */
         padding: 3px 12px; /* Reduced padding from 8px 14px */
