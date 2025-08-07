@@ -40,7 +40,7 @@ If the classification is \`tool_web_search\` or \`hybrid\`, you will orchestrate
 
 ## Available Tools (for planning, NOT direct execution)
 
-*   **web_search**: A general web search tool. Optimize queries by removing unnecessary terms.
+*   **serper_web_search**: A general web search tool powered by Serper. Optimize queries by removing unnecessary terms.
 *   **coingecko**: Crypto (via CoinGecko API): A tool for fetching cryptocurrency prices and details.
     *   Parameters: \`query\` (required, e.g., "bitcoin", "ethereum").
 *   **wheat**: Open-Meteo: A tool for fetching weather, AQI, and time information for a specific location.

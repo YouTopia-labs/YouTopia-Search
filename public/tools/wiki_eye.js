@@ -19,40 +19,39 @@ export async function wikiEye(searchResults, userQuery) {
     const processedWikiData = [];
     if (wikipediaLinks.length > 0) {
         console.log(`WikiEye detected Wikipedia links: ${wikipediaLinks.join(', ')}. Triggering Wikipedia tool and Agent 2.`);
-        // For simplicity, let's just take the first Wikipedia link for now.
-        // In a more complex scenario, we might process all or prioritize.
-        const firstWikiLink = wikipediaLinks[0];
-        
-        // Extract the article title from the URL
-        const articleTitle = firstWikiLink.substring(firstWikiLink.lastIndexOf('/') + 1);
+        // Process all detected Wikipedia links
+        for (const wikiLink of wikipediaLinks) {
+            // Extract the article title from the URL
+            const articleTitle = wikiLink.substring(wikiLink.lastIndexOf('/') + 1);
 
-        try {
-            const wikiResult = await wikipediaSearch([decodeURIComponent(articleTitle)]);
-            if (wikiResult && !wikiResult.error) {
-                const agent2Input = {
-                    query: userQuery,
-                    rawQuery: userQuery, // Pass original user query as rawQuery to Agent 2
-                    articleHtml: wikiResult.articleContentHtml,
-                    imageResults: wikiResult.imageResults,
-                    sourceArticleUrl: wikiResult.sourceArticleUrl
-                };
-                const parsedWikiDataRaw = await callAgent('mistral-3b-latest', agent2SystemPrompt, agent2Input);
-                try {
-                    const parsedWikiData = JSON.parse(parsedWikiDataRaw);
-                    processedWikiData.push({
-                        ...parsedWikiData, // Include the parsed data from Agent 2
-                        articleHtml: wikiResult.articleContentHtml, // Add the raw article HTML
-                        imageResults: wikiResult.imageResults, // Add the image results
-                        sourceArticleUrl: wikiResult.sourceArticleUrl // Add the source URL
-                    });
-                } catch (jsonError) {
-                    console.error("Error parsing Agent 2 response in wikiEye:", jsonError.message);
+            try {
+                const wikiResult = await wikipediaSearch([decodeURIComponent(articleTitle)]);
+                if (wikiResult && !wikiResult.error) {
+                    const agent2Input = {
+                        query: userQuery,
+                        rawQuery: userQuery, // Pass original user query as rawQuery to Agent 2
+                        articleHtml: wikiResult.articleContentHtml,
+                        imageResults: wikiResult.imageResults,
+                        sourceArticleUrl: wikiResult.sourceArticleUrl
+                    };
+                    const parsedWikiDataRaw = await callAgent('mistral-3b-latest', agent2SystemPrompt, agent2Input);
+                    try {
+                        const parsedWikiData = JSON.parse(parsedWikiDataRaw);
+                        processedWikiData.push({
+                            ...parsedWikiData, // Include the parsed data from Agent 2
+                            articleHtml: wikiResult.articleContentHtml, // Add the raw article HTML
+                            imageResults: wikiResult.imageResults, // Add the image results
+                            sourceArticleUrl: wikiResult.sourceArticleUrl // Add the source URL
+                        });
+                    } catch (jsonError) {
+                        console.error("Error parsing Agent 2 response in wikiEye:", jsonError.message);
+                    }
+                } else {
+                    console.log(`Wikipedia search failed for ${articleTitle}:`, wikiResult?.error);
                 }
-            } else {
-                console.log(`Wikipedia search failed for ${articleTitle}:`, wikiResult.error);
+            } catch (error) {
+                console.error(`Error in wikiEye during Wikipedia search or Agent 2 call for ${articleTitle}:`, error);
             }
-        } catch (error) {
-            console.error(`Error in wikiEye during Wikipedia search or Agent 2 call:`, error);
         }
     }
     return processedWikiData;

@@ -478,7 +478,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
           if (res.type === 'web_search') {
             webSearchResults.push(...res.data);
           } else if (res.type === 'other_tool') {
-            otherToolResults.push(...res.data);
+            otherToolResults.push(res.data);
             if (res.sourceUrl) {
                 allSourceUrls.push(res.sourceUrl); // Add specific tool source URL
             }
@@ -488,14 +488,10 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
         console.log("Raw web search results:", webSearchResults);
         console.log("Raw other tool results:", otherToolResults);
 
-        // Filter web search results for Wikipedia links and pass to wikiEye
-        const wikipediaLinksInWebResults = webSearchResults.filter(result =>
-          result.link && result.link.includes('wikipedia.org/wiki/')
-        );
-
-        if (wikipediaLinksInWebResults.length > 0) {
-          console.log("Passing Wikipedia links to wikiEye for processing by Agent 2.");
-          processedWikiData = await wikiEye(wikipediaLinksInWebResults, userQuery, logCallback);
+        // Pass all web search results to wikiEye, which will handle its own filtering for Wikipedia links
+        if (webSearchResults.length > 0) {
+          console.log("Passing all web search results to wikiEye for potential Wikipedia processing by Agent 2.");
+          processedWikiData = await wikiEye(webSearchResults, userQuery, logCallback);
           console.log("Processed Wikipedia data from Agent 2:", processedWikiData);
         }
 
