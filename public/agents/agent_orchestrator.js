@@ -390,6 +390,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
   const agent3Model = agentConfig.agent3.model;
 
   let allSearchResults = [];
+  let allSourceUrls = [];
   let totalSearchesPerformed = 0;
   let totalScrapedSites = 0;
 
