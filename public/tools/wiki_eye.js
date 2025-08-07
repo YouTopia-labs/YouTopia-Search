@@ -1,6 +1,7 @@
 import { wikipediaSearch } from './wikipedia_tool.js';
 import agent2SystemPrompt from '../agents/agent2_prompt.js';
 import { callAgent } from '../agents/agent_orchestrator.js'; // Assuming callAgent is exported
+import { safeParse } from '../js/json_utils.js'; // Import Safari-compatible JSON parser
 
 /**
  * Checks an array of search results for Wikipedia links.
@@ -36,7 +37,7 @@ export async function wikiEye(searchResults, userQuery) {
                     };
                     const parsedWikiDataRaw = await callAgent('mistral-3b-latest', agent2SystemPrompt, agent2Input);
                     try {
-                        const parsedWikiData = JSON.parse(parsedWikiDataRaw);
+                        const parsedWikiData = safeParse(parsedWikiDataRaw);
                         processedWikiData.push({
                             ...parsedWikiData, // Include the parsed data from Agent 2
                             articleHtml: wikiResult.articleContentHtml, // Add the raw article HTML

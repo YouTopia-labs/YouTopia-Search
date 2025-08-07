@@ -1,6 +1,7 @@
 import { orchestrateAgents } from '../agents/agent_orchestrator.js';
 import { renderTable, renderChart, parseChartConfig } from './render_tools.js';
 import { updateChartsTheme } from './chart_utils.js';
+import { parseChartConfig as safeParseChartConfig, parseTableConfig } from './json_utils.js';
 
 const WORKER_BASE_URL = 'https://youtopia-worker.youtopialabs.workers.dev/';
 
@@ -1286,31 +1287,8 @@ Generated on: ${currentDate}
                                 throw new Error('Empty chart configuration');
                             }
 
-                            // Clean up the JSON format
-                            chartConfigText = chartConfigText.replace(/(\w+):/g, "\"$1\":");
-                            let chartConfig;
-                            try {
-                                chartConfig = JSON.parse(chartConfigText);
-                            } catch (parseError) {
-                                // Try to fix common JSON issues
-                                let cleanedText = chartConfigText;
-                                cleanedText = cleanedText.replace(/\"(\w+):\"/g, "\"$1\":");
-                                cleanedText = cleanedText.replace(/}\s*{/g, '},{');
-                                cleanedText = cleanedText.replace(/}\s*]/g, '}]');
-                                cleanedText = cleanedText.replace(/}\s*\]/g, '}]');
-                                try {
-                                    chartConfig = JSON.parse(cleanedText);
-                                } catch (secondParseError) {
-                                    throw new Error(`Invalid chart configuration format`);
-                                }
-                            }
-
-                            if (!chartConfig.type) {
-                                throw new Error('Chart configuration is missing "type" property');
-                            }
-                            if (!chartConfig.data) {
-                                throw new Error('Chart configuration is missing "data" property');
-                            }
+                            // Use Safari-compatible chart parsing
+                            const chartConfig = safeParseChartConfig(chartConfigText);
 
                             // Clear processing message and render chart
                             chartDiv.innerHTML = '';
@@ -1356,172 +1334,8 @@ Generated on: ${currentDate}
                                 throw new Error('Empty table configuration');
                             }
 
-                            // Robust JSON parsing with strict validation
-                            let tableConfig;
-                            
-                            // Step 1: Clean and normalize the input
-                            let cleanedText = tableConfigText
-                                .trim()
-                                .replace(/[\x00-\x1F\x7F-\x9F]/g, '') // Remove non-printable characters
-                                .replace(/^\s*```\s*table\s*/i, '') // Remove table code block markers
-                                .replace(/\s*```\s*$/i, '')
-                                .trim();
-                            
-                            // AGGRESSIVE CONTENT SANITIZATION
-                            // Remove problematic characters that cause JSON parsing issues
-                            cleanedText = cleanedText
-                                .replace(/[""'']/g, '"') // Normalize all quote types to standard double quotes
-                                .replace(/…/g, '...') // Replace ellipsis
-                                .replace(/–/g, '-') // Replace en-dash
-                                .replace(/—/g, '-') // Replace em-dash
-                                .replace(/[\u2018\u2019]/g, "'") // Replace smart single quotes
-                                .replace(/[\u201C\u201D]/g, '"') // Replace smart double quotes
-                                .replace(/\r\n/g, ' ') // Replace Windows line breaks
-                                .replace(/\n/g, ' ') // Replace Unix line breaks
-                                .replace(/\r/g, ' ') // Replace Mac line breaks
-                                .replace(/\t/g, ' ') // Replace tabs
-                                .replace(/\s+/g, ' '); // Collapse multiple spaces
-
-                            // Basic structure validation
-                            if (!cleanedText.includes('"headers"') || !cleanedText.includes('"data"')) {
-                                throw new Error('Table must contain both "headers" and "data" properties');
-                            }
-
-                            // Simple cleanup for common issues
-                            cleanedText = cleanedText
-                                .replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3') // Quote unquoted property names
-                                .replace(/'/g, '"') // Convert single quotes to double quotes
-                                .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
-                                .replace(/([}\]])(\s*)([{\[])/g, '$1,$2$3'); // Add missing commas between objects/arrays
-
-                            // CRITICAL: Sanitize cell content to prevent JSON parsing errors
-                            // Find all string values in arrays and sanitize them
-                            cleanedText = cleanedText.replace(/"([^"]*?)"/g, (match, content) => {
-                                // Skip if this is a property name (headers or data)
-                                if (content === 'headers' || content === 'data') {
-                                    return match;
-                                }
-                                
-                                // Sanitize the content
-                                let sanitized = content
-                                    .replace(/\\/g, '') // Remove backslashes
-                                    .replace(/"/g, '') // Remove internal quotes
-                                    .replace(/'/g, '') // Remove single quotes
-                                    .replace(/,/g, '') // Remove commas
-                                    .replace(/\n/g, ' ') // Replace newlines with spaces
-                                    .replace(/\r/g, ' ') // Replace carriage returns
-                                    .replace(/\t/g, ' ') // Replace tabs
-                                    .replace(/\s+/g, ' ') // Collapse multiple spaces
-                                    .trim();
-                                
-                                return `"${sanitized}"`;
-                            });
-
-                            // Try to parse the JSON
-                            try {
-                                tableConfig = JSON.parse(cleanedText);
-                            } catch (parseError) {
-                                console.error('JSON parsing failed:', parseError.message);
-                                console.error('Cleaned text:', cleanedText);
-                                throw new Error(`Invalid table JSON format. Error: ${parseError.message}. Expected simple format: {"headers": ["Col1", "Col2"], "data": [["Row1Col1", "Row1Col2"]]}`);
-                            }
-
-                            // FINAL SAFETY NET: Clean the parsed object
-                            if (tableConfig && tableConfig.headers && Array.isArray(tableConfig.headers)) {
-                                tableConfig.headers = tableConfig.headers.map(header => {
-                                    if (typeof header === 'string') {
-                                        return header.replace(/[^a-zA-Z0-9\s\-_]/g, '').replace(/\s+/g, ' ').trim();
-                                    }
-                                    return String(header).replace(/[^a-zA-Z0-9\s\-_]/g, '').replace(/\s+/g, ' ').trim();
-                                });
-                            }
-
-                            if (tableConfig && tableConfig.data && Array.isArray(tableConfig.data)) {
-                                tableConfig.data = tableConfig.data.map(row => {
-                                    if (Array.isArray(row)) {
-                                        return row.map(cell => {
-                                            if (typeof cell === 'string') {
-                                                return cell.replace(/[^a-zA-Z0-9\s\-_.$]/g, '').replace(/\s+/g, ' ').trim();
-                                            }
-                                            if (typeof cell === 'number') {
-                                                return cell;
-                                            }
-                                            return String(cell).replace(/[^a-zA-Z0-9\s\-_.$]/g, '').replace(/\s+/g, ' ').trim();
-                                        });
-                                    }
-                                    return row;
-                                });
-                            }
-
-                            // Step 5: Strict validation of table structure
-                            if (!tableConfig || typeof tableConfig !== 'object') {
-                                throw new Error('Table configuration must be a valid object');
-                            }
-                            
-                            // Check for only allowed properties
-                            const allowedProps = ['headers', 'data'];
-                            const actualProps = Object.keys(tableConfig);
-                            const invalidProps = actualProps.filter(prop => !allowedProps.includes(prop));
-                            if (invalidProps.length > 0) {
-                                throw new Error(`Invalid properties found: ${invalidProps.join(', ')}. Only "headers" and "data" are allowed`);
-                            }
-                            
-                            // Validate headers
-                            if (!tableConfig.headers) {
-                                throw new Error('Table configuration is missing "headers" property');
-                            }
-                            if (!Array.isArray(tableConfig.headers)) {
-                                throw new Error('Headers must be an array');
-                            }
-                            if (tableConfig.headers.length === 0) {
-                                throw new Error('Headers array cannot be empty');
-                            }
-
-                            
-                            // Validate header values
-                            for (let i = 0; i < tableConfig.headers.length; i++) {
-                                const header = tableConfig.headers[i];
-                                if (typeof header !== 'string') {
-                                    throw new Error(`Header at index ${i} must be a string, got ${typeof header}`);
-                                }
-                                if (header.includes('"') || header.includes(',') || header.includes('\n')) {
-                                    throw new Error(`Header "${header}" contains invalid characters (quotes, commas, or line breaks)`);
-                                }
-                            }
-                            
-                            // Validate data
-                            if (!tableConfig.data) {
-                                throw new Error('Table configuration is missing "data" property');
-                            }
-                            if (!Array.isArray(tableConfig.data)) {
-                                throw new Error('Data must be an array');
-                            }
-                            if (tableConfig.data.length === 0) {
-                                throw new Error('Data array cannot be empty');
-                            }
-
-                            
-                            // Validate each row
-                            for (let i = 0; i < tableConfig.data.length; i++) {
-                                const row = tableConfig.data[i];
-                                if (!Array.isArray(row)) {
-                                    throw new Error(`Row ${i} must be an array, got ${typeof row}`);
-                                }
-                                if (row.length !== tableConfig.headers.length) {
-                                    throw new Error(`Row ${i} has ${row.length} columns but headers has ${tableConfig.headers.length} columns`);
-                                }
-                                
-                                // Validate each cell
-                                for (let j = 0; j < row.length; j++) {
-                                    const cell = row[j];
-                                    if (typeof cell !== 'string' && typeof cell !== 'number') {
-                                        throw new Error(`Cell at row ${i}, column ${j} must be a string or number, got ${typeof cell}`);
-                                    }
-                                    if (typeof cell === 'string' && (cell.includes('"') || cell.includes('\n'))) {
-                                        throw new Error(`Cell "${cell}" at row ${i}, column ${j} contains invalid characters (quotes or line breaks)`);
-                                    }
-                                }
-                            }
+                            // Use Safari-compatible table parsing
+                            const tableConfig = parseTableConfig(tableConfigText);
 
                             // Clear processing message and render table
                             tableDiv.innerHTML = '';

@@ -1,6 +1,8 @@
 // Chart.js utilities for YouTopia
 // Provides comprehensive charting capabilities with theme support and responsive design
 
+import { safeParse } from './json_utils.js'; // Import Safari-compatible JSON parser
+
 
 const chartColors = {
     light: {
@@ -543,7 +545,7 @@ export function updateChartsTheme() {
 // Parse chart configuration from markdown-style syntax
 export function parseChartConfig(configString) {
     try {
-        return JSON.parse(configString);
+        return safeParse(configString);
     } catch (error) {
         console.error('Error parsing chart configuration:', error);
         return null;
