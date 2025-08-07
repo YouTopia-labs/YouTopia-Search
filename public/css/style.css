@@ -1175,7 +1175,7 @@ body:not(.dark-mode) .placeholder-text-span {
     align-items: center;
     padding: 0 4px 4px 4px; /* Reduced from 0 6px 6px 6px */
     gap: 8px; /* Tighter gap */
-    flex-wrap: wrap; /* Allow wrapping on small screens */
+    flex-wrap: nowrap; /* Prevent wrapping on small screens */
 }
 
 .search-controls-left {
@@ -1183,7 +1183,7 @@ body:not(.dark-mode) .placeholder-text-span {
     align-items: center;
     gap: 8px; /* Tighter gap */
     flex-grow: 1; /* Allow it to take up available space */
-    min-width: 150px; /* Prevent it from becoming too small */
+    min-width: 0; /* Allow it to shrink */
 }
 
 .search-controls-right {
@@ -1482,24 +1482,23 @@ body.dark-mode .send-btn:active {
 
 /* --- Search Active State (Floating Search Box) --- */
 body.search-active {
-    overflow-y: auto; /* Let the body handle scrolling */
-    -webkit-overflow-scrolling: touch;
+    overflow: hidden; /* Prevent body from scrolling */
 }
 
 body.search-active .app-container {
-    height: auto;
-    overflow: visible;
+    height: 100vh;
+    overflow: hidden;
 }
 
 body.search-active .main-content {
-    height: auto; /* Let content define height */
-    min-height: 100vh; /* Ensure it at least fills the screen */
+    height: 100%; /* Take up all available height */
     padding: 0;
     max-width: 100%;
     justify-content: flex-start;
     display: flex;
     flex-direction: column;
-    overflow-y: visible; /* Disable scrolling here, body handles it */
+    overflow-y: auto; /* Enable vertical scrolling on this container */
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
 /* Hide initial search wrapper when search is active */
@@ -3578,14 +3577,42 @@ body.dark-mode .google-signin-btn:hover {
     padding: 8px 12px; /* Slightly smaller padding */
 }
 
-/* Collapse model selector text on very narrow screens */
+/* Collapse model selector text and scale controls on very narrow screens */
 @media (max-width: 420px) {
-    .dropdown-toggle .model-name-text {
+    .dropdown-toggle #selected-model,
+    .dropdown-toggle .fa-chevron-down {
         display: none;
     }
     .dropdown-toggle {
-        min-width: 40px; /* Adjust to fit only the icon */
-        padding-left: 8px;
-        padding-right: 8px;
+        min-width: 36px; /* Tighter fit for just the icon */
+        padding: 8px;
+    }
+
+    .short-response-toggle .toggle-text {
+        display: none;
+    }
+    .short-response-toggle {
+        padding: 8px;
+        min-width: 36px;
+    }
+
+    .search-controls {
+        gap: 6px; /* Reduce gap between all controls */
+    }
+
+    .search-controls-left, .search-controls-right {
+        gap: 6px;
+    }
+
+    .btn, .icon-btn {
+        height: 36px;
+        width: 36px;
+        padding: 8px;
+        font-size: 0.8rem;
+    }
+
+    .send-btn {
+        height: 36px;
+        width: 36px;
     }
 }
