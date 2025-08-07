@@ -397,9 +397,13 @@ html {
 }
 
 html, body {
-    overflow-x: hidden; /* Only prevent horizontal scrolling */
+    width: 100%;
+    height: 100%;
+    overflow-x: hidden;
     margin: 0;
     padding: 0;
+    -webkit-overflow-scrolling: touch;
+    -webkit-text-size-adjust: 100%; /* Prevent font scaling on iOS */
 }
 
 body {
@@ -569,14 +573,14 @@ body.search-active .background-glow {
     justify-content: center;
     align-items: center;
     text-align: center;
-    width: 100%; /* Span edge-to-edge */
-    max-width: none; /* Remove max-width constraint */
-    margin: 0; /* Remove margin */
-    padding: 0; /* Remove padding */
+    width: 100%;
+    max-width: 1200px; /* Add a general max-width for large screens */
+    margin: 0 auto;
+    padding: 16px;
     position: relative;
     z-index: 1;
-    overflow-y: auto; /* Allow scrolling within the content area */
-    min-height: 0; /* Remove min-height to prevent overflow */
+    overflow-y: auto;
+    min-height: 0;
 }
 
 .initial-view-content {
@@ -709,7 +713,7 @@ body.search-active .background-glow {
     gap: 8px;
     margin-bottom: -6px; /* Adjusted to bring "YouTopia Search" closer to the description */
     white-space: nowrap; /* Prevent text wrapping */
-    /* Removed padding here, will apply in media query */
+    padding-top: 5px; /* Added small top padding */
 }
 
 .search-logo {
@@ -725,9 +729,9 @@ body.search-active .background-glow {
 }
 
 .site-title {
-    font-size: 3rem; /* Increased mobile font size from 2.5rem */
+    font-size: clamp(2.5rem, 8vw, 4rem); /* Fluid font size */
     font-weight: 500;
-    margin-bottom: 0; /* Remove margin since container handles spacing */
+    margin-bottom: 0;
     color: var(--text-primary);
 }
 
@@ -1596,7 +1600,8 @@ body.search-active .initial-view-content {
     width: 100%;
     max-width: 100%;
     margin: 0;
-    /* Removed overflow-y: auto; to allow body to scroll */
+    overflow-x: auto; /* Allow horizontal scrolling on zoom */
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
     text-align: left;
     position: relative;
     z-index: 1;
@@ -1784,6 +1789,23 @@ body.dark-mode .query-btn:hover {
     display: block; /* Ensures it takes up its own line and respects max-width */
     margin: 0 auto 1em auto; /* Center images and add some bottom margin */
     border-radius: 8px; /* Consistent with other image styles */
+}
+.ai-response img[src*="#landscape"] {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 1em auto;
+    border-radius: 8px;
+}
+
+.ai-response img[src*="#portrait"] {
+    width: 60%;
+    max-width: 400px;
+    height: auto;
+    display: block;
+    margin: 1em auto;
+    border-radius: 8px;
 }
 
 /* --- Animations --- */
@@ -2615,6 +2637,7 @@ body.search-active .social-footer {
     .search-wrapper {
         margin: 0 auto 1vh auto;
         gap: 4px;
+        max-width: 95%; /* Reduce width on short screens */
     }
     
     .search-box {
@@ -2644,6 +2667,7 @@ body.search-active .social-footer {
     .example-prompts {
         margin-top: 1vh;
         margin-bottom: 1vh;
+        max-width: 95%; /* Reduce width on short screens */
     }
 
     .example-prompts-grid {
@@ -3250,10 +3274,10 @@ body.dark-mode .export-btn:hover {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent black background */
-    z-index: 10000; /* Ensure it's on top of everything */
-    backdrop-filter: blur(5px); /* Frosted glass effect */
-    -webkit-backdrop-filter: blur(5px); /* Safari support */
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 10000;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px); /* Ensure Safari support */
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.3s ease, visibility 0.3s ease;

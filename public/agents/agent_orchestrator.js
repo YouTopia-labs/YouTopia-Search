@@ -3,11 +3,8 @@ import agent1SystemPrompt from './agent1_prompt.js';
 import agent2SystemPrompt from './agent2_prompt.js'; // New import for Agent 2 prompt
 import agent3SystemPrompt from './agent3_prompt.js';
 import { fetchWheatData } from '../tools/wheat_tool.js'; // Import the new Wheat tool
-import { scrapeWebsite } from '../tools/scraper_tool.js'; // Import the new scraper tool
-import { wikipediaSearch } from '../tools/wikipedia_tool.js'; // Import the new Wikipedia tool
+import { scrapeWebsite, tagImageWithDimensions } from '../tools/scraper_tool.js'; // Import the new scraper tool
 import { safeParse } from '../js/json_utils.js';
-
-// Validate API configuration
 async function executeTool(toolName, query, params = {}, userQuery, userName, userLocalTime) {
   console.log(`Executing tool: ${toolName} with query: ${query} and params:`, params);
 
@@ -31,8 +28,6 @@ async function executeTool(toolName, query, params = {}, userQuery, userName, us
       // For now, assuming it's a local function.
       console.log(`Calling fetchWheatData for location: ${query}`);
       return { data: await fetchWheatData(query), sourceUrl: 'https://open-meteo.com/en/docs' };
-    case 'wikipedia_search':
-        return await wikipediaSearch(query);
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
@@ -206,10 +201,11 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
     // If Agent 3 and streaming, skip JSON validation here as partials won't be valid
     // Validation and retry logic has been moved to orchestrateAgents
     
-    // If Agent 3 and streaming, the final response is sent via callback, so return null here.
+    // If Agent 3 and streaming, the final response is sent via callback.
+    // The content returned here might include the sources block, which needs to be handled.
     if (streamCallback) {
-        console.log("Streaming: callAgent returning null as content is streamed via callback.");
-        return null;
+        console.log("Streaming: callAgent returning full content for post-processing.");
+        return content;
     }
 
     console.log("callAgent returning content:", content.substring(0, 100) + (content.length > 100 ? '...' : '')); // Log first 100 chars
@@ -509,8 +505,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
           'serper_web_search': 'Web Search',
           'serper_news_search': 'News Search',
           'coingecko': 'Crypto',
-          'wheat': 'Open-Meteo',
-          'wikipedia_search': 'Wikipedia'
+          'wheat': 'Open-Meteo'
         };
 
         const searchPromises = search_plan.map(async (step) => {
@@ -521,7 +516,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
           if (step.tool === 'serper_web_search') {
             const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
             return { type: 'web_search', data: result.results };
-          } else if (step.tool === 'coingecko' || step.tool === 'wheat' || step.tool === 'wikipedia_search') {
+          } else if (step.tool === 'coingecko' || step.tool === 'wheat') {
             const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
             return { type: 'other_tool', data: result.data, sourceUrl: result.sourceUrl };
           } else {
@@ -568,7 +563,20 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
               scrapeWebsite(plan.url, plan.keywords, logCallback)
             );
             scrapedData = (await Promise.all(scrapePromises)).filter(d => d.success);
-            console.log("Scraped Data:", scrapedData);
+            console.log("Scraped Data (before image processing):", scrapedData);
+
+           // Process image URLs to add dimension tags
+           for (const data of scrapedData) {
+               if (data.images && data.images.length > 0) {
+                   const taggedImagePromises = data.images.map(img => tagImageWithDimensions(img.url));
+                   const taggedUrls = await Promise.all(taggedImagePromises);
+                   data.images.forEach((img, index) => {
+                       img.url = taggedUrls[index];
+                   });
+               }
+           }
+           console.log("Scraped Data (after image processing):", scrapedData);
+
           } else {
             if (logCallback) logCallback(`<i class="fas fa-check-circle"></i> Agent 2: Decided to continue without scraping.`);
           }

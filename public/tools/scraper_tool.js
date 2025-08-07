@@ -35,3 +35,27 @@ export async function scrapeWebsite(url, keywords, logCallback) {
     return { success: false, error: error.message };
   }
 }
+
+/**
+ * Fetches an image to determine its dimensions and returns the URL with an orientation fragment.
+ * @param {string} imageUrl - The URL of the image.
+ * @returns {Promise<string>} The image URL with '#landscape' or '#portrait' fragment.
+ */
+export function tagImageWithDimensions(imageUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      if (img.height > img.width) {
+        resolve(`${imageUrl}#portrait`);
+      } else {
+        resolve(`${imageUrl}#landscape`);
+      }
+    };
+    img.onerror = () => {
+      // If image fails to load, return original URL without a tag
+      console.warn(`Could not load image to determine dimensions: ${imageUrl}`);
+      resolve(imageUrl);
+    };
+    img.src = imageUrl;
+  });
+}
