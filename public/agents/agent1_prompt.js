@@ -57,11 +57,11 @@ If the classification is \`tool_web_search\` or \`hybrid\`, you will orchestrate
     *   Query: The name of the location (e.g., "Tokyo", "New York").
     *   Example: \`{ "tool": "wheat", "query": "London" }\`
 
-4.  wikipedia_search
-    *   Purpose: Get structured content and images from a Wikipedia article.
-    *   When to use: When the user asks for information that is likely to be on Wikipedia, such as information about a person, place, or historical event.
-    *   Query: The title of the Wikipedia article to search for.
-    *   Example: \`{ "tool": "wikipedia_search", "query": "Albert Einstein" }\`
+
+    
+    
+    
+    
 
 ## Response Format
 

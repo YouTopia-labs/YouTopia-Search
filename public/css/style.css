@@ -1481,7 +1481,7 @@ body.dark-mode .send-btn:active {
 
 /* --- Search Active State (Floating Search Box) --- */
 body.search-active {
-    overflow-y: hidden; /* Prevent vertical scrolling on body */
+    /* Scrolling is now handled by .main-content */
 }
 
 body.search-active .app-container {
@@ -1496,6 +1496,8 @@ body.search-active .main-content {
     justify-content: flex-start;
     display: flex;
     flex-direction: column;
+    overflow-y: auto; /* Enable vertical scrolling */
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
 /* Hide initial search wrapper when search is active */
@@ -1783,28 +1785,14 @@ body.dark-mode .query-btn:hover {
 }
 
 /* Ensure images within AI response are responsive */
-.ai-response img {
-    max-width: 100%;
-    height: auto;
-    display: block; /* Ensures it takes up its own line and respects max-width */
-    margin: 0 auto 1em auto; /* Center images and add some bottom margin */
-    border-radius: 8px; /* Consistent with other image styles */
-}
-.ai-response img[src*="#landscape"] {
-    width: 100%;
-    max-width: 100%;
-    height: auto;
-    display: block;
-    margin: 1em auto;
-    border-radius: 8px;
-}
-
+.ai-response img,
+.ai-response img[src*="#landscape"],
 .ai-response img[src*="#portrait"] {
-    width: 60%;
-    max-width: 400px;
+    max-width: 550px; /* Uniform max-width for consistent sizing */
+    width: 100%; /* Scale up to the max-width */
     height: auto;
     display: block;
-    margin: 1em auto;
+    margin: 1em auto; /* Center images */
     border-radius: 8px;
 }
 
@@ -3124,7 +3112,7 @@ body:not(.dark-mode) .gridjs-tr:hover .gridjs-td {
 /* Responsive adjustments for source cards */
 @media (max-width: 768px) {
     .sources-list {
-        grid-template-columns: 1fr; /* Single column on mobile */
+        /* This now uses the default responsive grid, which works better on mobile */
         gap: 12px; /* Reduce gap for a tighter look on mobile */
     }
     #sources-container {
@@ -3582,4 +3570,16 @@ body.dark-mode .google-signin-btn:hover {
     width: auto; /* Allow it to fit content */
     margin: 8px 15px; /* Add some margin */
     padding: 8px 12px; /* Slightly smaller padding */
+}
+
+/* Collapse model selector text on very narrow screens */
+@media (max-width: 420px) {
+    .dropdown-toggle .model-name-text {
+        display: none;
+    }
+    .dropdown-toggle {
+        min-width: 40px; /* Adjust to fit only the icon */
+        padding-left: 8px;
+        padding-right: 8px;
+    }
 }
