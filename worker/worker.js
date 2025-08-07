@@ -428,6 +428,48 @@ async function handleQueryProxy(request, env) {
       return new Response(JSON.stringify({ error: `Authentication failed: ${error.message}` }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
 
+    // Handle status check first to bypass all other logic
+    if (api_target === 'status_check') {
+        const now = Date.now();
+        const userKvKey = `user:${user_email}`;
+        let userData = await env.YOUTOPIA_DATA.get(userKvKey, { type: 'json' });
+        if (!userData) {
+            userData = { queries: [], cooldown_end_timestamp: null, whitelist_start_date: null };
+        }
+
+        const whitelistEmailsString = await env.YOUTOPIA_CONFIG.get('whitelist_emails');
+        const whitelistEmails = whitelistEmailsString ? JSON.parse(whitelistEmailsString) : [];
+        const WHITELIST_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000;
+        
+        let is_whitelisted_20x_plan = false;
+        if (whitelistEmails.includes(user_email)) {
+            let userDataUpdated = false;
+            if (!userData.whitelist_start_date) {
+                userData.whitelist_start_date = now;
+                userDataUpdated = true;
+            }
+            if (userData.cooldown_end_timestamp) {
+                userData.cooldown_end_timestamp = null;
+                userDataUpdated = true;
+            }
+            if (now - userData.whitelist_start_date < WHITELIST_VALIDITY_MS) {
+                is_whitelisted_20x_plan = true;
+            } else {
+                userData.whitelist_start_date = null;
+                userDataUpdated = true;
+            }
+            if (userDataUpdated) {
+                await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
+            }
+        }
+        
+        return new Response(JSON.stringify({ success: true, is_whitelisted_20x_plan }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
+    // --- Rate Limiting Logic for all other API targets ---
     const now = Date.now();
     const userKvKey = `user:${user_email}`;
     let userData = await env.YOUTOPIA_DATA.get(userKvKey, { type: 'json' });
@@ -438,8 +480,8 @@ async function handleQueryProxy(request, env) {
 
     const whitelistEmailsString = await env.YOUTOPIA_CONFIG.get('whitelist_emails');
     const whitelistEmails = whitelistEmailsString ? JSON.parse(whitelistEmailsString) : [];
-
     const WHITELIST_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000;
+    
     let is_whitelisted_20x_plan = false;
     if (whitelistEmails.includes(user_email)) {
         if (!userData.whitelist_start_date) {
@@ -451,16 +493,6 @@ async function handleQueryProxy(request, env) {
             userData.whitelist_start_date = null; // Whitelist has expired
         }
     }
-
-    // If it's just a status check, return the status and exit early, bypassing all rate-limiting logic.
-    if (api_target === 'status_check') {
-        return new Response(JSON.stringify({ success: true, is_whitelisted_20x_plan }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        });
-    }
-
-    // --- Rate Limiting Logic for all other API targets ---
     
     const FREE_RATE_LIMIT = 8;
     const FREE_RATE_LIMIT_WINDOW_MS = 6 * 60 * 60 * 1000;

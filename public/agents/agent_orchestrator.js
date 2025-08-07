@@ -226,6 +226,11 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
     return content;
 
   } catch (error) {
+    // Check if the thrown error is the 429 Response object. If so, re-throw it for main.js to handle.
+    if (error instanceof Response && error.status === 429) {
+        throw error;
+    }
+
     let errorMessage = `Error calling Mistral API: ${error.message}`;
     if (error instanceof TypeError && error.message === 'Load failed') {
         errorMessage = `Network Error: Could not connect to Mistral API or the request was aborted. Details: ${error.message}`;
