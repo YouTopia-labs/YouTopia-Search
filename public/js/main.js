@@ -618,6 +618,9 @@ const renderSourceCards = (sources, container) => {
                 case 'table':
                     currentY = await addTableToPDF(pdf, section.element, margin, contentWidth, currentY, maxY);
                     break;
+                case 'image':
+                    currentY = await addImageToPDF(pdf, section.element, margin, contentWidth, currentY, maxY, pageHeight);
+                    break;
             }
         }
         
@@ -631,7 +634,9 @@ const renderSourceCards = (sources, container) => {
         const children = Array.from(element.children);
         
         for (const child of children) {
-            if (child.classList.contains('chart-display') || child.classList.contains('chart-wrapper')) {
+            if (child.tagName.toLowerCase() === 'img') {
+                sections.push({ type: 'image', element: child });
+            } else if (child.classList.contains('chart-display') || child.classList.contains('chart-wrapper')) {
                 sections.push({ type: 'chart', element: child });
             } else if (child.classList.contains('table-display') || child.classList.contains('gridjs-wrapper')) {
                 sections.push({ type: 'table', element: child });
@@ -715,6 +720,40 @@ const renderSourceCards = (sources, container) => {
 
         } catch (error) {
             console.error('Error adding chart to PDF:', error);
+            return currentY;
+        }
+    }
+    
+    // Add image to PDF
+    async function addImageToPDF(pdf, imgElement, margin, contentWidth, currentY, maxY, pageHeight) {
+        try {
+            const imgSrc = imgElement.src;
+            const response = await fetch(imgSrc);
+            const blob = await response.blob();
+            const imgData = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+
+            const img = new Image();
+            img.src = imgData;
+            await new Promise(resolve => img.onload = resolve);
+
+            const imgAspectRatio = img.width / img.height;
+            const imgHeight = 100; // Max height in mm
+            const imgWidth = Math.min(contentWidth, imgHeight * imgAspectRatio);
+
+            if (currentY + imgHeight > maxY) {
+                pdf.addPage();
+                currentY = margin;
+            }
+
+            pdf.addImage(imgData, 'PNG', margin, currentY, imgWidth, imgHeight);
+            return currentY + imgHeight + 10;
+        } catch (error) {
+            console.error('Error adding image to PDF:', error);
             return currentY;
         }
     }

@@ -133,7 +133,7 @@ Your response must:
   - **USE THE TITLE**: Use the provided image title as the alt text in the markdown.
   - **FORMAT**: \`![Image Title](image_url)\`
   - **PLACEMENT**: Place images logically within the text to support the narrative. Do not place images inside lists.
-- **Prioritize Visuals**: Your main goal is to make the answer easily understandable. Use tables and charts whenever possible to break up text and present data visually. For large amounts of data, prefer a chart over a massive table.
+- **Prioritize Visuals**: Your primary goal is to make the answer easily understandable. Your default behavior should be to represent any structured data, lists, or comparisons as a table. For data that shows trends or proportions, a chart is mandatory. Do not present complex data as a simple text list if it can be visualized.
 - **Source Citation**: Cite your sources using numerical indicators like \`[1]\`, \`[2]\`.
 - **CRITICAL - END OF ANSWER DELIMITER**: After you have completely finished writing the main answer (including all text, tables, charts, and images), you MUST add the following delimiter on its own line:
 ---END_OF_ANSWER---
