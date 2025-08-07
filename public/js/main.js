@@ -1553,23 +1553,6 @@ Generated on: ${currentDate}
             try {
             const response = await orchestrateAgents(query, userName, userLocalTime, selectedModel, streamCallback, logCallback, isShortResponseEnabled);
 
-            if (response && response.status === 429) {
-                const errorData = await response.json();
-                displayRateLimitPopup(errorData.cooldown_end_timestamp, errorData.message_from_developer);
-                logStep('<i class="fas fa-hourglass-half" style="color: #FBBF24;"></i> Query limit exceeded.');
-                setSendButtonState(false); // Ensure button is reset
-                const logContainer = document.getElementById('live-log-container');
-                if (logContainer) {
-                    logContainer.classList.remove('is-active');
-                    logContainer.classList.add('has-error'); // Indicate an error state
-                    await new Promise(resolve => setTimeout(resolve, 1200));
-                    logContainer.classList.add('collapsed');
-                    setTimeout(() => {
-                        logContainer.classList.remove('has-error');
-                    }, 1000);
-                }
-                return; // Stop further processing for 429
-            }
 
                 addExportPanel(aiResponseElement, aiResponseContent);
                 logStep('<i class="fas fa-check-circle" style="color: #10B981;"></i> Response completed successfully.');
@@ -1584,6 +1567,27 @@ Generated on: ${currentDate}
                 }
             } catch (error) {
                 console.error('Search failed:', error);
+
+                // Handle 429 Rate Limit error specifically
+                if (error instanceof Response && error.status === 429) {
+                    const errorData = await error.json();
+                    displayRateLimitPopup(errorData.cooldown_end_timestamp, errorData.message_from_developer);
+                    logStep('<i class="fas fa-hourglass-half" style="color: #FBBF24;"></i> Query limit exceeded.');
+                    setSendButtonState(false); // Ensure button is reset
+                    const logContainer = document.getElementById('live-log-container');
+                    if (logContainer) {
+                        logContainer.classList.remove('is-active');
+                        logContainer.classList.add('has-error'); // Indicate an error state
+                        await new Promise(resolve => setTimeout(resolve, 1200));
+                        logContainer.classList.add('collapsed');
+                        setTimeout(() => {
+                            logContainer.classList.remove('has-error');
+                        }, 1000);
+                    }
+                    return; // Stop further processing
+                }
+
+                // Handle all other errors
                 let errorMessage = error.message || 'Unknown error occurred';
                 let errorIcon = 'fas fa-exclamation-triangle';
                 let userFriendlyMessage = 'Sorry, something went wrong. Please try again.';
