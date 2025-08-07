@@ -261,8 +261,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.setItem('user_name', user.displayName);
                 localStorage.setItem('user_email', user.email);
                 localStorage.setItem('user_profile_pic', user.photoURL);
+
+                // Fetch user status from the worker to check for 20x plan
+                const userStatusResponse = await fetch(`${WORKER_BASE_URL}api/query-proxy`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: "check_user_status", // A dummy query type for status check
+                        user_name: user.displayName,
+                        user_email: user.email,
+                        id_token: idToken,
+                        api_target: "status_check", // A new API target for status
+                        api_payload: {}
+                    })
+                });
+
+                if (userStatusResponse.ok) {
+                    const statusData = await userStatusResponse.json();
+                    if (statusData.is_whitelisted_20x_plan) {
+                        const userStatusElement = document.getElementById('user-status');
+                        if (userStatusElement) {
+                            userStatusElement.textContent = '✨';
+                            userStatusElement.title = '20x Plus Plan User';
+                        }
+                    }
+                } else {
+                    console.error('Failed to fetch user status:', await userStatusResponse.text());
+                }
+
             } catch (error) {
-                console.error('Error getting ID token:', error);
+                console.error('Error getting ID token or user status:', error);
                 // Handle error, maybe sign the user out
                 window.firebaseSignOut();
             }
@@ -280,6 +308,12 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.removeItem('user_email');
             localStorage.removeItem('user_profile_pic');
             localStorage.removeItem('id_token'); // Remove the Firebase token
+            
+            const userStatusElement = document.getElementById('user-status');
+            if (userStatusElement) {
+                userStatusElement.textContent = ''; // Clear status indicator
+                userStatusElement.title = '';
+            }
         }
     };
 

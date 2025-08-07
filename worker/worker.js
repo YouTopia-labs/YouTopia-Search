@@ -456,18 +456,29 @@ async function handleQueryProxy(request, env) {
     const whitelistEmailsString = await env.YOUTOPIA_CONFIG.get('whitelist_emails');
     const whitelistEmails = whitelistEmailsString ? JSON.parse(whitelistEmailsString) : [];
 
+    console.log(`Processing query for user_email: ${user_email}`);
+    console.log(`Whitelist emails from KV: ${JSON.stringify(whitelistEmails)}`);
+
     if (whitelistEmails.includes(user_email)) {
+      console.log(`User ${user_email} IS in whitelist.`);
       if (!userData.whitelist_start_date) {
         userData.whitelist_start_date = now;
+        console.log(`Setting new whitelist_start_date for ${user_email}: ${new Date(userData.whitelist_start_date).toISOString()}`);
+      } else {
+        console.log(`Existing whitelist_start_date for ${user_email}: ${new Date(userData.whitelist_start_date).toISOString()}`);
       }
 
       if (now - userData.whitelist_start_date < WHITELIST_VALIDITY_MS) {
         currentRateLimit = WHITELIST_RATE_LIMIT;
         currentRateLimitWindowMs = WHITELIST_RATE_LIMIT_WINDOW_MS;
         messageFromDeveloper = "Thank you for supporting YouTopia! You've reached your daily query limit for the 20x Plus Plan. Your generosity keeps this project running. You can make more queries after the cooldown.";
+        console.log(`Applying 20x Plus Plan rate limits: ${currentRateLimit} queries per ${currentRateLimitWindowMs / (1000 * 60 * 60)} hours.`);
       } else {
         userData.whitelist_start_date = null;
+        console.log(`Whitelist for ${user_email} has expired. Resetting whitelist_start_date.`);
       }
+    } else {
+      console.log(`User ${user_email} IS NOT in whitelist. Applying free tier limits.`);
     }
 
     const relevantTimeAgo = now - currentRateLimitWindowMs;
@@ -508,18 +519,56 @@ async function handleQueryProxy(request, env) {
         userData.cooldown_end_timestamp = null;
     }
     
+    const is_whitelisted_20x_plan = (currentRateLimit === WHITELIST_RATE_LIMIT && now - userData.whitelist_start_date < WHITELIST_VALIDITY_MS);
+
     await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
 
+    let proxyResponse;
     switch (api_target) {
       case 'serper':
-        return proxySerper(api_payload, env);
+        proxyResponse = await proxySerper(api_payload, env);
+        break;
       case 'mistral':
-        return proxyMistral(api_payload, env);
+        proxyResponse = await proxyMistral(api_payload, env);
+        break;
       case 'coingecko':
-        return proxyCoingecko(api_payload, env);
+        proxyResponse = await proxyCoingecko(api_payload, env);
+        break;
+      case 'status_check':
+        // For status check, we just need to return the current rate limit status
+        // No external API call is needed here.
+        proxyResponse = new Response(JSON.stringify({ success: true, is_whitelisted_20x_plan }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        });
+        break;
       default:
-        return new Response(JSON.stringify({ error: 'Invalid API target.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+        proxyResponse = new Response(JSON.stringify({ error: 'Invalid API target.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
+
+    // If proxyResponse is a Response object, we need to clone it to read the body and re-create it
+    // This is because a Response body can only be read once.
+    let responseBody = {};
+    if (proxyResponse instanceof Response) {
+      try {
+        responseBody = await proxyResponse.json();
+      } catch (e) {
+        // If the response is not JSON (e.g., streaming Mistral response), we can't add is_whitelisted_20x_plan to it.
+        // In such cases, we return the original proxyResponse.
+        return proxyResponse;
+      }
+    } else {
+      // If proxyResponse is not a Response object (e.g., direct data from a proxy function),
+      // treat it as the body and combine.
+      responseBody = proxyResponse;
+    }
+
+    const newResponse = new Response(JSON.stringify({ ...responseBody, is_whitelisted_20x_plan }), {
+        status: proxyResponse.status,
+        headers: proxyResponse.headers,
+    });
+    return newResponse;
+
   } catch (error) {
     console.error('Error in handleQueryProxy:', error.stack);
     return new Response(JSON.stringify({ error: `Error processing proxy request: ${error.message}` }), {
