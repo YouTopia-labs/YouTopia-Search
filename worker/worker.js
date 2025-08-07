@@ -436,15 +436,43 @@ async function handleQueryProxy(request, env) {
       userData = { queries: [], cooldown_end_timestamp: null, whitelist_start_date: null };
     }
 
+    const whitelistEmailsString = await env.YOUTOPIA_CONFIG.get('whitelist_emails');
+    const whitelistEmails = whitelistEmailsString ? JSON.parse(whitelistEmailsString) : [];
+
+    const WHITELIST_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000;
+    let is_whitelisted_20x_plan = false;
+    if (whitelistEmails.includes(user_email)) {
+        if (!userData.whitelist_start_date) {
+            userData.whitelist_start_date = now;
+        }
+        if (now - userData.whitelist_start_date < WHITELIST_VALIDITY_MS) {
+            is_whitelisted_20x_plan = true;
+        } else {
+            userData.whitelist_start_date = null; // Whitelist has expired
+        }
+    }
+
+    // If it's just a status check, return the status and exit early, bypassing all rate-limiting logic.
+    if (api_target === 'status_check') {
+        return new Response(JSON.stringify({ success: true, is_whitelisted_20x_plan }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
+    // --- Rate Limiting Logic for all other API targets ---
+    
     const FREE_RATE_LIMIT = 8;
     const FREE_RATE_LIMIT_WINDOW_MS = 6 * 60 * 60 * 1000;
     const WHITELIST_RATE_LIMIT = 200;
     const WHITELIST_RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
-    const WHITELIST_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000;
-
-    let currentRateLimit = FREE_RATE_LIMIT;
-    let currentRateLimitWindowMs = FREE_RATE_LIMIT_WINDOW_MS;
-    let messageFromDeveloper = `If you appreciate this project and the answers it provides, please consider supporting it! This is a solo, self-funded research project by a student (me lol).
+    
+    const currentRateLimit = is_whitelisted_20x_plan ? WHITELIST_RATE_LIMIT : FREE_RATE_LIMIT;
+    const currentRateLimitWindowMs = is_whitelisted_20x_plan ? WHITELIST_RATE_LIMIT_WINDOW_MS : FREE_RATE_LIMIT_WINDOW_MS;
+    
+    let messageFromDeveloper = is_whitelisted_20x_plan
+      ? "Thank you for supporting YouTopia! You've reached your daily query limit for the 20x Plus Plan. Your generosity keeps this project running. You can make more queries after the cooldown."
+      : `If you appreciate this project and the answers it provides, please consider supporting it! This is a solo, self-funded research project by a student (me lol).
   Your donations would help to keep running it for everyone (and fund my coffee for improving it). Contributions over $20 qualify you for the 20x Plus Plan, which includes:
   ✅ 200 AI-powered queries per day
   ✅ Valid for a month
@@ -452,35 +480,7 @@ async function handleQueryProxy(request, env) {
   To activate the 20x plan after donating, simply email at support@youtopia.co.in
 
   Thank you for your support, it truly makes a difference for me to not implement spyware to collect user data and sell it to whoever’s buying on 4chan`;
-
-    const whitelistEmailsString = await env.YOUTOPIA_CONFIG.get('whitelist_emails');
-    const whitelistEmails = whitelistEmailsString ? JSON.parse(whitelistEmailsString) : [];
-
-    console.log(`Processing query for user_email: ${user_email}`);
-    console.log(`Whitelist emails from KV: ${JSON.stringify(whitelistEmails)}`);
-
-    if (whitelistEmails.includes(user_email)) {
-      console.log(`User ${user_email} IS in whitelist.`);
-      if (!userData.whitelist_start_date) {
-        userData.whitelist_start_date = now;
-        console.log(`Setting new whitelist_start_date for ${user_email}: ${new Date(userData.whitelist_start_date).toISOString()}`);
-      } else {
-        console.log(`Existing whitelist_start_date for ${user_email}: ${new Date(userData.whitelist_start_date).toISOString()}`);
-      }
-
-      if (now - userData.whitelist_start_date < WHITELIST_VALIDITY_MS) {
-        currentRateLimit = WHITELIST_RATE_LIMIT;
-        currentRateLimitWindowMs = WHITELIST_RATE_LIMIT_WINDOW_MS;
-        messageFromDeveloper = "Thank you for supporting YouTopia! You've reached your daily query limit for the 20x Plus Plan. Your generosity keeps this project running. You can make more queries after the cooldown.";
-        console.log(`Applying 20x Plus Plan rate limits: ${currentRateLimit} queries per ${currentRateLimitWindowMs / (1000 * 60 * 60)} hours.`);
-      } else {
-        userData.whitelist_start_date = null;
-        console.log(`Whitelist for ${user_email} has expired. Resetting whitelist_start_date.`);
-      }
-    } else {
-      console.log(`User ${user_email} IS NOT in whitelist. Applying free tier limits.`);
-    }
-
+    
     const relevantTimeAgo = now - currentRateLimitWindowMs;
     userData.queries = userData.queries.filter(q => q.timestamp > relevantTimeAgo);
     const queryCount = userData.queries.length;
@@ -506,6 +506,7 @@ async function handleQueryProxy(request, env) {
       }), { status: 429, headers: { 'Content-Type': 'application/json' } });
     }
 
+    // Increment query count and save user data
     userData.queries.push({
       timestamp: now,
       query: query,
@@ -519,56 +520,19 @@ async function handleQueryProxy(request, env) {
         userData.cooldown_end_timestamp = null;
     }
     
-    const is_whitelisted_20x_plan = (currentRateLimit === WHITELIST_RATE_LIMIT && now - userData.whitelist_start_date < WHITELIST_VALIDITY_MS);
-
     await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
 
-    let proxyResponse;
+    // --- Proxy the request to the target API ---
     switch (api_target) {
       case 'serper':
-        proxyResponse = await proxySerper(api_payload, env);
-        break;
+        return proxySerper(api_payload, env);
       case 'mistral':
-        proxyResponse = await proxyMistral(api_payload, env);
-        break;
+        return proxyMistral(api_payload, env);
       case 'coingecko':
-        proxyResponse = await proxyCoingecko(api_payload, env);
-        break;
-      case 'status_check':
-        // For status check, we just need to return the current rate limit status
-        // No external API call is needed here.
-        proxyResponse = new Response(JSON.stringify({ success: true, is_whitelisted_20x_plan }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-        });
-        break;
+        return proxyCoingecko(api_payload, env);
       default:
-        proxyResponse = new Response(JSON.stringify({ error: 'Invalid API target.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ error: 'Invalid API target.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
-
-    // If proxyResponse is a Response object, we need to clone it to read the body and re-create it
-    // This is because a Response body can only be read once.
-    let responseBody = {};
-    if (proxyResponse instanceof Response) {
-      try {
-        responseBody = await proxyResponse.json();
-      } catch (e) {
-        // If the response is not JSON (e.g., streaming Mistral response), we can't add is_whitelisted_20x_plan to it.
-        // In such cases, we return the original proxyResponse.
-        return proxyResponse;
-      }
-    } else {
-      // If proxyResponse is not a Response object (e.g., direct data from a proxy function),
-      // treat it as the body and combine.
-      responseBody = proxyResponse;
-    }
-
-    const newResponse = new Response(JSON.stringify({ ...responseBody, is_whitelisted_20x_plan }), {
-        status: proxyResponse.status,
-        headers: proxyResponse.headers,
-    });
-    return newResponse;
-
   } catch (error) {
     console.error('Error in handleQueryProxy:', error.stack);
     return new Response(JSON.stringify({ error: `Error processing proxy request: ${error.message}` }), {

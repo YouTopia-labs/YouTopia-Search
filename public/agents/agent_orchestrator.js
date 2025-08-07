@@ -130,7 +130,7 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
 
     if (!response.ok) {
         if (response.status === 429) {
-            return response; // Pass the 429 response back to the caller
+            throw response; // Throw the 429 Response object so main.js can catch it
         }
       let errorData;
       try {
@@ -370,9 +370,8 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
 
     if (agent1ResponseRaw instanceof Response && !agent1ResponseRaw.ok) {
         if (agent1ResponseRaw.status === 429) {
-            const errorData = await agent1ResponseRaw.json();
-            console.error("Query limit exceeded:", errorData.error);
-            return `Error: ${errorData.error} ${errorData.message_from_developer || ''}`;
+            // Re-throw the 429 Response object so main.js can handle the popup
+            throw agent1ResponseRaw;
         }
         const errorText = await agent1ResponseRaw.text();
         return `Error: Agent 1 failed with status ${agent1ResponseRaw.status}. ${errorText}`;
