@@ -228,8 +228,14 @@ async function proxyCoingecko(api_payload, env) {
       });
     }
 
-    const response = new Response(coingeckoResponse.body, coingeckoResponse);
-    response.headers.set('Access-Control-Allow-Origin', '*');
+    const coingeckoData = await coingeckoResponse.json(); // Always parse the JSON response
+    const response = new Response(JSON.stringify(coingeckoData), {
+      status: coingeckoResponse.status,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
     return response;
   } catch (error) {
     console.error('Error in proxyCoingecko:', error.stack);

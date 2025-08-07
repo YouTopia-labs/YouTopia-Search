@@ -69,12 +69,16 @@ async function fetchWithProxy(api_target, api_payload, query, userName, userLoca
       return response; // Pass the 429 response back to the caller
     }
     let errorData;
+    let errorMessage = `API proxy error: ${response.status}`;
     try {
         errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
     } catch (e) {
-        errorData = { error: await response.text() };
+        // If response is not JSON, try to get it as text
+        const responseText = await response.text();
+        errorMessage = `API proxy error: ${response.status} - ${responseText}`;
     }
-    throw new Error(errorData.error || `API proxy error: ${response.status}`);
+    throw new Error(errorMessage);
   }
 
   // For streaming responses (like Mistral), return the response object directly
