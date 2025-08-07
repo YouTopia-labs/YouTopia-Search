@@ -4,7 +4,6 @@
 # Cloudflare Wrangler
 .wrangler/
 node_modules/
-old/
 
 # Logs
 *.log

@@ -88,11 +88,10 @@ async function fetchWithProxy(api_target, api_payload, query, userName, userLoca
 
 export async function callAgent(model, prompt, input, retryCount = 0, streamCallback = null, query, userName, userLocalTime) {
   console.log(`Calling agent with model: ${model}, input:`, input);
-  const apiUrl = 'https://api.mistral.ai/v1/chat/completions'; // Define apiUrl here
-  const MAX_AGENT_1_RETRIES = 2; // Max retries for Agent 1's JSON
+  const maxRetries = 2;
 
-  if (streamCallback && prompt.includes('Agent 3:')) {
-    console.log("Agent 3 streaming enabled. Skipping JSON validation for partials.");
+  if (streamCallback) {
+    console.log("Streaming enabled.");
   }
 
   let messages = [
@@ -118,8 +117,7 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
         messages: messages,
         temperature: 0.5,
         max_tokens: 6000,
-        // Stream only if streamCallback is provided and it's Agent 3
-        stream: (streamCallback && prompt.includes('Agent 3:'))
+        stream: true
       }
     };
 
@@ -149,44 +147,56 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
     const decoder = new TextDecoder('utf-8');
 
     try {
-      let buffer = ''; // Buffer for accumulating partial JSON lines
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        if (!value) {
+          console.warn('Received empty chunk from stream');
+          continue;
+        }
         
+        const chunk = decoder.decode(value, { stream: true });
+        
+        if (!chunk.trim()) {
+          continue; // Skip empty chunks
+        }
+        
+        // Each chunk might contain multiple JSON objects or partial objects
+        const lines = chunk.split('\n');
+        let buffer = ''; // Buffer to accumulate partial JSON
         for (const line of lines) {
             if (line.startsWith('data:')) {
                 const jsonStr = line.substring(5).trim();
                 if (jsonStr === '[DONE]') {
                     break; // End of stream
                 }
-                buffer += jsonStr;
-                
-                // For Agent 3, send the content immediately via streamCallback
-                if (streamCallback && prompt.includes('Agent 3:')) {
-                    try {
-                        const data = JSON.parse(jsonStr);
-                        if (data.choices && data.choices.length > 0 && data.choices[0].delta && data.choices[0].delta.content) {
-                            streamCallback(data.choices[0].delta.content);
-                        }
-                    } catch (e) {
-                        // This handles partial JSON from the Mistral stream for Agent 3.
-                        // We accumulate content into 'buffer' for full parse later,
-                        // but for immediate streaming to UI, we try to extract what's available.
-                        console.warn("Error parsing streamed chunk for Agent 3 display:", e);
-                    }
+                if (!jsonStr.trim()) { // Check for empty or whitespace-only string
+                    console.warn('Skipping empty or whitespace-only data: line in stream.');
+                    continue; // Skip to the next line
                 }
-            } else {
-                // Handle any non-data lines or leftover buffer if necessary
-                buffer += line;
+
+                buffer += jsonStr; // Add to buffer
+
+                try {
+                    const data = JSON.parse(buffer); // Try parsing the accumulated buffer
+                    if (data.choices && data.choices.length > 0) {
+                        const delta = data.choices[0].delta;
+                        if (delta && delta.content) {
+                            content += delta.content;
+                            // If Agent 3 and streamCallback is provided, send the content immediately
+                            if (streamCallback) {
+                                streamCallback(delta.content);
+                            }
+                        }
+                    }
+                    buffer = ''; // Clear buffer on successful parse
+                } catch (e) {
+                    // JSON parse error: could be incomplete JSON, continue buffering
+                    // console.warn("Incomplete JSON chunk, buffering:", buffer, "Error:", e);
+                }
             }
         }
-        // Accumulate full content for non-streaming agents or final parsing
-        content += buffer;
-        buffer = ''; // Clear buffer after processing
       }
     } catch (streamError) {
       console.error('Error reading stream:', streamError);
@@ -198,27 +208,13 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
       throw new Error('No content received from Mistral API');
     }
 
-    // For Agent 1, validate JSON format before returning.
-    // This retry logic is for Agent 1 only, to ensure it returns valid JSON.
-    if (prompt.includes('Agent 1:') && retryCount < MAX_AGENT_1_RETRIES) {
-        try {
-            // Attempt to parse the content to validate JSON
-            JSON.parse(content.trim());
-        } catch (jsonError) {
-            console.warn(`[Warning] Agent 1 returned invalid JSON on attempt ${retryCount + 1}. Retrying...`);
-            console.warn("Invalid response:", content);
-            
-            // Add specific instructions for the retry to fix JSON
-            const retryPrompt = `${prompt}\n\nCRITICAL: Your previous response was NOT valid JSON. Please provide ONLY the valid JSON object. DO NOT include any extra text, markdown, or conversational language. The invalid response was:\n${content}`;
-            
-            // Recursively call callAgent for a retry
-            return callAgent(model, retryPrompt, input, retryCount + 1, streamCallback, query, userName, userLocalTime);
-        }
-    }
+    // For Agent 1, validate JSON format before returning
+    // If Agent 3 and streaming, skip JSON validation here as partials won't be valid
+    // Validation and retry logic has been moved to orchestrateAgents
     
     // If Agent 3 and streaming, the final response is sent via callback, so return null here.
-    if (streamCallback && prompt.includes('Agent 3:')) {
-        console.log("Agent 3 streaming: callAgent returning null as content is streamed via callback.");
+    if (streamCallback) {
+        console.log("Streaming: callAgent returning null as content is streamed via callback.");
         return null;
     }
 
@@ -237,6 +233,42 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
   }
 }
 
+// Sanitize and parse JSON, attempting to fix common errors.
+function sanitizeAndParseJson(jsonString) {
+    console.log("Attempting to sanitize and parse JSON...");
+    
+    // 1. Strip markdown fences first. This is the most common failure.
+    let sanitizedString = jsonString.replace(/```json/g, '').replace(/```/g, '');
+
+    // 2. Extract the first valid-looking JSON object.
+    const match = sanitizedString.match(/\{[\s\S]*\}/);
+    if (!match) {
+        throw new Error("No valid JSON object found in the response.");
+    }
+    sanitizedString = match[0];
+
+    // 3. Basic syntax corrections
+    sanitizedString = sanitizedString
+        .trim()
+        .replace(/[\x00-\x1F\x7F-\x9F]/g, "") // Remove control characters
+        .replace(/\\n/g, "\\n")
+        .replace(/\\"/g, '"');
+
+    // 4. Attempt to fix common structural errors
+    // Add missing colons (e.g., "key" "value" -> "key": "value")
+    sanitizedString = sanitizedString.replace(/([{,]\s*)("([^"]+)")\s*("([^"]+)")/g, '$1$2:$4');
+    // Add missing quotes around keys
+    sanitizedString = sanitizedString.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+    // Remove trailing commas
+    sanitizedString = sanitizedString.replace(/,\s*([}\]])/g, '$1');
+
+    try {
+        return JSON.parse(sanitizedString);
+    } catch (error) {
+        console.error("Final parsing attempt failed after sanitization.", error);
+        throw new Error(`Failed to parse JSON after all sanitization attempts: ${error.message}`);
+    }
+}
 
 // Validate Agent 1 JSON response structure
 function validateAgent1Response(response) {
@@ -312,38 +344,58 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
 
     console.log("Agent 1: Deciding next action...");
 
-    const agent1ResponseRaw = await callAgent(agent1Model, agent1SystemPrompt, agent1Input, 0, null, userQuery, userName, userLocalTime);
+    let agent1ResponseRaw;
+    let parsedAgent1Response;
+    let attempt = 0;
+    const maxAttempts = 2;
 
-    // Handle non-200 responses from callAgent directly
+    while (attempt < maxAttempts) {
+      attempt++;
+      console.log(`Agent 1: Attempt ${attempt} to get a valid JSON response.`);
+      
+      let currentPrompt = agent1SystemPrompt;
+      let currentInput = agent1Input;
+
+      if (attempt > 1 && agent1ResponseRaw) {
+        // If this is a retry, modify the prompt to ask for a fix
+        console.log("Retrying with a request to fix the malformed JSON.");
+        currentPrompt += `\n\nTHE PREVIOUS ATTEMPT FAILED DUE TO INVALID JSON. PLEASE CORRECT THE FOLLOWING RESPONSE TO BE A VALID JSON OBJECT. DO NOT ADD ANY EXTRA TEXT. HERE IS THE FAILED RESPONSE:\n${agent1ResponseRaw}`;
+      }
+
+      agent1ResponseRaw = await callAgent(agent1Model, currentPrompt, currentInput, 0, null, userQuery, userName, userLocalTime);
+
     if (agent1ResponseRaw instanceof Response && !agent1ResponseRaw.ok) {
         if (agent1ResponseRaw.status === 429) {
             const errorData = await agent1ResponseRaw.json();
             console.error("Query limit exceeded:", errorData.error);
-            return agent1ResponseRaw; // Return the 429 response for main.js to handle
+            return `Error: ${errorData.error} ${errorData.message_from_developer || ''}`;
         }
         const errorText = await agent1ResponseRaw.text();
         return `Error: Agent 1 failed with status ${agent1ResponseRaw.status}. ${errorText}`;
     }
-    
-    let parsedAgent1Response;
-    try {
-        parsedAgent1Response = JSON.parse(agent1ResponseRaw);
 
-    } catch (error) {
-        console.error("[Error] Agent 1 response parsing failed:", error.message);
+      try {
+        parsedAgent1Response = sanitizeAndParseJson(agent1ResponseRaw);
+        // If parsing is successful, break the loop
+        break;
+      } catch (error) {
+        console.error(`[Error] Agent 1 response parsing failed on attempt ${attempt}:`, error.message);
         console.error("Raw response:", agent1ResponseRaw);
-        return `Error: Agent 1 returned an invalid JSON response. The response must start with { and end with }. Error: ${error.message}`;
+        if (attempt >= maxAttempts) {
+          return `Error: Agent 1 failed to return a valid JSON response after ${maxAttempts} attempts. Last error: ${error.message}`;
+        }
+      }
     }
 
     try {
-        const validationErrors = validateAgent1Response(parsedAgent1Response);
-        if (validationErrors.length > 0) {
-            console.error("[Error] Agent 1 response validation failed:");
-            validationErrors.forEach(error => console.error(`  - ${error}`));
-            console.error("Response:", JSON.stringify(parsedAgent1Response, null, 2));
-            return `Error: Agent 1 response validation failed: ${validationErrors.join('; ')}`;
-        }
-        console.log("✓ Agent 1 response validation passed");
+      const validationErrors = validateAgent1Response(parsedAgent1Response);
+      if (validationErrors.length > 0) {
+        console.error("[Error] Agent 1 response validation failed:");
+        validationErrors.forEach(error => console.error(`  - ${error}`));
+        console.error("Response:", JSON.stringify(parsedAgent1Response, null, 2));
+        return `Error: Agent 1 response validation failed: ${validationErrors.join('; ')}`;
+      }
+      console.log("✓ Agent 1 response validation passed");
     } catch (error) {
         console.error("[Error] Agent 1 response validation failed unexpectedly:", error.message);
         return `Error: Agent 1 response validation failed: ${error.message}`;
