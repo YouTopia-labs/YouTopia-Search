@@ -1213,151 +1213,21 @@ Generated on: ${currentDate}
                 
                 // Store the current response content for export functions
                 currentResponseContent = aiResponseContent;
-                // Before parsing, extract sources if they are present
-                const sourcesRegex = /## Sources\n([\s\S]*)/;
-                const match = aiResponseContent.match(sourcesRegex);
-                let contentToDisplay = aiResponseContent; // Content to display in the main AI response div
-                let sourcesMarkdown = '';
-                let parsedSources = [];
 
-                if (match) {
-                    sourcesMarkdown = match[1];
-                    // Remove sources from the main content for display
-                    contentToDisplay = aiResponseContent.replace(sourcesRegex, '').trim();
+                // Render the raw markdown content as it streams
+                aiResponseElement.innerHTML = marked.parse(aiResponseContent);
 
-                    // Preprocess sourcesMarkdown to convert plain URLs into markdown links
-                    parsedSources = sourcesMarkdown.split('\n').map(line => {
-                        const sourceRegex = /^(\d+)\.\s*\[([^\]]+)\]\((https?:\/\/[^\)]+)\)(?:\s*-\s*(.*))?$/;
-                        const match = line.match(sourceRegex);
-                        if (match) {
-                            const number = match[1];
-                            const title = match[2];
-                            const url = match[3];
-                            const snippet = match[4] || '';
-                            return { number, title, url, snippet };
-                        }
-                        // Fallback for old/simple URL format
-                        const urlMatch = line.match(/^(\d+\.\s*)(https?:\/\/\S+)$/);
-                        if (urlMatch) {
-                            const number = urlMatch[1].replace('.', '');
-                            const url = urlMatch[2]; // Corrected from urlUrl[2]
-                            let title = url; // Default title is the URL
-                            try {
-                                const urlObj = new URL(url);
-                                title = urlObj.hostname.replace('www.', ''); // Use hostname as title
-                            } catch (e) { /* invalid URL */ }
-                            return { number, title, url, snippet: '' };
-                        }
-                        return null; // Ignore lines that don't match source format
-                    }).filter(Boolean); // Remove null entries
-
-                    renderSourceCards(parsedSources, sourcesContainer);
-                }
-
-                aiResponseElement.innerHTML = marked.parse(contentToDisplay);
-                renderCodeHighlighting(aiResponseElement); // Re-render highlights
-                // Only auto-scroll if the user is near the bottom
-                const isScrolledToBottom = resultsContainer.scrollHeight - resultsContainer.clientHeight <= resultsContainer.scrollTop + 1; // +1 for a small buffer
+                // Auto-scroll if the user is near the bottom
+                const isScrolledToBottom = resultsContainer.scrollHeight - resultsContainer.clientHeight <= resultsContainer.scrollTop + 1;
                 if (isScrolledToBottom) {
                     resultsContainer.scrollTop = resultsContainer.scrollHeight;
                 }
 
-                // Process charts within the stream callback
-                aiResponseElement.querySelectorAll('pre code.language-chart').forEach((codeBlock, index) => {
-                    // Show processing message immediately
-                    const chartContainerId = `chart-container-${Date.now()}-${index}`;
-                    const chartDiv = document.createElement('div');
-                    chartDiv.id = chartContainerId;
-                    chartDiv.classList.add('chart-display');
-                    chartDiv.innerHTML = `
-                        <div style="padding: 20px; text-align: center; color: var(--text-secondary); border: 1px dashed var(--border-color); border-radius: 8px; margin: 10px 0;">
-                            <i class="fas fa-chart-line" style="font-size: 24px; margin-bottom: 8px; opacity: 0.6;"></i>
-                            <div style="font-size: 14px;">Processing chart block...</div>
-                        </div>
-                    `;
-
-                    codeBlock.parentNode.parentNode.insertBefore(chartDiv, codeBlock.parentNode);
-                    codeBlock.parentNode.remove();
-
-                    // Process chart asynchronously without showing errors during streaming
-                    setTimeout(() => {
-                        try {
-                            let chartConfigText = codeBlock.textContent.trim();
-                            if (!chartConfigText) {
-                                throw new Error('Empty chart configuration');
-                            }
-
-                            // Use Safari-compatible chart parsing
-                            const chartConfig = safeParseChartConfig(chartConfigText);
-
-                            // Clear processing message and render chart
-                            chartDiv.innerHTML = '';
-                            renderChart(chartContainerId, chartConfig);
-                        } catch (e) {
-                            console.error("Error processing chart:", e);
-                            console.error("Chart content was:", codeBlock.textContent);
-                            chartDiv.innerHTML = `
-                                <div style="padding: 15px; border: 1px solid var(--error-color, #e74c3c); border-radius: 8px; background-color: var(--error-bg, #fdf2f2); color: var(--error-color, #e74c3c); margin: 10px 0;">
-                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                                        <i class="fas fa-exclamation-triangle"></i>
-                                        <strong>Chart Processing Error</strong>
-                                    </div>
-                                    <div style="font-size: 14px; opacity: 0.9;">${e.message}</div>
-                                </div>
-                            `;
-                        }
-                    }, 500); // Delay to allow streaming to complete
-                });
-
-                // Process tables within the stream callback
-                aiResponseElement.querySelectorAll('pre code.language-table').forEach((codeBlock, index) => {
-                    // Show processing message immediately
-                    const tableContainerId = `table-container-${Date.now()}-${index}`;
-                    const tableDiv = document.createElement('div');
-                    tableDiv.id = tableContainerId;
-                    tableDiv.classList.add('table-display');
-                    tableDiv.innerHTML = `
-                        <div style="padding: 20px; text-align: center; color: var(--text-secondary); border: 1px dashed var(--border-color); border-radius: 8px; margin: 10px 0;">
-                            <i class="fas fa-table" style="font-size: 24px; margin-bottom: 8px; opacity: 0.6;"></i>
-                            <div style="font-size: 14px;">Processing table block...</div>
-                        </div>
-                    `;
-
-                    codeBlock.parentNode.parentNode.insertBefore(tableDiv, codeBlock.parentNode);
-                    codeBlock.parentNode.remove();
-
-                    // Process table asynchronously without showing errors during streaming
-                    setTimeout(() => {
-                        try {
-                            let tableConfigText = codeBlock.textContent.trim();
-                            if (!tableConfigText) {
-                                throw new Error('Empty table configuration');
-                            }
-
-                            // Use Safari-compatible table parsing
-                            const tableConfig = parseTableConfig(tableConfigText);
-
-                            // Clear processing message and render table
-                            tableDiv.innerHTML = '';
-                            console.log('Rendering table with config:', tableConfig);
-                            console.log('Table container ID:', tableContainerId);
-                            renderTable(tableConfig, tableContainerId);
-                        } catch (e) {
-                            console.error("Error processing table:", e);
-                            console.error("Table content was:", codeBlock.textContent);
-                            tableDiv.innerHTML = `
-                                <div style="padding: 15px; border: 1px solid var(--error-color, #e74c3c); border-radius: 8px; background-color: var(--error-bg, #fdf2f2); color: var(--error-color, #e74c3c); margin: 10px 0;">
-                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                                        <i class="fas fa-exclamation-triangle"></i>
-                                        <strong>Table Processing Error</strong>
-                                    </div>
-                                    <div style="font-size: 14px; opacity: 0.9;">${e.message}</div>
-                                </div>
-                            `;
-                        }
-                    }, 500); // Delay to allow streaming to complete
-                });
-                resultsContainer.scrollTop = resultsContainer.scrollHeight;
+                // Check for the end-of-answer delimiter
+                if (aiResponseContent.includes('---END_OF_ANSWER---')) {
+                    // Stop the main "Answer" tab loading indicator here if needed
+                    // This part is handled by the final processing step now
+                }
             };
 
             const logCallback = (message) => {
@@ -1365,10 +1235,12 @@ Generated on: ${currentDate}
             };
 
             try {
-            const response = await orchestrateAgents(query, userName, userLocalTime, selectedModel, streamCallback, logCallback, isShortResponseEnabled);
+                const response = await orchestrateAgents(query, userName, userLocalTime, selectedModel, streamCallback, logCallback, isShortResponseEnabled);
 
+                // --- Final Processing Step ---
+                // This code runs after the entire stream is finished.
+                processFinalResponse(aiResponseElement, aiResponseContent);
 
-                addExportPanel(aiResponseElement, aiResponseContent);
                 logStep('<i class="fas fa-check-circle" style="color: #10B981;"></i> Response completed successfully.');
                 setSendButtonState(false);
                 const logContainer = document.getElementById('live-log-container');
@@ -1481,8 +1353,81 @@ Generated on: ${currentDate}
     };
 
 
-    // Removed renderAIResponse as content is now streamed and rendered incrementally.
-    // The functionality of rendering Markdown and highlighting code is now part of the streamCallback.
+    // This new function processes the complete response after streaming is done.
+    const processFinalResponse = (aiResponseElement, fullContent) => {
+        // Separate the main answer from the sources using the delimiter
+        const delimiter = '---END_OF_ANSWER---';
+        let mainAnswer = fullContent;
+        let sourcesMarkdown = '';
+
+        if (fullContent.includes(delimiter)) {
+            const parts = fullContent.split(delimiter);
+            mainAnswer = parts[0];
+            sourcesMarkdown = parts[1] || '';
+        }
+        
+        // Update the global content for export functions
+        currentResponseContent = mainAnswer;
+
+        // Render the final main answer content
+        aiResponseElement.innerHTML = marked.parse(mainAnswer);
+
+        // Now, find and render all charts and tables from the final content
+        aiResponseElement.querySelectorAll('pre code.language-chart').forEach((codeBlock, index) => {
+            const chartContainerId = `chart-container-${Date.now()}-${index}`;
+            const chartDiv = document.createElement('div');
+            chartDiv.id = chartContainerId;
+            chartDiv.classList.add('chart-display');
+            codeBlock.parentNode.parentNode.replaceChild(chartDiv, codeBlock.parentNode);
+
+            try {
+                const chartConfig = safeParseChartConfig(codeBlock.textContent.trim());
+                renderChart(chartContainerId, chartConfig);
+            } catch (e) {
+                console.error("Error processing chart:", e);
+                chartDiv.innerHTML = `<div class="render-error">Chart Processing Error: ${e.message}</div>`;
+            }
+        });
+
+        aiResponseElement.querySelectorAll('pre code.language-table').forEach((codeBlock, index) => {
+            const tableContainerId = `table-container-${Date.now()}-${index}`;
+            const tableDiv = document.createElement('div');
+            tableDiv.id = tableContainerId;
+            tableDiv.classList.add('table-display');
+            codeBlock.parentNode.parentNode.replaceChild(tableDiv, codeBlock.parentNode);
+
+            try {
+                const tableConfig = parseTableConfig(codeBlock.textContent.trim());
+                renderTable(tableConfig, tableContainerId);
+            } catch (e) {
+                console.error("Error processing table:", e);
+                tableDiv.innerHTML = `<div class="render-error">Table Processing Error: ${e.message}</div>`;
+            }
+        });
+
+        // Highlight all code blocks
+        renderCodeHighlighting(aiResponseElement);
+
+        // Process and render the sources
+        if (sourcesMarkdown) {
+            const sourcesRegex = /## Sources\n([\s\S]*)/;
+            const match = sourcesMarkdown.match(sourcesRegex);
+            if (match) {
+                const parsedSources = match[1].split('\n').map(line => {
+                    const sourceRegex = /^(\d+)\.\s*\[([^\]]+)\]\((https?:\/\/[^\)]+)\)(?:\s*-\s*(.*))?$/;
+                    const sourceMatch = line.match(sourceRegex);
+                    if (sourceMatch) {
+                        return { number: sourceMatch[1], title: sourceMatch[2], url: sourceMatch[3], snippet: sourceMatch[4] || '' };
+                    }
+                    return null;
+                }).filter(Boolean);
+                renderSourceCards(parsedSources, sourcesContainer);
+            }
+        }
+        
+        // Add the export panel at the very end
+        addExportPanel(aiResponseElement, mainAnswer);
+    };
  
  
  

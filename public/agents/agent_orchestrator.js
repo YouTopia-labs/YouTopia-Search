@@ -3,7 +3,7 @@ import agent1SystemPrompt from './agent1_prompt.js';
 import agent2SystemPrompt from './agent2_prompt.js'; // New import for Agent 2 prompt
 import agent3SystemPrompt from './agent3_prompt.js';
 import { fetchWheatData } from '../tools/wheat_tool.js'; // Import the new Wheat tool
-import { wikiEye } from '../tools/wiki_eye.js'; // Import the new wiki_eye tool
+import { scrapeWebsite } from '../tools/scraper_tool.js'; // Import the new scraper tool
 import { safeParse } from '../js/json_utils.js';
 
 // Validate API configuration
@@ -394,8 +394,8 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
   let totalScrapedSites = 0;
 
   const MAX_TOTAL_SEARCHES = 12; // Total individual search steps (web_search, coingecko, wheat)
-  const MAX_TOTAL_SCRAPES = 12; // Total individual sites scraped
-  const MAX_PARALLEL_SCRAPES_PER_TURN = 4; // Max sites scraped in one 'scrape' action
+  const MAX_TOTAL_SCRAPES = 16; // Total individual sites scraped
+  const MAX_PARALLEL_SCRAPES_PER_TURN = 8; // Max sites scraped in one 'scrape' action
 
   // Loop for orchestration turns
   while (true) {
@@ -495,7 +495,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
 
       let webSearchResults = [];
       let otherToolResults = [];
-      let processedWikiData = [];
+      let scrapedData = [];
 
       if (search_plan && search_plan.length > 0) {
         console.log(`Executing search plan (${search_plan.length} steps) in parallel...`);
@@ -504,12 +504,8 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
           'serper_web_search': 'Web Search',
           'serper_news_search': 'News Search',
           'coingecko': 'Crypto',
-          'wheat': 'Open-Meteo',
-          'wiki_eye': 'Wikipedia Scraper'
+          'wheat': 'Open-Meteo'
         };
-
-        // Initialize allSourceUrls array before it's used in the forEach loop
-        const allSourceUrls = [];
 
         const searchPromises = search_plan.map(async (step) => {
           if (logCallback) {
@@ -534,26 +530,44 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
             webSearchResults.push(...res.data);
           } else if (res.type === 'other_tool') {
             otherToolResults.push(res.data);
-            if (res.sourceUrl) {
-                allSourceUrls.push(res.sourceUrl); // Add specific tool source URL
-            }
           }
         });
 
         console.log("Raw web search results:", webSearchResults);
         console.log("Raw other tool results:", otherToolResults);
 
-        // Pass all web search results to wikiEye, which will handle its own filtering for Wikipedia links
+        // --- New Agent 2 Workflow ---
         if (webSearchResults.length > 0) {
-          console.log("Passing all web search results to wikiEye for potential Wikipedia processing by Agent 2.");
-          processedWikiData = await wikiEye(webSearchResults, userQuery, logCallback);
-          console.log("Processed Wikipedia data from Agent 2:", processedWikiData);
+          console.log("Agent 2: Analyzing search results to decide on scraping...");
+          if (logCallback) logCallback(`<i class="fas fa-filter"></i> Agent 2: Analyzing search results...`);
+
+          const agent2Input = {
+            query: userQuery,
+            serper_results: webSearchResults.map(r => ({ title: r.title, link: r.link, snippet: r.snippet }))
+          };
+
+          const agent2ResponseRaw = await callAgent(agent2Model, agent2SystemPrompt, agent2Input, 0, null, userQuery, userName, userLocalTime);
+          const agent2Response = safeParse(agent2ResponseRaw, true);
+
+          console.log("Agent 2 Response:", agent2Response);
+
+          if (agent2Response.action === 'scrape' && agent2Response.scrape_plan && agent2Response.scrape_plan.length >= 2) {
+            const planToExecute = agent2Response.scrape_plan.slice(0, MAX_PARALLEL_SCRAPES_PER_TURN);
+            if (logCallback) logCallback(`<i class="fas fa-spider"></i> Agent 2: Decided to scrape ${planToExecute.length} sites...`);
+            
+            const scrapePromises = planToExecute.map(plan =>
+              scrapeWebsite(plan.url, plan.keywords, logCallback)
+            );
+            scrapedData = (await Promise.all(scrapePromises)).filter(d => d.success);
+            console.log("Scraped Data:", scrapedData);
+          } else {
+            if (logCallback) logCallback(`<i class="fas fa-check-circle"></i> Agent 2: Decided to continue without scraping.`);
+          }
         }
 
         totalSearchesPerformed += numSearchesInPlan;
       } else {
         console.log("Agent 1 requested search but provided an empty search_plan.");
-        // If it's a hybrid query with only a direct component, this is fine.
         if (classification !== 'hybrid' || !direct_component) {
           return "Agent 1 provided an empty search plan without a direct component. Could not proceed.";
         }
@@ -562,17 +576,17 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
       // Combine all results for Agent 3
       const allSourceUrls = [
         ...webSearchResults.map(result => result.link),
-        ...processedWikiData.map(data => data.url)
-      ].filter(Boolean); // Filter out any undefined or null links
+        ...scrapedData.map(data => data.url)
+      ].filter(Boolean);
 
       const dataForAgent3 = {
         webSearchResults: webSearchResults,
         otherToolResults: otherToolResults,
-        processedWikiData: processedWikiData,
-        rawQuery: userQuery, // Pass the raw query to Agent 3
-        classification: classification, // Pass classification to Agent 3
-        directComponent: direct_component, // Pass the direct component for hybrid queries
-        sourceUrls: [...new Set(allSourceUrls)] // Pass unique source URLs to Agent 3
+        scrapedData: scrapedData,
+        rawQuery: userQuery,
+        classification: classification,
+        directComponent: direct_component,
+        sourceUrls: [...new Set(allSourceUrls)]
       };
 
       console.log("Sending combined data to Agent 3:", dataForAgent3);
