@@ -2473,23 +2473,23 @@ body.search-active .social-footer {
 /* Ultra-narrow screens (Galaxy Fold and similar) */
 @media (max-width: 320px) {
     .main-content {
-        padding: 8px 8px; /* Minimal padding */
+        padding: 4px 4px; /* Minimal padding */
     }
 
     .initial-view-content {
-        transform: translateY(-20px); /* Less upward transform */
+        transform: translateY(-10px); /* Less upward transform */
     }
 
     .site-title-container {
         white-space: normal; /* Allow wrapping */
         flex-direction: column; /* Stack logo and title vertically */
-        gap: 4px;
-        margin-bottom: 12px;
+        gap: 2px;
+        margin-bottom: 8px;
     }
 
     .search-logo {
-        width: 24px;
-        height: 24px;
+        width: 20px;
+        height: 20px;
         transform: translate(0px, 0px); /* Remove transform */
         opacity: 1;
         display: block;
@@ -2499,53 +2499,63 @@ body.search-active .social-footer {
     }
 
     .site-title {
-        font-size: 2.2rem; /* Smaller font size */
-        line-height: 1.1;
+        font-size: 1.8rem; /* Smaller font size */
+        line-height: 1;
         text-align: center;
     }
 
     .site-description {
-        font-size: 0.85rem;
+        font-size: 0.75rem;
         max-width: 95%;
-        margin-bottom: 12px;
-        line-height: 1.4;
+        margin-bottom: 8px;
+        line-height: 1.3;
     }
 
     .search-wrapper {
-        margin: 0 auto 8px auto;
-        gap: 8px;
+        margin: 0 auto 4px auto;
+        gap: 4px;
     }
 
     .search-box {
-        padding: 4px;
-        border-radius: 14px;
+        padding: 2px;
+        border-radius: 12px;
     }
 
     .example-prompts {
-        margin-top: 0.25rem;
+        margin-top: 0.1rem;
     }
 
     .example-prompts-grid {
-        gap: 4px;
+        gap: 2px;
         grid-template-columns: 1fr; /* Single column */
     }
 
     .example-prompt-btn {
-        padding: 10px;
-        font-size: 0.75rem;
-        min-height: 40px;
+        padding: 8px;
+        font-size: 0.7rem;
+        min-height: 36px;
     }
 
     /* Adjust search controls for ultra-narrow */
     .search-controls {
-        padding: 0 2px 2px 2px;
-        gap: 4px;
+        padding: 0 1px 1px 1px;
+        gap: 2px;
     }
 
     .btn, .icon-btn {
-        padding: 6px 8px;
-        font-size: 0.7rem;
-        height: 32px;
+        padding: 4px 6px;
+        font-size: 0.65rem;
+        height: 28px;
+    }
+    
+    .short-response-toggle {
+        padding: 4px 6px;
+    }
+
+    .send-btn {
+        width: 28px;
+        height: 28px;
+        min-width: 28px;
     }
 
     .dropdown-toggle span {
@@ -2555,20 +2565,20 @@ body.search-active .social-footer {
     .dropdown-toggle {
         min-width: auto; /* Allow natural width */
         width: auto; /* Allow natural width */
-        padding: 8px 12px; /* Normal padding */
+        padding: 4px 8px; /* Normal padding */
         justify-content: flex-start; /* Normal alignment */
     }
     
     /* Show the chevron down icon with consistent styling */
     .dropdown-toggle .fa-chevron-down {
         display: inline;
-        font-size: 0.8rem; /* Consistent size */
-        margin-left: 4px; /* Consistent spacing */
+        font-size: 0.7rem; /* Consistent size */
+        margin-left: 2px; /* Consistent spacing */
     }
 
     /* Additional font size scaling for ultra-narrow */
     html {
-        font-size: 13px; /* Even smaller base font size */
+        font-size: 12px; /* Even smaller base font size */
     }
 }
 
