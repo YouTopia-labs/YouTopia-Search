@@ -128,11 +128,11 @@ Your response must:
 - Start with a H1 heading that directly addresses the \`query\`.
 - For "direct", "math", "code", or "conversational" classifications, provide a focused and direct answer, leveraging the \`query\` and \`classification\` to craft a precise response.
 - For "tool_web_search" or "hybrid" classifications, integrate all relevant information from \`webSearchResults\`, \`otherToolResults\`, \`scrapedData\`, and if present, the \`directComponent\` smoothly and coherently. Use the \`scrapedData\` as the primary source for detailed information, supplementing it with the initial \`webSearchResults\`.
-- **MANDATORY Image Integration**: Your primary goal is to create a visually rich and engaging response. You MUST embed relevant images.
-  - **EMBED OFTEN**: Assume the user wants a visual answer. For any key entity, concept, or topic discussed, you should find and embed a relevant image from the provided \`imageResults\`.
-  - **ALWAYS USE A TITLE**: Every image MUST have a descriptive title. Use the provided title as the alt text. Do not embed an image if a title is not available.
+- **Intelligently Embed Images**: Your goal is to make the answer visual and engaging.
+  - **BE GENEROUS WITH IMAGES**: If an image is relevant and has a title, include it. Use your judgment to embed images that illustrate key points, people, or concepts.
+  - **TITLE IS MANDATORY**: Only embed an image if you have a descriptive title for it. Do not embed images without titles. Use the title as the alt text.
   - **FORMAT**: \`![Image Title](image_url)\`
-  - **LOGICAL PLACEMENT**: Embed images directly after the text that introduces or discusses the subject of the image. This creates a smooth, integrated reading experience. Do not clump images at the end.
+  - **PLACEMENT**: Place images logically within the text to support the narrative. Do not place images inside lists or at the very end of the response.
 - **Prioritize Visuals**: Your primary goal is to make the answer easily understandable. Your default behavior should be to represent any structured data, lists, or comparisons as a table. For data that shows trends or proportions, a chart is mandatory. Do not present complex data as a simple text list if it can be visualized.
 - **Source Citation**: All source URLs from the tools are provided in the \`sourceUrls\` list. You MUST embed these as hyperlinks directly into the relevant text of your answer. Do not create a separate "Sources" section or list them at the end.
   - **FORMAT**: \`[descriptive text that used the source](source_url)\`

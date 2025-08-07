@@ -397,6 +397,7 @@ html {
 }
 
 html, body {
+    overflow-x: hidden; /* Only prevent horizontal scrolling */
     margin: 0;
     padding: 0;
 }
@@ -471,6 +472,7 @@ body.dark-mode {
     height: var(--app-height); /* Use the dynamically set height */
     display: flex;
     flex-direction: column;
+    overflow: hidden; /* Prevent any overflow */
 }
 
 .app-container {

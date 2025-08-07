@@ -145,7 +145,7 @@ async function fetchArticleContent(lang, title) {
 async function fetchAllImages(lang, title) {
     const params = new URLSearchParams({
         action: 'query', format: 'json', formatversion: 2, origin: '*',
-        prop: 'imageinfo', iiprop: 'url', iiurlwidth: 800,
+        prop: 'imageinfo', iiprop: 'url',
         generator: 'images', gimlimit: '50',
         titles: title, redirects: 1
     });
@@ -163,16 +163,17 @@ async function fetchAllImages(lang, title) {
  */
 function processImageApiResponse(data) {
     if (!data.query || !data.query.pages) return [];
-
+    
     const images = [];
     for (const page of data.query.pages) {
-        if (page.imageinfo && page.imageinfo[0]) {
-            const imageInfo = page.imageinfo[0];
-            // Prioritize the high-resolution thumbnail URL if available, otherwise fall back to the original URL.
-            const imageUrl = imageInfo.thumburl || imageInfo.url;
+        if (page.imageinfo) {
+            // Relax filtering to allow more images, including SVGs.
+            // Main image of an article might be an SVG or contain keywords like 'logo' in its filename.
+            // We should prioritize showing *any* image associated with the article.
+            // The `imageinfo` array should contain the primary image if available.
             images.push({
-                title: page.title,
-                url: imageUrl
+                title: page.title, // Use the page title as the image title
+                url: page.imageinfo[0].url // Use the first image URL found
             });
         }
     }

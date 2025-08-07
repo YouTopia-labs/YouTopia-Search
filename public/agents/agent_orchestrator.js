@@ -502,43 +502,6 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
       let otherToolResults = [];
       let scrapedData = [];
 
-      // --- Proactive Wikipedia Search ---
-      if (logCallback) logCallback(`<i class="fab fa-wikipedia-w"></i> Proactively searching Wikipedia for "${userQuery}"...`);
-      try {
-          const wikiResult = await wikipediaSearch(userQuery);
-          if (wikiResult && !wikiResult.error) {
-              if (logCallback) logCallback(`<i class="fas fa-check-circle"></i> Found relevant Wikipedia article: <b>${wikiResult.articleTitle}</b>. Processing...`);
-              
-              const agent2Input = {
-                  query: userQuery,
-                  rawQuery: userQuery,
-                  articleHtml: wikiResult.articleContentHtml,
-                  imageResults: wikiResult.imageResults,
-                  sourceArticleUrl: wikiResult.sourceArticleUrl
-              };
-              
-              const parsedWikiDataRaw = await callAgent('mistral-small-latest', agent2SystemPrompt, agent2Input, 0, null, userQuery, userName, userLocalTime);
-              const parsedWikiData = safeParse(parsedWikiDataRaw, true);
-              
-              otherToolResults.push(parsedWikiData); // Add parsed data to results
-              
-              // Also, "scrape" the full article content to make it available to Agent 3
-              scrapedData.push({
-                  success: true,
-                  url: wikiResult.sourceArticleUrl,
-                  content: wikiResult.articleContentHtml.substring(0, 15000) // Limit size
-              });
-              
-              if (logCallback) logCallback(`<i class="fas fa-check-double"></i> Successfully processed and integrated Wikipedia data.`);
-          } else {
-              if (logCallback) logCallback(`<i class="fas fa-info-circle"></i> No direct Wikipedia article found.`);
-          }
-      } catch (e) {
-          console.error("Proactive Wikipedia search failed:", e);
-          if (logCallback) logCallback(`<i class="fas fa-exclamation-triangle"></i> Proactive Wikipedia search failed.`);
-      }
-      // --- End Proactive Wikipedia Search ---
-
       if (search_plan && search_plan.length > 0) {
         console.log(`Executing search plan (${search_plan.length} steps) in parallel...`);
 
