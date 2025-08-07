@@ -1482,23 +1482,23 @@ body.dark-mode .send-btn:active {
 
 /* --- Search Active State (Floating Search Box) --- */
 body.search-active {
-    overflow: hidden; /* Prevent body from scrolling */
+    overflow-y: auto; /* Allow body to scroll */
+    -webkit-overflow-scrolling: touch;
 }
 
 body.search-active .app-container {
-    height: 100vh;
-    overflow: hidden;
+    height: auto; /* Allow container to grow with content */
+    overflow: visible;
 }
 
 body.search-active .main-content {
-    height: 100%; /* Take up all available height */
+    height: auto; /* Allow content to define height */
     padding: 0;
     max-width: 100%;
     justify-content: flex-start;
     display: flex;
     flex-direction: column;
-    overflow-y: auto; /* Enable vertical scrolling on this container */
-    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    overflow-y: visible; /* No separate scrollbar */
 }
 
 /* Hide initial search wrapper when search is active */
@@ -3579,40 +3579,35 @@ body.dark-mode .google-signin-btn:hover {
 
 /* Collapse model selector text and scale controls on very narrow screens */
 @media (max-width: 420px) {
-    .dropdown-toggle #selected-model,
-    .dropdown-toggle .fa-chevron-down {
+    /* --- Hide Model Selector Text --- */
+    #model-dropdown .dropdown-toggle #selected-model,
+    #model-dropdown .dropdown-toggle .fa-chevron-down {
         display: none;
     }
-    .dropdown-toggle {
-        min-width: 36px; /* Tighter fit for just the icon */
+    #model-dropdown .dropdown-toggle {
+        min-width: 38px; /* Tighter fit for just the icon */
         padding: 8px;
     }
 
-    .short-response-toggle .toggle-text {
-        display: none;
-    }
-    .short-response-toggle {
-        padding: 8px;
-        min-width: 36px;
-    }
-
+    /* --- Scale Down Other Controls --- */
     .search-controls {
-        gap: 6px; /* Reduce gap between all controls */
+        gap: 4px; /* Reduce gap between all controls */
     }
-
     .search-controls-left, .search-controls-right {
-        gap: 6px;
+        gap: 4px;
     }
 
-    .btn, .icon-btn {
-        height: 36px;
-        width: 36px;
+    /* Keep text but make button smaller */
+    .short-response-toggle {
+        padding: 8px 10px;
+        font-size: 0.7rem;
+        height: 38px;
+    }
+
+    /* Standardize other button sizes */
+    .icon-btn, .send-btn {
+        height: 38px;
+        width: 38px;
         padding: 8px;
-        font-size: 0.8rem;
-    }
-
-    .send-btn {
-        height: 36px;
-        width: 36px;
     }
 }
