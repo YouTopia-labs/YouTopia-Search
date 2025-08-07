@@ -493,14 +493,14 @@ async function handleQueryProxy(request, env) {
     
     let messageFromDeveloper = is_whitelisted_20x_plan
       ? "Thank you for supporting YouTopia! You've reached your daily query limit for the 20x Plus Plan. Your generosity keeps this project running. You can make more queries after the cooldown."
-      : `If you appreciate this project and the answers it provides, please consider supporting it! This is a solo, self-funded research project by a student (me lol).
-  Your donations would help to keep running it for everyone (and fund my coffee for improving it). Contributions over $20 qualify you for the 20x Plus Plan, which includes:
-  ✅ 200 AI-powered queries per day
-  ✅ Valid for a month
+      : `If you appreciate this project and responses, please consider supporting it! This is a solo, self-funded research project by a full time student.
+Your donations would help to keep running it for everyone (and fund my coffee for improving it). Contributions over $20 also qualify for the 20x Plus Plan, which includes:
+✅ 200 queries per day
+✅ Valid for an entire month
 
-  To activate the 20x plan after donating, simply email at support@youtopia.co.in
+To activate the 20x plan after donating, simply email us at support@youtopia.co.in or youtopialabs@gmail.com
 
-  Thank you for your support, it truly makes a difference for me to not implement spyware to collect user data and sell it to whoever’s buying on 4chan`;
+Thank you for your support, it truly makes a difference to allow this project to be funded by users and not advertisers.`;
     
     const relevantTimeAgo = now - currentRateLimitWindowMs;
     userData.queries = userData.queries.filter(q => q.timestamp > relevantTimeAgo);
