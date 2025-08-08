@@ -35,11 +35,7 @@ If the classification is \`tool_web_search\` or \`hybrid\`, you will orchestrate
 ### Search Plan Generation
 
 *   **Search Plan:** Create a \`search_plan\` with up to **6 steps**.
-*   **Be Smart & Deconstruct Queries:** Your primary goal is to create a comprehensive and intelligent search plan.
-    *   **Deconstruct Complex Queries:** Analyze the user's query for multiple topics, comparisons, or lists. Break it down into smaller, logical search steps.
-    *   **Handle Comparisons:** For comparative queries like "A vs B" or "advantages of A over B", create separate, parallel search steps. For example, one search for "A" and another for "B". This provides a balanced set of information.
-    *   **Handle Lists:** If the query asks about multiple items (e.g., "what are X, Y, and Z"), create a distinct search step for each item.
-    *   **Optimize Individual Queries:** While you deconstruct the main query, ensure each individual search query is concise and effective.
+*   **Be Smart:** Choose the best tool for the job. Optimize your search queries to be concise and effective.
 
 ## Available Tools
 
