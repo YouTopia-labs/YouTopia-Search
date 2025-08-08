@@ -1500,7 +1500,7 @@ body.search-active .app-container {
 
 body.search-active .main-content {
     height: auto; /* Allow content to define height */
-    padding: 0;
+    padding: 75px 0 0 0; /* Add top padding to account for fixed header, keep other paddings */
     max-width: 100%;
     justify-content: flex-start;
     display: flex;
@@ -1626,7 +1626,7 @@ body.search-active #main-results-area {
     max-width: 766px; /* Match the compact search box width */
     height: auto; /* Allow height to expand with content */
     /* Removed overflow-y: auto; */
-    padding: 0 12px 220px 12px; /* Adjusted bottom padding to account for export panel and fixed search box */
+    padding: 0 12px 250px 12px; /* Increased bottom padding to ensure fixed search box and export panel are always visible */
 }
 
 /* === REDESIGNED QUERY HEADING === */
