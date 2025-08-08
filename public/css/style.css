@@ -397,13 +397,9 @@ html {
 }
 
 html, body {
-    width: 100%;
-    height: 100%;
-    overflow-x: hidden;
+    overflow-x: hidden; /* Only prevent horizontal scrolling */
     margin: 0;
     padding: 0;
-    -webkit-overflow-scrolling: touch;
-    -webkit-text-size-adjust: 100%; /* Prevent font scaling on iOS */
 }
 
 body {
@@ -573,14 +569,14 @@ body.search-active .background-glow {
     justify-content: center;
     align-items: center;
     text-align: center;
-    width: 100%;
-    max-width: 1200px; /* Add a general max-width for large screens */
-    margin: 0 auto;
-    padding: 16px;
+    width: 100%; /* Span edge-to-edge */
+    max-width: none; /* Remove max-width constraint */
+    margin: 0; /* Remove margin */
+    padding: 0; /* Remove padding */
     position: relative;
     z-index: 1;
-    overflow-y: auto;
-    min-height: 0;
+    overflow-y: auto; /* Allow scrolling within the content area */
+    min-height: 0; /* Remove min-height to prevent overflow */
 }
 
 .initial-view-content {
@@ -713,7 +709,7 @@ body.search-active .background-glow {
     gap: 8px;
     margin-bottom: -6px; /* Adjusted to bring "YouTopia Search" closer to the description */
     white-space: nowrap; /* Prevent text wrapping */
-    padding-top: 5px; /* Added small top padding */
+    /* Removed padding here, will apply in media query */
 }
 
 .search-logo {
@@ -729,9 +725,9 @@ body.search-active .background-glow {
 }
 
 .site-title {
-    font-size: clamp(2.5rem, 8vw, 4rem); /* Fluid font size */
+    font-size: 3rem; /* Increased mobile font size from 2.5rem */
     font-weight: 500;
-    margin-bottom: 0;
+    margin-bottom: 0; /* Remove margin since container handles spacing */
     color: var(--text-primary);
 }
 
@@ -1175,15 +1171,14 @@ body:not(.dark-mode) .placeholder-text-span {
     align-items: center;
     padding: 0 4px 4px 4px; /* Reduced from 0 6px 6px 6px */
     gap: 8px; /* Tighter gap */
-    flex-wrap: nowrap; /* Prevent wrapping on small screens */
+    /* Removed flex-wrap to keep everything in single line */
 }
 
 .search-controls-left {
     display: flex;
     align-items: center;
     gap: 8px; /* Tighter gap */
-    flex-grow: 1; /* Allow it to take up available space */
-    min-width: 0; /* Allow it to shrink */
+    /* Removed flex-wrap to keep everything in single line */
 }
 
 .search-controls-right {
@@ -1482,23 +1477,21 @@ body.dark-mode .send-btn:active {
 
 /* --- Search Active State (Floating Search Box) --- */
 body.search-active {
-    overflow: hidden; /* Prevent body from scrolling */
+    overflow-y: hidden; /* Prevent vertical scrolling on body */
 }
 
 body.search-active .app-container {
-    height: 100vh;
-    overflow: hidden;
+    height: auto; /* Allow height to adjust to content */
+    overflow-y: visible; /* Allow content to overflow and be scrolled by body */
 }
 
 body.search-active .main-content {
-    height: 100%; /* Take up all available height */
+    height: 100vh;
     padding: 0;
     max-width: 100%;
     justify-content: flex-start;
     display: flex;
     flex-direction: column;
-    overflow-y: auto; /* Enable vertical scrolling on this container */
-    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
 /* Hide initial search wrapper when search is active */
@@ -1603,8 +1596,7 @@ body.search-active .initial-view-content {
     width: 100%;
     max-width: 100%;
     margin: 0;
-    overflow-x: auto; /* Allow horizontal scrolling on zoom */
-    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    /* Removed overflow-y: auto; to allow body to scroll */
     text-align: left;
     position: relative;
     z-index: 1;
@@ -1786,14 +1778,28 @@ body.dark-mode .query-btn:hover {
 }
 
 /* Ensure images within AI response are responsive */
-.ai-response img,
-.ai-response img[src*="#landscape"],
-.ai-response img[src*="#portrait"] {
-    max-width: 550px; /* Uniform max-width for consistent sizing */
-    width: 100%; /* Scale up to the max-width */
+.ai-response img {
+    max-width: 100%;
+    height: auto;
+    display: block; /* Ensures it takes up its own line and respects max-width */
+    margin: 0 auto 1em auto; /* Center images and add some bottom margin */
+    border-radius: 8px; /* Consistent with other image styles */
+}
+.ai-response img[src*="#landscape"] {
+    width: 100%;
+    max-width: 100%;
     height: auto;
     display: block;
-    margin: 1em auto; /* Center images */
+    margin: 1em auto;
+    border-radius: 8px;
+}
+
+.ai-response img[src*="#portrait"] {
+    width: 60%;
+    max-width: 400px;
+    height: auto;
+    display: block;
+    margin: 1em auto;
     border-radius: 8px;
 }
 
@@ -2461,14 +2467,10 @@ body.search-active .social-footer {
 
 /* Mobile adjustments for social footer */
 @media (max-width: 768px) {
-    .initial-view-content {
-        padding-bottom: 50px; /* Add space for the fixed footer */
-    }
-
     .social-footer {
         bottom: 0px;
     }
-
+    
     .social-links {
         gap: 12px; /* Increased from 10px */
         padding: 3px 12px; /* Reduced padding from 8px 14px */
@@ -2630,7 +2632,6 @@ body.search-active .social-footer {
     .search-wrapper {
         margin: 0 auto 1vh auto;
         gap: 4px;
-        max-width: 95%; /* Reduce width on short screens */
     }
     
     .search-box {
@@ -2660,7 +2661,6 @@ body.search-active .social-footer {
     .example-prompts {
         margin-top: 1vh;
         margin-bottom: 1vh;
-        max-width: 95%; /* Reduce width on short screens */
     }
 
     .example-prompts-grid {
@@ -3117,7 +3117,7 @@ body:not(.dark-mode) .gridjs-tr:hover .gridjs-td {
 /* Responsive adjustments for source cards */
 @media (max-width: 768px) {
     .sources-list {
-        /* This now uses the default responsive grid, which works better on mobile */
+        grid-template-columns: 1fr; /* Single column on mobile */
         gap: 12px; /* Reduce gap for a tighter look on mobile */
     }
     #sources-container {
@@ -3267,10 +3267,10 @@ body.dark-mode .export-btn:hover {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.6);
-    z-index: 10000;
-    backdrop-filter: blur(5px);
-    -webkit-backdrop-filter: blur(5px); /* Ensure Safari support */
+    background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent black background */
+    z-index: 10000; /* Ensure it's on top of everything */
+    backdrop-filter: blur(5px); /* Frosted glass effect */
+    -webkit-backdrop-filter: blur(5px); /* Safari support */
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.3s ease, visibility 0.3s ease;
@@ -3575,39 +3575,4 @@ body.dark-mode .google-signin-btn:hover {
     width: auto; /* Allow it to fit content */
     margin: 8px 15px; /* Add some margin */
     padding: 8px 12px; /* Slightly smaller padding */
-}
-
-/* Collapse model selector text and scale controls on very narrow screens */
-@media (max-width: 420px) {
-    /* --- Hide Model Selector Text --- */
-    #model-dropdown .dropdown-toggle #selected-model,
-    #model-dropdown .dropdown-toggle .fa-chevron-down {
-        display: none;
-    }
-    #model-dropdown .dropdown-toggle {
-        min-width: 38px; /* Tighter fit for just the icon */
-        padding: 8px;
-    }
-
-    /* --- Scale Down Other Controls --- */
-    .search-controls {
-        gap: 4px; /* Reduce gap between all controls */
-    }
-    .search-controls-left, .search-controls-right {
-        gap: 4px;
-    }
-
-    /* Keep text but make button smaller */
-    .short-response-toggle {
-        padding: 8px 10px;
-        font-size: 0.7rem;
-        height: 38px;
-    }
-
-    /* Standardize other button sizes */
-    .icon-btn, .send-btn {
-        height: 38px;
-        width: 38px;
-        padding: 8px;
-    }
 }

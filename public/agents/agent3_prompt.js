@@ -167,7 +167,7 @@ Your response must:
 
 if (isShortResponseEnabled) {
   prompt += `
-CRITICAL: Short response mode is enabled. Your response must strictly be very short, concise, and to the point. Avoid any unnecessary explanations or lengthy descriptions in the main answer.
+CRITICAL: Short response mode is enabled. Your response must be very short, concise, and to the point. Avoid any unnecessary explanations or lengthy descriptions.
 `;
 }
 

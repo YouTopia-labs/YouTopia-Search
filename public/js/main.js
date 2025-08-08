@@ -742,23 +742,23 @@ async function addHtmlElement(pdf, element, startY, options) {
 
             let fontSize = 11;
             let fontStyle = 'normal';
-            let spaceAfter = 5; // Increased default spacing
-            
+            let spaceAfter = 4;
+
             switch (tagName) {
                 case 'h1':
                     fontSize = 20;
                     fontStyle = 'bold';
-                    spaceAfter = 10; // Increased spacing
+                    spaceAfter = 8;
                     break;
                 case 'h2':
                     fontSize = 18;
                     fontStyle = 'bold';
-                    spaceAfter = 9; // Increased spacing
+                    spaceAfter = 7;
                     break;
                 case 'h3':
                     fontSize = 16;
                     fontStyle = 'bold';
-                    spaceAfter = 8; // Increased spacing
+                    spaceAfter = 6;
                     break;
                 case 'p':
                     // Default paragraph style
@@ -773,10 +773,9 @@ async function addHtmlElement(pdf, element, startY, options) {
                     break;
                 case 'li':
                     const lines = pdf.splitTextToSize(`• ${text}`, contentWidth - 5);
-                    addPageIfNeeded(lines.length * 7); // Increased line height
+                    addPageIfNeeded(lines.length * 6);
                     pdf.setFont('helvetica', 'normal');
                     pdf.setFontSize(11);
-                    currentY += 2; // Add a small top margin for list items
                     pdf.text(lines, margin + 5, currentY);
                     currentY += (lines.length * 6);
                     return; // Skip default text rendering
