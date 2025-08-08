@@ -2503,13 +2503,13 @@ body.search-active .social-footer {
     .site-title-container {
         white-space: normal; /* Allow wrapping */
         flex-direction: column; /* Stack logo and title vertically */
-        gap: 2px;
-        margin-bottom: 8px;
+        gap: 0px; /* Reduced gap */
+        margin-bottom: 4px; /* Reduced margin */
     }
 
     .search-logo {
-        width: 20px;
-        height: 20px;
+        width: 18px; /* Further reduced */
+        height: 18px; /* Further reduced */
         transform: translate(0px, 0px); /* Remove transform */
         opacity: 1;
         display: block;
@@ -2519,63 +2519,109 @@ body.search-active .social-footer {
     }
 
     .site-title {
-        font-size: 1.8rem; /* Smaller font size */
+        font-size: 1.6rem; /* Further reduced */
         line-height: 1;
         text-align: center;
     }
 
     .site-description {
-        font-size: 0.75rem;
+        font-size: 0.7rem; /* Further reduced */
         max-width: 95%;
-        margin-bottom: 8px;
-        line-height: 1.3;
+        margin-bottom: 6px; /* Further reduced */
+        line-height: 1.2;
     }
 
     .search-wrapper {
-        margin: 0 auto 4px auto;
-        gap: 4px;
+        margin: 0 auto 2px auto; /* Further reduced margin */
+        gap: 2px; /* Further reduced gap */
     }
 
     .search-box {
-        padding: 2px;
-        border-radius: 12px;
+        padding: 1px; /* Further reduced */
+        border-radius: 10px; /* Slightly smaller radius */
+    }
+
+    .textarea-wrapper {
+        min-height: 32px; /* Further reduced min-height */
+    }
+
+    .search-box textarea {
+        min-height: 32px; /* Further reduced min-height */
+        padding: 8px 10px 8px 60px; /* Adjusted padding for smaller icons */
+        font-size: 0.8rem; /* Adjusted font size */
+    }
+
+    .placeholder-content {
+        height: 32px; /* Match textarea min-height */
+    }
+    
+    .placeholder-cat-icon {
+        width: 30px; /* Further reduced */
+        height: 30px; /* Further reduced */
+        left: 8px; /* Adjusted position */
+    }
+
+    .placeholder-arrow-icon {
+        width: 14px; /* Further reduced */
+        height: 14px; /* Further reduced */
+        left: 42px; /* Adjusted position */
+    }
+
+    .placeholder-text-span {
+        font-size: 0.8rem; /* Adjusted font size */
+        left: 60px; /* Adjusted position to match textarea padding */
     }
 
     .example-prompts {
-        margin-top: 0.1rem;
+        margin-top: 0.05rem; /* Further reduced margin */
+        margin-bottom: 2px; /* Added small bottom margin */
     }
 
     .example-prompts-grid {
-        gap: 2px;
+        gap: 1px; /* Further reduced gap */
         grid-template-columns: 1fr; /* Single column */
     }
 
     .example-prompt-btn {
-        padding: 8px;
-        font-size: 0.7rem;
-        min-height: 36px;
+        padding: 6px; /* Further reduced padding */
+        font-size: 0.6rem; /* Further reduced font size */
+        min-height: 30px; /* Further reduced min-height */
+        gap: 6px; /* Reduced gap */
     }
 
     /* Adjust search controls for ultra-narrow */
     .search-controls {
-        padding: 0 1px 1px 1px;
-        gap: 2px;
+        padding: 0 0px 0px 0px; /* Minimal padding */
+        gap: 1px; /* Minimal gap */
     }
 
     .btn, .icon-btn {
-        padding: 4px 6px;
-        font-size: 0.65rem;
-        height: 28px;
+        padding: 3px 5px; /* Further reduced padding */
+        font-size: 0.6rem; /* Further reduced font size */
+        height: 24px; /* Further reduced height */
+        border-radius: 8px; /* Slightly smaller radius */
     }
     
     .short-response-toggle {
-        padding: 4px 6px;
+        padding: 3px 5px; /* Further reduced padding */
+        font-size: 0.6rem; /* Further reduced font size */
+        height: 24px; /* Further reduced height */
+        border-radius: 8px; /* Slightly smaller radius */
+    }
+    
+    .short-response-toggle .toggle-text {
+        font-size: 0.6rem; /* Further reduced font size */
     }
 
     .send-btn {
-        width: 28px;
-        height: 28px;
-        min-width: 28px;
+        width: 24px; /* Further reduced */
+        height: 24px; /* Further reduced */
+        min-width: 24px; /* Further reduced */
+        border-radius: 8px; /* Slightly smaller radius */
+    }
+
+    .send-btn i {
+        font-size: 10px; /* Further reduced icon size */
     }
 
     .dropdown-toggle span {
@@ -2585,30 +2631,51 @@ body.search-active .social-footer {
     .dropdown-toggle {
         min-width: auto; /* Allow natural width */
         width: auto; /* Allow natural width */
-        padding: 4px 8px; /* Normal padding */
+        padding: 3px 6px; /* Further reduced padding */
         justify-content: flex-start; /* Normal alignment */
+        font-size: 0.6rem; /* Further reduced font size */
     }
     
     /* Show the chevron down icon with consistent styling */
     .dropdown-toggle .fa-chevron-down {
         display: inline;
-        font-size: 0.7rem; /* Consistent size */
-        margin-left: 2px; /* Consistent spacing */
+        font-size: 0.6rem; /* Further reduced size */
+        margin-left: 1px; /* Further reduced spacing */
+    }
+
+    /* Social footer adjustments for ultra-narrow */
+    .social-footer {
+        bottom: 0px;
+        display: flex !important;
+    }
+    
+    .social-links {
+        padding: 1px 6px; /* Minimal padding */
+        gap: 4px; /* Minimal gap */
+    }
+    
+    .social-link {
+        width: 20px; /* Further reduced size */
+        height: 20px; /* Further reduced size */
+    }
+    
+    .social-link i {
+        font-size: 8px; /* Further reduced font size */
     }
 
     /* Additional font size scaling for ultra-narrow */
     html {
-        font-size: 12px; /* Even smaller base font size */
+        font-size: 10px; /* Even smaller base font size */
     }
 }
 
 /* Short screens (hide description to preserve social icons) */
 @media (max-height: 600px) {
     html {
-        font-size: 13px; /* Further reduce font size */
+        font-size: 11px; /* Even smaller base font size */
     }
     .main-content {
-        padding: 6px 10px;
+        padding: 4px 8px; /* Further reduced padding */
         min-height: 0; /* Allow content to define height */
         justify-content: center; /* Center content vertically */
     }
@@ -2621,8 +2688,8 @@ body.search-active .social-footer {
     }
 
     .site-title {
-        font-size: 2.0rem;
-        margin-bottom: 1vh;
+        font-size: 1.8rem; /* Further reduced font size */
+        margin-bottom: 0.5vh; /* Further reduced margin */
     }
 
     .site-description {
@@ -2630,68 +2697,69 @@ body.search-active .social-footer {
     }
 
     .search-wrapper {
-        margin: 0 auto 1vh auto;
-        gap: 4px;
+        margin: 0 auto 0.5vh auto; /* Further reduced margin */
+        gap: 2px; /* Further reduced gap */
     }
     
     .search-box {
-        padding: 2px;
-        border-radius: 16px;
+        padding: 1px; /* Further reduced padding */
+        border-radius: 12px; /* Slightly smaller radius */
     }
 
     .textarea-wrapper, #query-input {
-        min-height: 38px !important;
+        min-height: 32px !important; /* Further reduced min-height */
     }
 
     .search-box textarea {
-        padding-top: 8px;
-        padding-bottom: 8px;
-        min-height: 38px;
+        padding-top: 6px; /* Further reduced padding */
+        padding-bottom: 6px; /* Further reduced padding */
+        min-height: 32px; /* Further reduced min-height */
+        font-size: 0.9rem; /* Slightly smaller font */
     }
 
     .placeholder-content {
-        height: 38px;
+        height: 32px; /* Match textarea min-height */
     }
     
     .placeholder-cat-icon {
-        width: 38px;
-        height: 38px;
+        width: 32px; /* Slightly smaller */
+        height: 32px; /* Slightly smaller */
     }
 
     .example-prompts {
-        margin-top: 1vh;
-        margin-bottom: 1vh;
+        margin-top: 0.5vh; /* Further reduced margin */
+        margin-bottom: 0.5vh; /* Further reduced margin */
     }
 
     .example-prompts-grid {
-        gap: 4px;
+        gap: 2px; /* Further reduced gap */
     }
 
     .example-prompt-btn {
-        padding: 8px;
-        font-size: 0.7rem;
+        padding: 6px; /* Further reduced padding */
+        font-size: 0.65rem; /* Further reduced font size */
         min-height: 0;
     }
 
     .social-footer {
         position: static; /* Let it be part of the flow */
         transform: none;
-        margin-top: 1vh;
-        padding-bottom: 1vh;
+        margin-top: 0.5vh; /* Further reduced margin */
+        padding-bottom: 0.5vh; /* Further reduced padding */
     }
 
     .social-links {
-        padding: 2px 12px;
-        gap: 6px;
+        padding: 1px 10px; /* Further reduced padding */
+        gap: 4px; /* Further reduced gap */
     }
 
     .social-link {
-        width: 24px;
-        height: 24px;
+        width: 20px; /* Further reduced size */
+        height: 20px; /* Further reduced size */
     }
 
     .social-link i {
-        font-size: 10px;
+        font-size: 8px; /* Further reduced font size */
     }
 }
 

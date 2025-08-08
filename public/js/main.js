@@ -565,10 +565,7 @@ const renderSourceCards = (sources, container) => {
                 doc.setFontSize(16);
                 doc.setTextColor(40);
                 doc.text(title, margin, currentY);
-                currentY += 10;
-                doc.setDrawColor(220, 220, 220);
-                doc.line(margin, currentY, pageWidth - margin, currentY);
-                currentY += 5;
+                currentY += 8;
             };
 
             const addFooter = (doc) => {
@@ -748,20 +745,20 @@ async function addHtmlElement(pdf, element, startY, options) {
                 case 'h1':
                     fontSize = 20;
                     fontStyle = 'bold';
-                    spaceAfter = 8;
+                    spaceAfter = 6;
                     break;
                 case 'h2':
                     fontSize = 18;
                     fontStyle = 'bold';
-                    spaceAfter = 7;
+                    spaceAfter = 5;
                     break;
                 case 'h3':
                     fontSize = 16;
                     fontStyle = 'bold';
-                    spaceAfter = 6;
+                    spaceAfter = 4;
                     break;
                 case 'p':
-                    // Default paragraph style
+                    spaceAfter = 2; // Reduced default paragraph spacing
                     break;
                 case 'b':
                 case 'strong':
