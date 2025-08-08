@@ -149,7 +149,7 @@ Your response must:
     "number": 2,
     "title": "Wikipedia - Main Topic",
     "url": "https://en.wikipedia.org/wiki/Main_Topic",
-    "snippet": "A short description of the Wikipedia page's relevance."
+    "snippet": "A short description of the Wikipedia page's relevance. and image links"
   }
 ]
 </sources_json>
