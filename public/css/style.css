@@ -476,7 +476,7 @@ body.dark-mode {
     height: var(--app-height); /* Use the dynamically set height */
     display: flex;
     flex-direction: column;
-    overflow: hidden; /* Prevent any overflow */
+    overflow-y: auto; /* Allow app-wrapper to scroll when content overflows */
 }
 
 .app-container {
@@ -485,6 +485,7 @@ body.dark-mode {
     flex-grow: 1;
     position: relative;
     align-items: center; /* Center content horizontally */
+    overflow: visible; /* Ensure app-container does not hide overflow */
 }
 
 .background-glow {
@@ -1485,6 +1486,11 @@ body.search-active {
     overflow-y: auto; /* Allow body to scroll */
     -webkit-overflow-scrolling: touch;
     height: 100%; /* Ensure body takes full height */
+}
+
+body.search-active .app-wrapper {
+    overflow-y: visible; /* Ensure app-wrapper does not hide overflow when search is active */
+    height: auto; /* Allow app-wrapper to expand with content */
 }
 
 body.search-active .app-container {
