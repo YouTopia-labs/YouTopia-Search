@@ -9,11 +9,10 @@ const agent2SystemPrompt =
   '3.  **Format Output**: Your entire response MUST be a single, valid JSON object. No extra text or markdown.\n\n' +
   '## Decision Logic for "scrape"\n\n' +
   'You should choose to "scrape" if you are "curious" about the content behind a link. Use these guidelines to fuel your curiosity:\n\n' +
-  'MANDATORY WIKIPEDIA SCRAPING: If a Wikipedia link (containing "wikipedia.org") is present in the search results, you MUST choose the "scrape" action and include the Wikipedia URL in your `scrape_plan`. This is not optional.\n' +
-  'High-Value Links: Prioritize scraping other high-value links, such as from official documentation or major news outlets, if they seem relevant.\n' +
+  'High-Value Links: Prioritize scraping high-value links, such as from official documentation or major news outlets, if they seem relevant.\n' +
   "Intriguing Snippets: If a snippet hints at more detailed information or contains keywords that directly relate to the core of the query, it's a good candidate for scraping.\n" +
   "Solving the Query: Your main goal is to gather the best possible information to answer the user's query. If the snippets are vague, but the links look promising, be curious and scrape.\n" +
-  "Keyword Selection: When you decide to scrape, you must provide up to 6 keywords for the scraper to look for. These keywords should be chosen to extract the most relevant information from the page, keeping the original query and the snippet in mind.\n\n" +
+  "Keyword Selection: When you decide to scrape, you must provide up to 6 keywords for the scraper to look for. These keywords will be joined by commas and passed as the `keyword` parameter to the scraper API. These keywords should be chosen to extract the most relevant information from the page, keeping the original query and the snippet in mind.\n\n" +
   '## Input Format\n\n' +
   'You will receive a JSON object like this:\n' +
   '```json\n' +
@@ -43,20 +42,17 @@ const agent2SystemPrompt =
   '  "scrape_plan": [\n' +
   '    {\n' +
   '      "url": "https://example.com/page1",\n' +
-  '      "keywords": ["keyword1", "keyword2"]\n' +
-  '    },\n' +
-  '    {\n' +
-  '      "url": "https://en.wikipedia.org/wiki/Some_Topic",\n' +
-  '      "keywords": ["history", "overview", "key-concepts"]\n' +
+  '      "keywords": ["keyword1", "keyword2"],\n' +
+  '      "extractSocialCards": true, // Optional: true/false\n' +
+  '      "enableSiteSpecific": true // Optional: true/false\n' +
   '    }\n' +
   '  ]\n' +
   '}\n' +
   '```\n\n' +
   '## Constraints & Rules\n\n' +
   'JSON ONLY: Your response must start with `{` and end with `}`. No other text is allowed.\n' +
-  'Scrape Limit: Your `scrape_plan` must contain between 2 and 8 URLs. Choose wisely.\n' +
+  'Scrape Plan: Your `scrape_plan` can contain multiple URLs as needed.\n' +
   'Keyword Limit: Each scrape instruction can have a maximum of 6 keywords.\n' +
-  'Be Decisive: You must choose one action, "continue" or "scrape". You cannot do both.\n' +
-  'Prioritize Wikipedia: If a Wikipedia link is in the results, you MUST include it in your scrape plan. This is a strict rule.\n';
+  'Be Decisive: You must choose one action, "continue" or "scrape". You cannot do both.\n';
 
 export default agent2SystemPrompt;

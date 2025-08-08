@@ -322,7 +322,7 @@ body:not(.dark-mode) pre code {
 }
 
 /* Very short screens (480px height and below) - only apply extreme compression on mobile */
-@media (max-height: 480px) and (max-width: 767px) {
+@media (max-height: 650px) and (max-width: 767px) { /* Adjusted max-height to hide prompt earlier */
     html {
         font-size: 12px; /* Even smaller base font size for very short screens */
     }
@@ -2425,7 +2425,7 @@ body.search-active .social-footer {
     gap: 16px; /* Increased from 14px */
     align-items: center;
     justify-content: center;
-    padding: 3px 14px; /* Reduced padding from 8px 16px */
+    padding: 10px 14px 3px 14px; /* Added top padding, reduced bottom padding */
 }
 
 .social-link {
@@ -2469,7 +2469,7 @@ body.search-active .social-footer {
     
     .social-links {
         gap: 16px; /* Slightly increased from default */
-        padding: 6px 22px; /* Moderate padding */
+        padding: 10px 22px 6px 22px; /* Added top padding, adjusted bottom padding */
     }
     
     .social-link {
@@ -2490,7 +2490,7 @@ body.search-active .social-footer {
     
     .social-links {
         gap: 18px; /* Moderate increase */
-        padding: 7px 26px; /* Moderate padding */
+        padding: 10px 26px 7px 26px; /* Added top padding, adjusted bottom padding */
     }
     
     .social-link {
@@ -2511,7 +2511,7 @@ body.search-active .social-footer {
     
     .social-links {
         gap: 12px; /* Increased from 10px */
-        padding: 3px 12px; /* Reduced padding from 8px 14px */
+        padding: 10px 12px 3px 12px; /* Added top padding, adjusted bottom padding */
     }
     
     .social-link {
@@ -2627,10 +2627,6 @@ body.search-active .social-footer {
         gap: 6px; /* Reduced gap */
     }
 
-    .example-prompt-btn.hide-on-small-screens {
-        display: none !important;
-    }
-
     /* Adjust search controls for ultra-narrow */
     .search-controls {
         padding: 0 0px 0px 0px; /* Minimal padding */
@@ -2692,7 +2688,7 @@ body.search-active .social-footer {
     }
     
     .social-links {
-        padding: 1px 6px; /* Minimal padding */
+        padding: 10px 6px 1px 6px; /* Added top padding, adjusted bottom padding */
         gap: 4px; /* Minimal gap */
     }
     
@@ -2795,7 +2791,7 @@ body.search-active .social-footer {
     }
 
     .social-links {
-        padding: 1px 10px; /* Further reduced padding */
+        padding: 10px 10px 1px 10px; /* Added top padding, adjusted bottom padding */
         gap: 4px; /* Further reduced gap */
     }
 
@@ -2850,10 +2846,6 @@ body.search-active .social-footer {
         min-height: 36px;
     }
 
-    .example-prompt-btn.hide-on-small-screens {
-        display: none !important;
-    }
-
     /* Keep social footer visible and properly positioned */
     .social-footer {
         bottom: 0px;
@@ -2861,7 +2853,7 @@ body.search-active .social-footer {
     }
 
     .social-links {
-        padding: 3px 12px;
+        padding: 10px 12px 3px 12px; /* Added top padding, adjusted bottom padding */
         gap: 8px;
     }
 
