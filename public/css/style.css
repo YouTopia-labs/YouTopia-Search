@@ -1263,7 +1263,7 @@ body:not(.dark-mode) .placeholder-text-span {
     border: 2px solid #000000; /* Black border in all modes */
     cursor: pointer;
     flex-shrink: 0;
-    padding: 0; /* Remove padding for icon */
+    padding: 0 4px 0 0; /* Add a small right padding to account for the button's position */
 }
 
 .send-btn i {
@@ -2174,16 +2174,31 @@ body.dark-mode .google-signin-btn-enhanced:hover {
         gap: 6px; /* Tighter gap */
     }
 
-    .btn, .icon-btn {
-        padding: 8px 12px; /* Smaller buttons */
-        font-size: 0.8rem;
-        min-height: 36px; /* Ensure good touch targets */
+    .btn,
+    .icon-btn,
+    .short-response-toggle,
+    .dropdown-toggle,
+    .send-btn {
+        height: 32px; /* Uniform height for all controls */
+        padding: 6px 10px; /* Uniform padding */
+        font-size: 0.75rem; /* Uniform font size */
     }
 
     .send-btn {
-        width: 36px;
-        height: 36px;
-        min-width: 36px; /* Ensure it doesn't shrink */
+        width: 32px; /* Uniform width for send button */
+        padding-right: 2px; /* Adjust padding for uniformity */
+    }
+
+    .send-btn i {
+        font-size: 9px; /* Smaller icon for send button */
+    }
+
+    .short-response-toggle .toggle-text {
+        font-size: 0.75rem; /* Ensure toggle text matches other controls */
+    }
+    
+    .dropdown-toggle .fa-chevron-down {
+        font-size: 0.75rem; /* Consistent size with other icons */
     }
 
     /* Show dropdown text on tablets, don't hide it */
@@ -2194,15 +2209,14 @@ body.dark-mode .google-signin-btn-enhanced:hover {
     .dropdown-toggle {
         min-width: auto; /* Allow natural width */
         width: auto; /* Allow natural width */
-        padding: 8px 12px; /* Normal padding */
         justify-content: flex-start; /* Normal alignment */
     }
     
     /* Show the chevron down icon with consistent styling */
     .dropdown-toggle .fa-chevron-down {
         display: inline;
-        font-size: 0.8rem; /* Consistent size */
-        margin-left: 4px; /* Consistent spacing */
+        font-size: 0.75rem; /* Consistent size with other icons */
+        margin-left: 3px; /* Consistent spacing */
     }
 
     /* Prevent donate button compression on tablets */
@@ -2595,33 +2609,28 @@ body.search-active .social-footer {
         gap: 1px; /* Minimal gap */
     }
 
-    .btn, .icon-btn {
-        padding: 3px 5px; /* Further reduced padding */
-        font-size: 0.6rem; /* Further reduced font size */
-        height: 24px; /* Further reduced height */
-        border-radius: 8px; /* Slightly smaller radius */
-    }
-    
-    .short-response-toggle {
-        padding: 3px 5px; /* Further reduced padding */
-        font-size: 0.6rem; /* Further reduced font size */
-        height: 24px; /* Further reduced height */
-        border-radius: 8px; /* Slightly smaller radius */
+    .btn,
+    .icon-btn,
+    .short-response-toggle,
+    .dropdown-toggle,
+    .send-btn {
+        height: 28px; /* Uniform height */
+        padding: 4px 8px; /* Uniform padding */
+        font-size: 0.65rem; /* Uniform font size */
     }
     
     .short-response-toggle .toggle-text {
-        font-size: 0.6rem; /* Further reduced font size */
+        font-size: 0.65rem; /* Ensure toggle text matches */
     }
 
     .send-btn {
-        width: 24px; /* Further reduced */
-        height: 24px; /* Further reduced */
-        min-width: 24px; /* Further reduced */
-        border-radius: 8px; /* Slightly smaller radius */
+        width: 28px; /* Uniform width */
+        min-width: 28px; /* Ensure it doesn't shrink */
+        padding-right: 1px; /* Adjust padding */
     }
 
     .send-btn i {
-        font-size: 10px; /* Further reduced icon size */
+        font-size: 7px; /* Smaller icon size */
     }
 
     .dropdown-toggle span {
@@ -2631,16 +2640,15 @@ body.search-active .social-footer {
     .dropdown-toggle {
         min-width: auto; /* Allow natural width */
         width: auto; /* Allow natural width */
-        padding: 3px 6px; /* Further reduced padding */
         justify-content: flex-start; /* Normal alignment */
-        font-size: 0.6rem; /* Further reduced font size */
+        font-size: 0.65rem; /* Uniform font size */
     }
     
     /* Show the chevron down icon with consistent styling */
     .dropdown-toggle .fa-chevron-down {
         display: inline;
-        font-size: 0.6rem; /* Further reduced size */
-        margin-left: 1px; /* Further reduced spacing */
+        font-size: 0.65rem; /* Consistent size with other icons */
+        margin-left: 2px; /* Consistent spacing */
     }
 
     /* Social footer adjustments for ultra-narrow */
@@ -2923,18 +2931,19 @@ body.search-active .social-footer {
 }
 
 #send-btn-bottom {
-    min-width: 36px !important; /* Increased from 28px */
-    min-height: 36px !important; /* Increased from 28px */
-    height: 36px !important; /* Increased from 28px */
-    width: 36px !important; /* Increased from 32px */
-    border-radius: 10px !important; /* Increased from 8px for better proportion */
-    font-size: 1rem !important; /* Increased from 0.9rem */
+    min-width: 28px !important; /* Reduced for uniformity */
+    min-height: 28px !important; /* Reduced for uniformity */
+    height: 28px !important; /* Reduced for uniformity */
+    width: 28px !important; /* Reduced for uniformity */
+    border-radius: 8px !important; /* Adjusted for smaller size */
+    font-size: 0.7rem !important; /* Adjusted for smaller size */
     box-shadow: none !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     flex-shrink: 0 !important;
     transform: translateX(-4px) !important; /* Moved left by 4px */
+    padding: 0 2px 0 0 !important; /* Adjusted padding */
 }
 
 /* --- Chart.js Styling --- */
