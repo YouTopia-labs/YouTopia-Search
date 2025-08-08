@@ -6,7 +6,7 @@ import { fetchWheatData } from '../tools/wheat_tool.js'; // Import the new Wheat
 import { scrapeWebsite, tagImageWithDimensions } from '../tools/scraper_tool.js'; // Import the new scraper tool
 import { safeParse } from '../js/json_utils.js';
 async function executeTool(toolName, query, params = {}, userQuery, userName, userLocalTime) {
-  console.log(`Executing tool: ${toolName} with query: ${query} and params:`, params);
+  // console.log(`Executing tool: ${toolName} with query: ${query} and params:`, params);
 
   let api_target;
   let api_payload;
@@ -26,7 +26,7 @@ async function executeTool(toolName, query, params = {}, userQuery, userName, us
       // This tool appears to be a local function, not a worker API call.
       // It needs to be handled differently or proxied if it requires external access.
       // For now, assuming it's a local function.
-      console.log(`Calling fetchWheatData for location: ${query}`);
+      // console.log(`Calling fetchWheatData for location: ${query}`);
       return { data: await fetchWheatData(query), sourceUrl: 'https://open-meteo.com/en/docs' };
     default:
       throw new Error(`Unknown tool: ${toolName}`);
@@ -101,11 +101,11 @@ async function fetchWithProxy(api_target, api_payload, query, userName, userLoca
 }
 
 export async function callAgent(model, prompt, input, retryCount = 0, streamCallback = null, query, userName, userLocalTime) {
-  console.log(`Calling agent with model: ${model}, input:`, input);
+  // console.log(`Calling agent with model: ${model}, input:`, input);
   const maxRetries = 2;
 
   if (streamCallback) {
-    console.log("Streaming enabled.");
+    // console.log("Streaming enabled.");
   }
 
   let messages = [
@@ -204,11 +204,11 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
     // If Agent 3 and streaming, the final response is sent via callback.
     // The content returned here might include the sources block, which needs to be handled.
     if (streamCallback) {
-        console.log("Streaming: callAgent returning full content for post-processing.");
+        // console.log("Streaming: callAgent returning full content for post-processing.");
         return content;
     }
 
-    console.log("callAgent returning content:", content.substring(0, 100) + (content.length > 100 ? '...' : '')); // Log first 100 chars
+    // console.log("callAgent returning content:", content.substring(0, 100) + (content.length > 100 ? '...' : '')); // Log first 100 chars
     return content;
 
   } catch (error) {
@@ -230,7 +230,7 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
 
 // Sanitize and parse JSON, attempting to fix common errors.
 function sanitizeAndParseJson(jsonString) {
-    console.log("Attempting to parse JSON...");
+    // console.log("Attempting to parse JSON...");
     
     // Find the first '{' and the last '}' to extract the JSON object
     const startIndex = jsonString.indexOf('{');
@@ -246,7 +246,7 @@ function sanitizeAndParseJson(jsonString) {
     try {
         return JSON.parse(potentialJson);
     } catch (initialError) {
-        console.log("Initial JSON parse failed, attempting to fix common issues...");
+        // console.log("Initial JSON parse failed, attempting to fix common issues...");
         
         // Apply multiple sanitization strategies
         let fixedJson = potentialJson;
@@ -297,7 +297,7 @@ function sanitizeAndParseJson(jsonString) {
         
         // Try parsing the fixed JSON
         try {
-            console.log("Attempting to parse sanitized JSON...");
+            // console.log("Attempting to parse sanitized JSON...");
             return JSON.parse(fixedJson);
         } catch (secondError) {
             console.error("JSON parsing failed even after sanitization.", secondError);
@@ -377,7 +377,7 @@ function validateAgent1Response(response) {
 }
 
 export async function orchestrateAgents(userQuery, userName, userLocalTime, agentSelectionType, streamCallback = null, logCallback = null, isShortResponseEnabled = false) {
-  console.log(`Starting orchestration for query: "${userQuery}" with selection: "${agentSelectionType}", short responses: ${isShortResponseEnabled}`);
+  // console.log(`Starting orchestration for query: "${userQuery}" with selection: "${agentSelectionType}", short responses: ${isShortResponseEnabled}`);
 
   // Validate API configuration before proceeding
 
@@ -397,14 +397,14 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
 
   // Loop for orchestration turns
   while (true) {
-    console.log(`--- Orchestration Loop: Turn (Searches: ${totalSearchesPerformed}/${MAX_TOTAL_SEARCHES}) ---`);
+    // console.log(`--- Orchestration Loop: Turn (Searches: ${totalSearchesPerformed}/${MAX_TOTAL_SEARCHES}) ---`);
 
     // Prepare input for Agent 1
     const agent1Input = {
       query: userQuery,
     };
 
-    console.log("Agent 1: Deciding next action...");
+    // console.log("Agent 1: Deciding next action...");
 
     let agent1ResponseRaw;
     let parsedAgent1Response;
@@ -413,14 +413,14 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
 
     while (attempt < maxAttempts) {
       attempt++;
-      console.log(`Agent 1: Attempt ${attempt} to get a valid JSON response.`);
+      // console.log(`Agent 1: Attempt ${attempt} to get a valid JSON response.`);
       
       let currentPrompt = agent1SystemPrompt;
       let currentInput = agent1Input;
 
       if (attempt > 1 && agent1ResponseRaw) {
         // If this is a retry, modify the prompt to ask for a fix
-        console.log("Retrying with a request to fix the malformed JSON.");
+        // console.log("Retrying with a request to fix the malformed JSON.");
         currentPrompt = `${agent1SystemPrompt}\n\nYour previous response was not valid JSON and could not be parsed. Please review the following error and the malformed response, then provide a corrected and valid JSON object. Do not include any text or markdown formatting outside of the JSON object.\n\nMalformed Response:\n${agent1ResponseRaw}`;
       }
 
@@ -456,19 +456,19 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
         console.error("Response:", JSON.stringify(parsedAgent1Response, null, 2));
         return `Error: Agent 1 response validation failed: ${validationErrors.join('; ')}`;
       }
-      console.log("✓ Agent 1 response validation passed");
+      // console.log("✓ Agent 1 response validation passed");
     } catch (error) {
         console.error("[Error] Agent 1 response validation failed unexpectedly:", error.message);
         return `Error: Agent 1 response validation failed: ${error.message}`;
     }
 
-    console.log("Agent 1 Parsed Response:", parsedAgent1Response);
+    // console.log("Agent 1 Parsed Response:", parsedAgent1Response);
 
     const { classification, action, search_plan, response: agent1DirectResponse, direct_component } = parsedAgent1Response;
 
     // Handle direct classifications (conversational, math, code, unclear, direct)
     if (classification && (classification === 'conversational' || classification === 'math' || classification === 'code' || classification === 'unclear' || classification === 'direct')) {
-      console.log(`${classification} query detected. Passing direct response to Agent 3.`);
+      // console.log(`${classification} query detected. Passing direct response to Agent 3.`);
       const queryForAgent3 = (classification === 'direct') ? userQuery : agent1DirectResponse;
       
       // For direct classifications, we do not want the end-of-answer delimiter.
@@ -477,9 +477,9 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
 
       const finalResponse = await callAgent(agent3Model, directAgent3SystemPrompt, { rawQuery: userQuery, query: queryForAgent3, classification: classification, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime);
       
-      console.log("Final Response Generated by Agent 3. Value from callAgent:", finalResponse);
+      // console.log("Final Response Generated by Agent 3. Value from callAgent:", finalResponse);
       if (streamCallback) {
-        console.log("Stream callback was active, returning from orchestrateAgents.");
+        // console.log("Stream callback was active, returning from orchestrateAgents.");
         return;
       } else {
         return finalResponse;
@@ -490,7 +490,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
     if (action === 'search') {
       const numSearchesInPlan = search_plan ? search_plan.length : 0;
       if (numSearchesInPlan > 0 && totalSearchesPerformed + numSearchesInPlan > MAX_TOTAL_SEARCHES) {
-        console.log(`Exceeded max search steps (${MAX_TOTAL_SEARCHES}). Cannot perform these searches.`);
+        // console.log(`Exceeded max search steps (${MAX_TOTAL_SEARCHES}). Cannot perform these searches.`);
         return "Could not find sufficient information to answer your query after maximum searches.";
       }
 
@@ -499,7 +499,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
       let scrapedData = [];
 
       if (search_plan && search_plan.length > 0) {
-        console.log(`Executing search plan (${search_plan.length} steps) in parallel...`);
+        // console.log(`Executing search plan (${search_plan.length} steps) in parallel...`);
 
         const toolNamesMap = {
           'serper_web_search': 'Web Search',
@@ -537,12 +537,12 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
           }
         });
 
-        console.log("Raw web search results:", webSearchResults);
-        console.log("Raw other tool results:", otherToolResults);
+        // console.log("Raw web search results:", webSearchResults);
+        // console.log("Raw other tool results:", otherToolResults);
 
         // --- New Agent 2 Workflow ---
         if (webSearchResults.length > 0) {
-          console.log("Agent 2: Analyzing search results to decide on scraping...");
+          console.log("Analyzing search results to decide on scraping...");
           if (logCallback) logCallback(`<i class="fas fa-filter"></i> Agent 2: Analyzing search results...`);
 
           const agent2Input = {
@@ -553,7 +553,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
           const agent2ResponseRaw = await callAgent(agent2Model, agent2SystemPrompt, agent2Input, 0, null, userQuery, userName, userLocalTime);
           const agent2Response = safeParse(agent2ResponseRaw, true);
 
-          console.log("Agent 2 Response:", agent2Response);
+          console.log("Agent Response:", agent2Response);
 
           if (agent2Response.action === 'scrape' && agent2Response.scrape_plan && agent2Response.scrape_plan.length > 0) {
             const planToExecute = agent2Response.scrape_plan.slice(0, MAX_PARALLEL_SCRAPES_PER_TURN);
@@ -563,7 +563,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
               scrapeWebsite(plan.url, plan.keywords, logCallback)
             );
             scrapedData = (await Promise.all(scrapePromises)).filter(d => d.success);
-            console.log("Scraped Data (before image processing):", scrapedData);
+            // console.log("Scraped Data (before image processing):", scrapedData);
 
            // Process image URLs to add dimension tags
            for (const data of scrapedData) {
@@ -575,7 +575,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
                    });
                }
            }
-           console.log("Scraped Data (after image processing):", scrapedData);
+           // console.log("Scraped Data (after image processing):", scrapedData);
 
           } else {
             if (logCallback) logCallback(`<i class="fas fa-check-circle"></i> Agent 2: Decided to continue without scraping.`);
@@ -584,7 +584,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
 
         totalSearchesPerformed += numSearchesInPlan;
       } else {
-        console.log("Agent 1 requested search but provided an empty search_plan.");
+        // console.log("Agent 1 requested search but provided an empty search_plan.");
         if (classification !== 'hybrid' || !direct_component) {
           return "Agent 1 provided an empty search plan without a direct component. Could not proceed.";
         }
@@ -608,7 +608,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
         sourceUrls: finalSourceUrls
       };
 
-      console.log("Sending combined data to Agent 3:", dataForAgent3);
+      // console.log("Sending combined data to Agent 3:", dataForAgent3);
       const finalResponse = await callAgent(agent3Model, agent3SystemPrompt(isShortResponseEnabled), { ...dataForAgent3, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime);
 
       return finalResponse; // Return the final response from Agent 3
@@ -616,7 +616,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
 
     // If Agent 1 returned a classification that doesn't trigger a 'search' action
     // and it's not a direct classification handled above, then it's an unhandled action.
-    console.log(`Agent 1 returned an unhandled action or classification: ${action || classification}.`);
+    // console.log(`Agent 1 returned an unhandled action or classification: ${action || classification}.`);
     return "An unexpected error occurred during orchestration.";
   }
 }
