@@ -476,7 +476,7 @@ body.dark-mode {
     height: var(--app-height); /* Use the dynamically set height */
     display: flex;
     flex-direction: column;
-    overflow-y: auto; /* Allow app-wrapper to scroll when content overflows */
+    overflow: hidden; /* Prevent any overflow */
 }
 
 .app-container {
@@ -485,7 +485,6 @@ body.dark-mode {
     flex-grow: 1;
     position: relative;
     align-items: center; /* Center content horizontally */
-    overflow: visible; /* Ensure app-container does not hide overflow */
 }
 
 .background-glow {
@@ -1483,29 +1482,23 @@ body.dark-mode .send-btn:active {
 
 /* --- Search Active State (Floating Search Box) --- */
 body.search-active {
-    overflow-y: auto; /* Allow body to scroll */
-    -webkit-overflow-scrolling: touch;
-    height: 100%; /* Ensure body takes full height */
-}
-
-body.search-active .app-wrapper {
-    overflow-y: visible; /* Ensure app-wrapper does not hide overflow when search is active */
-    height: auto; /* Allow app-wrapper to expand with content */
+    overflow: hidden; /* Prevent body from scrolling */
 }
 
 body.search-active .app-container {
-    height: auto; /* Allow container to grow with content */
-    overflow: visible; /* Allow content to overflow */
+    height: 100vh;
+    overflow: hidden;
 }
 
 body.search-active .main-content {
-    height: auto; /* Allow content to define height */
-    padding: 75px 0 0 0; /* Add top padding to account for fixed header, keep other paddings */
+    height: 100%; /* Take up all available height */
+    padding: 0;
     max-width: 100%;
     justify-content: flex-start;
     display: flex;
     flex-direction: column;
-    overflow-y: visible; /* No independent scrollbar, content contributes to body scroll */
+    overflow-y: auto; /* Enable vertical scrolling on this container */
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
 /* Hide initial search wrapper when search is active */
@@ -1626,7 +1619,7 @@ body.search-active #main-results-area {
     max-width: 766px; /* Match the compact search box width */
     height: auto; /* Allow height to expand with content */
     /* Removed overflow-y: auto; */
-    padding: 0 12px 250px 12px; /* Increased bottom padding to ensure fixed search box and export panel are always visible */
+    padding: 0 12px 220px 12px; /* Adjusted bottom padding to account for export panel and fixed search box */
 }
 
 /* === REDESIGNED QUERY HEADING === */

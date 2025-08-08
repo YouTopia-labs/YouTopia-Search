@@ -517,7 +517,7 @@ const renderSourceCards = (sources, container) => {
         try {
             const pdfBtn = document.querySelector('.pdf-btn');
             if (pdfBtn) {
-                pdfBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; // Remove "Generating..." text
+                pdfBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
                 pdfBtn.disabled = true;
             }
 
@@ -596,7 +596,80 @@ const renderSourceCards = (sources, container) => {
 
             addHeader(pdf, 'YouTopia Search Results');
             
-            currentY = await renderHtmlContent(pdf, element, currentY, { margin, contentWidth, pageHeight, pageWidth });
+            const sections = parseContentSections(element);
+
+            for (const section of sections) {
+                addPageIfNeeded(20); // Generic check
+
+                if (section.type === 'html') {
+                    currentY = await addHtmlElement(pdf, section.element, currentY, { margin, contentWidth, pageHeight });
+                } else if (section.type === 'image') {
+                    try {
+                        const imgData = await getImageData(section.element.src);
+                        const imgProps = pdf.getImageProperties(imgData);
+                        
+                        const isPortrait = imgProps.height > imgProps.width;
+                        const fixedWidthLandscape = contentWidth;
+                        const fixedWidthPortrait = contentWidth * 0.7; // 70% for portrait
+                        
+                        let imgWidth, imgHeight;
+
+                        if (isPortrait) {
+                            imgWidth = fixedWidthPortrait;
+                            imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+                        } else {
+                            imgWidth = fixedWidthLandscape;
+                            imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+                        }
+
+                        const maxImgHeight = pageHeight * 0.75;
+                        if (imgHeight > maxImgHeight) {
+                            imgHeight = maxImgHeight;
+                            imgWidth = (imgProps.width * imgHeight) / imgProps.height;
+                        }
+
+                        addPageIfNeeded(imgHeight);
+                        const xPos = (pageWidth - imgWidth) / 2;
+                        pdf.addImage(imgData, 'PNG', xPos, currentY, imgWidth, imgHeight, undefined, 'NONE');
+                        currentY += imgHeight + 10;
+
+                    } catch (e) { console.error("Error adding image:", e); }
+                } else if (section.type === 'chart') {
+                     try {
+                        const canvas = section.element.querySelector('canvas');
+                        if (canvas) {
+                            const chartImageData = canvas.toDataURL('image/png', 1.0);
+                            const imgWidth = contentWidth * 0.9;
+                            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                            addPageIfNeeded(imgHeight);
+                            pdf.addImage(chartImageData, 'PNG', (pageWidth - imgWidth) / 2, currentY, imgWidth, imgHeight, undefined, 'NONE');
+                            currentY += imgHeight + 10;
+                        }
+                    } catch (e) { console.error("Error adding chart:", e); }
+                } else if (section.type === 'table') {
+                    const tableData = extractTableData(section.element);
+                    if (tableData) {
+                        pdf.autoTable({
+                            head: [tableData.headers],
+                            body: tableData.rows,
+                            startY: currentY,
+                            theme: 'grid',
+                            styles: {
+                                font: 'helvetica',
+                                fillColor: [245, 245, 245]
+                            },
+                            headStyles: {
+                                fillColor: [60, 70, 80],
+                                textColor: 255
+                            },
+                            didDrawPage: (data) => {
+                                currentY = data.cursor.y + 5;
+                            }
+                        });
+                        // autoTable sets currentY via the callback
+                    }
+                }
+            }
 
             addFooter(pdf);
             pdf.save('youtopia-search-results.pdf');
@@ -624,246 +697,121 @@ const renderSourceCards = (sources, container) => {
         });
     }
 
-async function renderHtmlContent(pdf, element, startY, options) {
-    let currentY = startY;
-    const { margin, contentWidth, pageHeight, pageWidth } = options;
-
-    const addPageIfNeeded = (height) => {
-        if (currentY + height > pageHeight - margin) {
-            pdf.addPage();
-            currentY = margin;
-            // No header on new pages for now, as per original addHtmlElement behavior
-            return true;
+    // This function remains largely the same but simplified
+    function parseContentSections(element) {
+        const sections = [];
+        const children = Array.from(element.children);
+        for (const child of children) {
+            if (child.classList.contains('export-panel')) continue;
+            if (child.classList.contains('chart-display') || child.classList.contains('chart-wrapper')) {
+                sections.push({ type: 'chart', element: child });
+            } else if (child.classList.contains('table-display') || child.classList.contains('gridjs-wrapper')) {
+                sections.push({ type: 'table', element: child });
+            } else if (child.tagName === 'IMG') {
+                sections.push({ type: 'image', element: child });
+            } else if (child.querySelector('img')) {
+                const images = Array.from(child.querySelectorAll('img'));
+                images.forEach(img => sections.push({ type: 'image', element: img }));
+            } else {
+                if (child.textContent.trim()) {
+                    sections.push({ type: 'html', element: child });
+                }
+            }
         }
-        return false;
-    };
+        return sections;
+    }
+async function addHtmlElement(pdf, element, startY, options) {
+        let currentY = startY;
+        const { margin, contentWidth, pageHeight } = options;
 
-    const processNode = async (node, level = 0) => {
-        if (node.nodeType === Node.TEXT_NODE) {
+        const addPageIfNeeded = (height) => {
+            if (currentY + height > pageHeight - margin) {
+                pdf.addPage();
+                currentY = margin;
+                // Optionally add header to new pages: addHeader(pdf, '...');
+                return true;
+            }
+            return false;
+        };
+
+        const renderNode = async (node) => {
+            const tagName = node.tagName.toLowerCase();
             const text = node.textContent.trim();
+
             if (!text) return;
 
-            let parentNode = node.parentNode;
-            let tagName = parentNode ? parentNode.tagName.toLowerCase() : 'p';
-            let fontStyle = 'normal';
             let fontSize = 11;
-            let spaceAfter = 3; // Default spacing for text
-
-            // Check for bold/italic parents
-            let tempParent = parentNode;
-            while (tempParent && tempParent !== element) {
-                const parentTag = tempParent.tagName.toLowerCase();
-                if (parentTag === 'b' || parentTag === 'strong') {
-                    fontStyle = fontStyle === 'italic' ? 'bolditalic' : 'bold';
-                } else if (parentTag === 'i' || parentTag === 'em') {
-                    fontStyle = fontStyle === 'bold' ? 'bolditalic' : 'italic';
-                }
-                tempParent = tempParent.parentNode;
-            }
-
+            let fontStyle = 'normal';
+            let spaceAfter = 5; // Increased default spacing
+            
             switch (tagName) {
                 case 'h1':
                     fontSize = 20;
                     fontStyle = 'bold';
-                    spaceAfter = 10;
+                    spaceAfter = 10; // Increased spacing
                     break;
                 case 'h2':
                     fontSize = 18;
                     fontStyle = 'bold';
-                    spaceAfter = 9;
+                    spaceAfter = 9; // Increased spacing
                     break;
                 case 'h3':
                     fontSize = 16;
                     fontStyle = 'bold';
-                    spaceAfter = 8;
-                    break;
-                case 'h4':
-                    fontSize = 14;
-                    fontStyle = 'bold';
-                    spaceAfter = 7;
-                    break;
-                case 'h5':
-                    fontSize = 12;
-                    fontStyle = 'bold';
-                    spaceAfter = 6;
-                    break;
-                case 'h6':
-                    fontSize = 11;
-                    fontStyle = 'bold';
-                    spaceAfter = 5;
-                    break;
-                case 'li':
-                    fontSize = 11;
-                    spaceAfter = 2; // Tighter spacing for list items
+                    spaceAfter = 8; // Increased spacing
                     break;
                 case 'p':
-                default:
-                    fontSize = 11;
-                    spaceAfter = 5; // Default paragraph spacing
+                    // Default paragraph style
                     break;
+                case 'b':
+                case 'strong':
+                    fontStyle = 'bold';
+                    break;
+                case 'i':
+                case 'em':
+                    fontStyle = 'italic';
+                    break;
+                case 'li':
+                    const lines = pdf.splitTextToSize(`• ${text}`, contentWidth - 5);
+                    addPageIfNeeded(lines.length * 7); // Increased line height
+                    pdf.setFont('helvetica', 'normal');
+                    pdf.setFontSize(11);
+                    currentY += 2; // Add a small top margin for list items
+                    pdf.text(lines, margin + 5, currentY);
+                    currentY += (lines.length * 6);
+                    return; // Skip default text rendering
             }
 
             pdf.setFont('helvetica', fontStyle);
             pdf.setFontSize(fontSize);
-            
-            let lines;
-            if (tagName === 'li') {
-                lines = pdf.splitTextToSize(`• ${text}`, contentWidth - (level * 10) - 5); // Indent lists
-                addPageIfNeeded(lines.length * (fontSize * 0.352778) + spaceAfter);
-                pdf.text(lines, margin + (level * 10) + 5, currentY); // Apply indentation
-            } else {
-                lines = pdf.splitTextToSize(text, contentWidth);
-                addPageIfNeeded(lines.length * (fontSize * 0.352778) + spaceAfter);
-                pdf.text(lines, margin, currentY);
-            }
+            const lines = pdf.splitTextToSize(text, contentWidth);
+            addPageIfNeeded(lines.length * (fontSize * 0.352778) + spaceAfter);
+            pdf.text(lines, margin, currentY);
             currentY += (lines.length * (fontSize * 0.352778)) + spaceAfter;
+        };
 
-        } else if (node.nodeType === Node.ELEMENT_NODE) {
-            const tagName = node.tagName.toLowerCase();
-
-            if (tagName === 'img') {
-                try {
-                    const imgData = await getImageData(node.src);
-                    const imgProps = pdf.getImageProperties(imgData);
-                    
-                    const isPortrait = node.src.includes('#portrait') || (imgProps.height > imgProps.width);
-                    const fixedWidthLandscape = contentWidth;
-                    const fixedWidthPortrait = contentWidth * 0.7; // 70% for portrait
-                    
-                    let imgWidth, imgHeight;
-
-                    if (isPortrait) {
-                        imgWidth = fixedWidthPortrait;
-                        imgHeight = (imgProps.height * imgWidth) / imgProps.width;
-                    } else {
-                        imgWidth = fixedWidthLandscape;
-                        imgHeight = (imgProps.height * imgWidth) / imgProps.width;
-                    }
-
-                    const maxImgHeight = pageHeight * 0.75; // Cap image height
-                    if (imgHeight > maxImgHeight) {
-                        imgHeight = maxImgHeight;
-                        imgWidth = (imgProps.width * imgHeight) / imgProps.height;
-                    }
-
-                    addPageIfNeeded(imgHeight + 10); // Add space for image + margin
-                    const xPos = (pageWidth - imgWidth) / 2; // Center image
-                    pdf.addImage(imgData, 'PNG', xPos, currentY, imgWidth, imgHeight, undefined, 'NONE');
-                    currentY += imgHeight + 10; // Add space after image
-
-                } catch (e) {
-                    console.error("Error adding image to PDF:", e);
-                    // Optionally add a placeholder for failed images
-                    pdf.setFont('helvetica', 'normal');
-                    pdf.setFontSize(10);
-                    pdf.setTextColor(200, 0, 0);
-                    pdf.text(' [Image failed to load] ', margin, currentY + 5);
-                    currentY += 15;
-                    pdf.setTextColor(0, 0, 0); // Reset color
-                }
-            } else if (tagName === 'pre') {
-                const codeElement = node.querySelector('code');
-                if (codeElement) {
-                    const codeText = codeElement.textContent;
-                    const lines = codeText.split('\n');
-                    const lineHeight = 5; // Smaller line height for code
-                    const codeBlockHeight = lines.length * lineHeight + 10; // Padding
-                    
-                    addPageIfNeeded(codeBlockHeight);
-                    
-                    pdf.setFont('courier', 'normal'); // Monospace font for code
-                    pdf.setFontSize(9); // Smaller font size for code
-                    pdf.setFillColor(240, 240, 240); // Light gray background
-                    pdf.roundedRect(margin, currentY, contentWidth, codeBlockHeight - 5, 2, 2, 'F');
-                    pdf.setTextColor(50, 50, 50); // Darker text color
-                    
-                    currentY += 5; // Top padding
-                    for (const line of lines) {
-                        pdf.text(line, margin + 2, currentY); // Small left padding
-                        currentY += lineHeight;
-                    }
-                    currentY += 5; // Bottom padding
-                    pdf.setTextColor(0, 0, 0); // Reset text color
-                    pdf.setFont('helvetica', 'normal'); // Reset font
-                    pdf.setFontSize(11); // Reset font size
-                    currentY += 5; // Space after code block
-                }
-            } else if (tagName === 'table') {
-                const tableData = extractTableData(node);
-                if (tableData) {
-                    addPageIfNeeded(50); // Estimate initial table height
-                    pdf.autoTable({
-                        head: [tableData.headers],
-                        body: tableData.rows,
-                        startY: currentY,
-                        theme: 'grid',
-                        styles: {
-                            font: 'helvetica',
-                            fontSize: 9,
-                            cellPadding: 2,
-                            lineColor: [200, 200, 200],
-                            lineWidth: 0.1,
-                            fillColor: [255, 255, 255]
-                        },
-                        headStyles: {
-                            fillColor: [60, 70, 80],
-                            textColor: 255,
-                            fontStyle: 'bold'
-                        },
-                        alternateRowStyles: {
-                            fillColor: [245, 245, 245]
-                        },
-                        margin: { left: margin, right: margin },
-                        tableWidth: contentWidth,
-                        didDrawPage: (data) => {
-                            currentY = data.cursor.y + 5; // Update Y position after table
-                        }
-                    });
-                    currentY += 10; // Extra space after table
-                }
-            } else if (tagName === 'ul' || tagName === 'ol') {
-                // Handle lists by iterating children with increased level
-                for (const child of Array.from(node.children)) {
-                    await processNode(child, level + 1); // Pass increased level for indentation
-                }
-            } else if (tagName === 'hr') {
-                addPageIfNeeded(5);
-                pdf.setDrawColor(150, 150, 150);
-                pdf.line(margin, currentY + 2, pageWidth - margin, currentY + 2);
-                currentY += 5;
-            } else {
-                // Recursively process children for other elements (p, div, span, strong, em, etc.)
-                for (const child of Array.from(node.childNodes)) {
-                    await processNode(child, level);
-                }
-            }
+        await renderNode(element);
+        
+        for (const child of Array.from(element.children)) {
+            currentY = await addHtmlElement(pdf, child, currentY, options);
         }
-    };
-    
-    // Start processing from the initial element
-    for (const child of Array.from(element.childNodes)) {
-        await processNode(child);
+
+        return currentY;
     }
 
-    return currentY;
-}
-
     function extractTableData(tableElement) {
-        // This function will now be called directly within renderHtmlContent for 'table' elements.
-        // It needs to be defined globally or passed into renderHtmlContent scope.
-        // For simplicity, let's keep it here for now, but its usage is internal to renderHtmlContent.
         try {
             const gridTable = tableElement.querySelector('.gridjs-table');
             if (gridTable) {
                 const headers = Array.from(gridTable.querySelectorAll('.gridjs-th')).map(th => th.textContent.trim());
-                const rows = Array.from(gridTable.querySelectorAll('.gridjs-tr:not(.gridjs-head)')).map(tr => // Exclude header row from body
+                const rows = Array.from(gridTable.querySelectorAll('.gridjs-tr')).map(tr =>
                     Array.from(tr.querySelectorAll('.gridjs-td')).map(td => td.textContent.trim())
                 );
                 return { headers, rows };
             }
-            const htmlTable = tableElement; // Assume it's already the <table> element
-            if (htmlTable && htmlTable.tagName.toLowerCase() === 'table') {
-                const headers = Array.from(htmlTable.querySelectorAll('thead th')).map(th => th.textContent.trim());
+            const htmlTable = tableElement.querySelector('table');
+            if (htmlTable) {
+                const headers = Array.from(htmlTable.querySelectorAll('th')).map(th => th.textContent.trim());
                 const rows = Array.from(htmlTable.querySelectorAll('tbody tr')).map(tr =>
                     Array.from(tr.querySelectorAll('td')).map(td => td.textContent.trim())
                 );
