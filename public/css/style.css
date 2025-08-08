@@ -1484,11 +1484,12 @@ body.dark-mode .send-btn:active {
 body.search-active {
     overflow-y: auto; /* Allow body to scroll */
     -webkit-overflow-scrolling: touch;
+    height: 100%; /* Ensure body takes full height */
 }
 
 body.search-active .app-container {
     height: auto; /* Allow container to grow with content */
-    overflow: visible;
+    overflow: visible; /* Allow content to overflow */
 }
 
 body.search-active .main-content {
@@ -1498,7 +1499,7 @@ body.search-active .main-content {
     justify-content: flex-start;
     display: flex;
     flex-direction: column;
-    overflow-y: visible; /* No separate scrollbar */
+    overflow-y: visible; /* No independent scrollbar, content contributes to body scroll */
 }
 
 /* Hide initial search wrapper when search is active */
