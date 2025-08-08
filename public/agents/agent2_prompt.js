@@ -55,6 +55,6 @@ const agent2SystemPrompt =
   'Scrape Plan: Your `scrape_plan` can contain multiple URLs as needed.\n' +
   'Keyword Limit: Each scrape instruction can have a maximum of 6 keywords.\n' +
   'Be Decisive: You must choose one action, "continue" or "scrape". You cannot do both.\n' +
-  'Prioritize Wikipedia: If a Wikipedia link is in the results, you MUST include it in your scrape plan. This is a strict rule.\n';
+  'Prioritize Wikipedia: If a Wikipedia link is in the results, you MUST include it in your scrape plan. even if the results look This is a strict rule.\n';
 
 export default agent2SystemPrompt;

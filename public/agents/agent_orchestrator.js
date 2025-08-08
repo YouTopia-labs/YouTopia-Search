@@ -555,9 +555,9 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
 
           console.log("Agent 2 Response:", agent2Response);
 
-          if (agent2Response.action === 'scrape' && agent2Response.scrape_plan && agent2Response.scrape_plan.length >= 2) {
+          if (agent2Response.action === 'scrape' && agent2Response.scrape_plan && agent2Response.scrape_plan.length > 0) {
             const planToExecute = agent2Response.scrape_plan.slice(0, MAX_PARALLEL_SCRAPES_PER_TURN);
-            if (logCallback) logCallback(`<i class="fas fa-spider"></i> Agent 2: Decided to scrape ${planToExecute.length} sites...`);
+            if (logCallback) logCallback(`<i class="fas fa-spider"></i> Agent 2: Decided to scrape ${planToExecute.length} site(s)...`);
             
             const scrapePromises = planToExecute.map(plan =>
               scrapeWebsite(plan.url, plan.keywords, logCallback)
