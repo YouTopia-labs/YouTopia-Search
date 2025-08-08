@@ -562,10 +562,10 @@ const renderSourceCards = (sources, container) => {
 
             const addHeader = (doc, title) => {
                 doc.setFont('helvetica', 'bold');
-                doc.setFontSize(16);
+                doc.setFontSize(18); /* Slightly larger header for main title */
                 doc.setTextColor(40);
-                doc.text(title, margin, currentY);
-                currentY += 8;
+                doc.text(title, margin, currentY + 10); /* Add more space from top of page */
+                currentY += 20; /* Increased space after header */
             };
 
             const addFooter = (doc) => {
@@ -743,14 +743,14 @@ async function addHtmlElement(pdf, element, startY, options) {
 
             switch (tagName) {
                 case 'h1':
-                    fontSize = 20;
+                    fontSize = 24; /* Make h1 larger */
                     fontStyle = 'bold';
-                    spaceAfter = 6;
+                    spaceAfter = 10; /* More space after h1 */
                     break;
                 case 'h2':
-                    fontSize = 18;
+                    fontSize = 20; /* Make h2 larger */
                     fontStyle = 'bold';
-                    spaceAfter = 5;
+                    spaceAfter = 8; /* More space after h2 */
                     break;
                 case 'h3':
                     fontSize = 16;
