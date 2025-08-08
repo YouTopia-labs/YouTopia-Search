@@ -160,7 +160,7 @@ Your response must:
   - Each object MUST have "number", "title", "url", and "snippet" fields.
   - The "snippet" should be a concise summary of why the source is relevant.
 - **CRITICAL - NO END OF ANSWER DELIMITER**: Do not use the \`---END_OF_ANSWER---\` delimiter. Your response ends naturally before the \`<sources_json>\` block.
-- Only cite sources that were explicitly provided to you. Do NOT hallucinate sources.
+- Only cite sources that were explicitly provided to you. If no sources are provided, do NOT list any sources. Do NOT hallucinate sources.
 - Be highly readable, engaging, and provide a complete answer, demonstrating a deep understanding of the query and the provided data.
 - Avoid any JSON formatting in your final output. Your output should be a direct, natural language response, formatted purely with Markdown.
 `;
