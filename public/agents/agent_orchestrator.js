@@ -21,9 +21,13 @@ async function executeTool(toolName, query, params = {}, userQuery, userName, us
       api_payload = { type: 'news', body: { q: query } };
       break;
     case 'coingecko':
-        return { data: await fetchWithProxy('coingecko', { params: { ids: query, vs_currencies: 'usd' } }), sourceUrl: `https://www.coingecko.com` };
+        return { data: await fetchWithProxy('coingecko', { params: { ids: query, vs_currencies: 'usd' } }), sourceUrl: `https://www.coingecko.com/en/coins/${query}` };
     case 'wheat':
-        return { data: await fetchWheatData(query), sourceUrl: 'https://open-meteo.com' };
+      // This tool appears to be a local function, not a worker API call.
+      // It needs to be handled differently or proxied if it requires external access.
+      // For now, assuming it's a local function.
+      // console.log(`Calling fetchWheatData for location: ${query}`);
+      return { data: await fetchWheatData(query), sourceUrl: 'https://open-meteo.com/en/docs' };
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
@@ -383,7 +387,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
   const agent3Model = agentConfig.agent3.model;
 
   let allSearchResults = [];
-  let allSourceUrls = [];
+  let allSources = [];
   let totalSearchesPerformed = 0;
   let totalScrapedSites = 0;
 
@@ -511,11 +515,27 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
           }
           if (step.tool === 'serper_web_search') {
             const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
+            if (result.results) {
+              result.results.forEach((item, index) => {
+                allSources.push({
+                  number: allSources.length + 1,
+                  title: item.title,
+                  url: item.link,
+                  snippet: item.snippet
+                });
+              });
+            }
             return { type: 'web_search', data: result.results };
-          } else if (step.tool === 'coingecko' || step.tool === 'wheat') {
+          } else if (step.tool === 'coingecko') {
             const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
-            return { type: 'other_tool', data: result.data, sourceUrl: result.sourceUrl };
-          } else {
+            allSources.push({ number: allSources.length + 1, title: 'CoinGecko', url: `https://www.coingecko.com`, snippet: `Cryptocurrency price data for ${step.query}` });
+            return { type: 'other_tool', data: result.data };
+          } else if (step.tool === 'wheat') {
+            const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
+            allSources.push({ number: allSources.length + 1, title: 'Open-Meteo', url: 'https://open-meteo.com', snippet: 'Weather forecast data' });
+            return { type: 'other_tool', data: result.data };
+          }
+          else {
             throw new Error(`Unhandled tool in search_plan: ${step.tool}`);
           }
         });
@@ -527,9 +547,6 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
             webSearchResults.push(...res.data);
           } else if (res.type === 'other_tool') {
             otherToolResults.push(res.data);
-            if (res.sourceUrl) {
-                allSourceUrls.push(res.sourceUrl);
-            }
           }
         });
 
@@ -587,27 +604,19 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
       }
 
       // Combine all results for Agent 3
-      const allSourceUrlsFromSearches = [
-        ...webSearchResults.map(result => result.link),
-        ...scrapedData.map(data => data.url)
-      ].filter(Boolean);
-      
-      const finalSourceUrls = [...new Set([...allSourceUrls, ...allSourceUrlsFromSearches])];
-
       const dataForAgent3 = {
         webSearchResults: webSearchResults,
         otherToolResults: otherToolResults,
         scrapedData: scrapedData,
         rawQuery: userQuery,
         classification: classification,
-        directComponent: direct_component,
-        sourceUrls: finalSourceUrls
+        directComponent: direct_component
       };
 
       // console.log("Sending combined data to Agent 3:", dataForAgent3);
       const finalResponse = await callAgent(agent3Model, agent3SystemPrompt(isShortResponseEnabled), { ...dataForAgent3, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime);
 
-      return finalResponse; // Return the final response from Agent 3
+      return { finalResponse, sources: allSources };
     }
 
     // If Agent 1 returned a classification that doesn't trigger a 'search' action

@@ -1910,6 +1910,23 @@ body.dark-mode .query-btn:hover {
     border-bottom: 2px solid transparent;
     white-space: nowrap;
     flex-shrink: 0;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.source-count {
+    background-color: var(--send-button-grad-start);
+    color: var(--send-button-text);
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 500;
 }
 
 .tab-link.active {

@@ -795,11 +795,11 @@ async function addHtmlElement(pdf, element, startY, options) {
         pdf.setFont('Avenir', fontStyle);
         pdf.setFontSize(fontSize);
         const lines = pdf.splitTextToSize(text, contentWidth);
-        const textHeight = lines.length * (fontSize * 0.352778) * 1.2; // Increased line height
+        const textHeight = lines.length * (fontSize * 0.352778);
 
-        addPageIfNeeded(textHeight + spaceAfter + 5); // Add extra spacing
+        addPageIfNeeded(textHeight + spaceAfter);
         pdf.text(lines, margin, currentY);
-        currentY += textHeight + spaceAfter + 5; // Add extra spacing
+        currentY += textHeight + spaceAfter;
     };
 
     // Process the text nodes of the current element first
@@ -1132,11 +1132,11 @@ Generated on: ${currentDate}
             };
 
             try {
-                const response = await orchestrateAgents(query, userName, userLocalTime, selectedModel, streamCallback, logCallback, isShortResponseEnabled);
+                const { finalResponse, sources } = await orchestrateAgents(query, userName, userLocalTime, selectedModel, streamCallback, logCallback, isShortResponseEnabled);
 
                 // --- Final Processing Step ---
                 // This code runs after the entire stream is finished.
-                processFinalResponse(aiResponseElement, aiResponseContent);
+                processFinalResponse(aiResponseElement, aiResponseContent, sources);
 
                 logStep('<i class="fas fa-check-circle" style="color: #10B981;"></i> Response completed successfully.');
                 setSendButtonState(false);
@@ -1251,24 +1251,8 @@ Generated on: ${currentDate}
 
 
     // This new function processes the complete response after streaming is done.
-    const processFinalResponse = (aiResponseElement, fullContent) => {
-        // New robust source handling
-        const sourcesRegex = /<sources_json>([\s\S]*?)<\/sources_json>/;
-        const sourcesMatch = fullContent.match(sourcesRegex);
+    const processFinalResponse = (aiResponseElement, fullContent, sources) => {
         let mainAnswer = fullContent;
-        let sourcesData = null;
-
-        if (sourcesMatch && sourcesMatch[1]) {
-            try {
-                // Extract and parse the JSON from the <sources_json> block
-                sourcesData = JSON.parse(sourcesMatch[1].trim());
-                // Remove the sources block from the main answer
-                mainAnswer = fullContent.replace(sourcesRegex, '').trim();
-            } catch (error) {
-                console.error("Error parsing sources JSON:", error);
-                // Leave mainAnswer as is, sources will not be rendered
-            }
-        }
         
         // Update the global content for export functions
         currentResponseContent = mainAnswer;
@@ -1313,8 +1297,15 @@ Generated on: ${currentDate}
         renderCodeHighlighting(aiResponseElement);
 
         // Process and render the sources from the parsed JSON data
-        if (sourcesData) {
-            renderSourceCards(sourcesData, sourcesContainer);
+        if (sources) {
+            renderSourceCards(sources, sourcesContainer);
+            const sourcesTab = document.querySelector('.tab[data-tab="sources"]');
+            if (sourcesTab) {
+                const counter = sourcesTab.querySelector('.source-count') || document.createElement('span');
+                counter.className = 'source-count';
+                counter.textContent = sources.length;
+                sourcesTab.appendChild(counter);
+            }
         }
         
         // Add the export panel at the very end
