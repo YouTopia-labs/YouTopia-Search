@@ -38,9 +38,9 @@ async function executeTool(toolName, query, params = {}, userQuery, userName, us
   // Process the response based on the tool that was called
   switch (toolName) {
     case 'serper_web_search':
+      return { results: response.organic || [] };
     case 'serper_news_search':
-      // Serper's results are in the `results` property of the response
-      return { results: response.results || [] };
+      return { results: response.news || [] };
     case 'coingecko':
       // CoinGecko's response is the data itself
       return { data: [response] };
@@ -519,7 +519,6 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
           if (step.tool === 'serper_web_search' || step.tool === 'serper_news_search') {
             const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
             if (result.results && result.results.length > 0) {
-              if (logCallback) logCallback(`[DEBUG] Found ${result.results.length} Serper results.`);
               result.results.forEach((item, index) => {
                 allSources.push({
                   number: allSources.length + 1,
@@ -528,9 +527,6 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
                   snippet: item.snippet
                 });
               });
-              if (logCallback) logCallback(`[DEBUG] allSources now has ${allSources.length} items.`);
-            } else {
-              if (logCallback) logCallback(`[DEBUG] No Serper results found or result.results is empty.`);
             }
             return { type: 'web_search', data: result.results };
           } else if (step.tool === 'coingecko') {
