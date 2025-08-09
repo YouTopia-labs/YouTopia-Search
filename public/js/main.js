@@ -795,11 +795,11 @@ async function addHtmlElement(pdf, element, startY, options) {
         pdf.setFont('Avenir', fontStyle);
         pdf.setFontSize(fontSize);
         const lines = pdf.splitTextToSize(text, contentWidth);
-        const textHeight = lines.length * (fontSize * 0.352778);
+        const textHeight = lines.length * (fontSize * 0.352778) * 1.2; // Increased line height
 
-        addPageIfNeeded(textHeight + spaceAfter);
+        addPageIfNeeded(textHeight + spaceAfter + 5); // Add extra spacing
         pdf.text(lines, margin, currentY);
-        currentY += textHeight + spaceAfter;
+        currentY += textHeight + spaceAfter + 5; // Add extra spacing
     };
 
     // Process the text nodes of the current element first
@@ -1014,16 +1014,34 @@ Generated on: ${currentDate}
         resultsContainer.innerHTML = '';
         sourcesContainer.innerHTML = '';
 
-        const logContainer = document.getElementById('live-log-container');
-        const logList = document.getElementById('log-list');
-        if (logList) logList.innerHTML = '';
-        if (logContainer) {
-            logContainer.classList.remove('is-done', 'has-error');
-            logContainer.classList.add('is-active');
-        }
+        // Check if log container already exists from a previous search
+        let logContainer = document.getElementById('live-log-container');
+        let logList;
 
-        const sourcesCounter = document.getElementById('sources-counter');
-        sourcesCounter.textContent = '';
+        if (logContainer) {
+            // If exists, clear its content and reset its state
+            logList = document.getElementById('log-list');
+            if (logList) logList.innerHTML = ''; // Clear previous log messages
+            logContainer.classList.remove('is-done', 'has-error'); // Clear state
+            logContainer.classList.add('is-active'); // Ensure it's active (blue animation)
+        } else {
+            // If not, create and insert it
+            const logHTML = `
+                <div id="live-log-container" class="is-active">
+                    <div class="log-header" id="log-header-toggle">
+                        <h4>Live Execution Log</h4>
+                        <button id="log-toggle-btn" title="Toggle Log"><i class="fas fa-chevron-up"></i></button>
+                    </div>
+                    <ul id="log-list"></ul>
+                </div>`;
+            
+            const tabsDiv = document.querySelector('.tabs');
+            if (tabsDiv) { // Ensure tabsDiv exists before inserting
+                tabsDiv.insertAdjacentHTML('afterend', logHTML);
+                logContainer = document.getElementById('live-log-container'); // Get reference to the newly created container
+                logList = document.getElementById('log-list'); // Get reference to the new log list
+            }
+        }
         
         renderCodeHighlighting(resultsContainer);
         
@@ -1126,6 +1144,9 @@ Generated on: ${currentDate}
                 if (logContainer) {
                     logContainer.classList.remove('is-active');
                     logContainer.classList.add('is-done');
+                    setTimeout(() => logContainer.classList.remove('is-done'), 1000);
+                    await new Promise(resolve => setTimeout(resolve, 1200));
+                    logContainer.classList.add('collapsed');
                 }
             } catch (error) {
                 console.error('Search failed:', error);
@@ -1292,10 +1313,8 @@ Generated on: ${currentDate}
         renderCodeHighlighting(aiResponseElement);
 
         // Process and render the sources from the parsed JSON data
-        if (sourcesData && sourcesData.length > 0) {
+        if (sourcesData) {
             renderSourceCards(sourcesData, sourcesContainer);
-            const sourcesCounter = document.getElementById('sources-counter');
-            sourcesCounter.textContent = sourcesData.length;
         }
         
         // Add the export panel at the very end

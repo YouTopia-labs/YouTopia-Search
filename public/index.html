@@ -147,24 +147,15 @@
                         </div>
                     </div>
                     <div class="tabs">
+                    <div class="tabs">
                         <button class="tab-link active" onclick="openTab(event, 'answer-tab')">Answer</button>
                         <button class="tab-link" onclick="openTab(event, 'sources-tab')">Sources <span id="sources-counter" class="counter"></span></button>
-                        <button class="tab-link" onclick="openTab(event, 'live-execution-tab')">Live Execution</button>
                     </div>
                     <div id="answer-tab" class="tab-content" style="display: block;">
                         <div id="results-container"></div>
                     </div>
                     <div id="sources-tab" class="tab-content">
                         <div id="sources-container"></div>
-                    </div>
-                    <div id="live-execution-tab" class="tab-content">
-                        <div id="live-log-container" class="is-active">
-                            <div class="log-header" id="log-header-toggle">
-                                <h4>Live Execution Log</h4>
-                                <button id="log-toggle-btn" title="Toggle Log"><i class="fas fa-chevron-up"></i></button>
-                            </div>
-                            <ul id="log-list"></ul>
-                        </div>
                     </div>
                 </div>
 
