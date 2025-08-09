@@ -511,25 +511,16 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
           'wheat': 'Open-Meteo'
         };
 
-        // Step 1: Create all tool execution promises
-        const searchPromises = search_plan.map(step => {
+        const searchPromises = search_plan.map(async (step) => {
           if (logCallback) {
             const toolDisplayName = toolNamesMap[step.tool] || step.tool;
             logCallback(`<i class="fas fa-tools"></i> Looking up ${toolDisplayName} for: "<b>${step.query}</b>"`);
           }
-          return executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
-        });
-
-        // Step 2: Execute all promises in parallel
-        const promiseResults = await Promise.all(searchPromises);
-
-        // Step 3: Process the results in order
-        promiseResults.forEach((result, index) => {
-          const step = search_plan[index];
           if (step.tool === 'serper_web_search' || step.tool === 'serper_news_search') {
-            if (result && result.results && Array.isArray(result.results)) {
-              // Add to sources for the UI
-              result.results.forEach(item => {
+            const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
+            if (result.results && result.results.length > 0) {
+              if (logCallback) logCallback(`[DEBUG] Found ${result.results.length} Serper results.`);
+              result.results.forEach((item, index) => {
                 allSources.push({
                   number: allSources.length + 1,
                   title: item.title,
@@ -537,15 +528,34 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
                   snippet: item.snippet
                 });
               });
-              // Add to results for the next agent
-              webSearchResults.push(...result.results);
+              if (logCallback) logCallback(`[DEBUG] allSources now has ${allSources.length} items.`);
+            } else {
+              if (logCallback) logCallback(`[DEBUG] No Serper results found or result.results is empty.`);
             }
+            return { type: 'web_search', data: result.results };
           } else if (step.tool === 'coingecko') {
+            const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
             allSources.push({ number: allSources.length + 1, title: 'CoinGecko', url: `https://www.coingecko.com`, snippet: `Cryptocurrency price data for ${step.query}` });
-            otherToolResults.push(result.data);
+            return { type: 'other_tool', data: result.data };
           } else if (step.tool === 'wheat') {
+            const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
             allSources.push({ number: allSources.length + 1, title: 'Open-Meteo', url: 'https://open-meteo.com', snippet: 'Weather forecast data' });
-            otherToolResults.push(result.data);
+            return { type: 'other_tool', data: result.data };
+          }
+          else {
+            throw new Error(`Unhandled tool in search_plan: ${step.tool}`);
+          }
+        });
+
+        const results = await Promise.all(searchPromises);
+
+        results.forEach(res => {
+          if (res) {
+            if (res.type === 'web_search' && Array.isArray(res.data)) {
+              webSearchResults.push(...res.data);
+            } else if (res.type === 'other_tool') {
+              otherToolResults.push(res.data);
+            }
           }
         });
 
