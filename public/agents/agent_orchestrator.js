@@ -5,7 +5,10 @@ import agent3SystemPrompt from './agent3_prompt.js';
 import { fetchWheatData } from '../tools/wheat_tool.js'; // Import the new Wheat tool
 import { scrapeWebsite, tagImageWithDimensions } from '../tools/scraper_tool.js'; // Import the new scraper tool
 import { safeParse } from '../js/json_utils.js';
-async function executeTool(toolName, query, params = {}, userQuery, userName, userLocalTime) {
+import DAGExecutor from './dag_executor.js';
+
+const toolExecutor = {
+  executeTool: async (toolName, query, params = {}, userQuery, userName, userLocalTime) => {
   // console.log(`Executing tool: ${toolName} with query: ${query} and params:`, params);
 
   let api_target;
@@ -23,11 +26,16 @@ async function executeTool(toolName, query, params = {}, userQuery, userName, us
     case 'coingecko':
         return { data: await fetchWithProxy('coingecko', { params: { ids: query, vs_currencies: 'usd' } }), sourceUrl: `https://www.coingecko.com/en/coins/${query}` };
     case 'wheat':
-      // This tool appears to be a local function, not a worker API call.
-      // It needs to be handled differently or proxied if it requires external access.
-      // For now, assuming it's a local function.
-      // console.log(`Calling fetchWheatData for location: ${query}`);
       return { data: await fetchWheatData(query), sourceUrl: 'https://open-meteo.com/en/docs' };
+    case 'calculator':
+        // For simplicity, using a safe eval-like function for calculations.
+        // In a production environment, this should be a more robust and secure implementation.
+        try {
+            const result = new Function(`return ${query}`)();
+            return { result: result };
+        } catch (error) {
+            return { error: `Calculation failed: ${error.message}` };
+        }
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
@@ -48,7 +56,8 @@ async function executeTool(toolName, query, params = {}, userQuery, userName, us
       // For any other tools, return the response as is
       return response;
   }
-}
+  }
+};
 
 // Helper function to proxy requests through the Cloudflare Worker
 async function fetchWithProxy(api_target, api_payload, query, userName, userLocalTime) {
@@ -359,13 +368,13 @@ function validateAgent1Response(response) {
   }
 
   // Field-specific validation
-  if (response.classification === 'tool_web_search' && !response.search_plan) {
-    errors.push("Missing 'search_plan' field when classification is 'tool_web_search'");
+  if (response.classification === 'tool_web_search' && !response.dag) {
+    errors.push("Missing 'dag' field when classification is 'tool_web_search'");
   }
 
   if (response.classification === 'hybrid') {
-    if (!response.search_plan && !response.direct_component) {
-      errors.push("For 'hybrid' classification, either 'search_plan' or 'direct_component' must be present.");
+    if (!response.dag && !response.direct_component) {
+      errors.push("For 'hybrid' classification, either 'dag' or 'direct_component' must be present.");
     }
   }
 
@@ -464,7 +473,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
 
     // console.log("Agent 1 Parsed Response:", parsedAgent1Response);
 
-    const { classification, action, search_plan, response: agent1DirectResponse, direct_component } = parsedAgent1Response;
+    const { classification, action, dag, response: agent1DirectResponse, direct_component } = parsedAgent1Response;
 
     // Handle direct classifications (conversational, math, code, unclear, direct)
     if (classification && (classification === 'conversational' || classification === 'math' || classification === 'code' || classification === 'unclear' || classification === 'direct')) {
@@ -487,106 +496,57 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
     }
 
     // Handle 'search' action for tool_web_search and hybrid classifications
-    if (action === 'search') {
-      const numSearchesInPlan = search_plan ? search_plan.length : 0;
-      if (numSearchesInPlan > 0 && totalSearchesPerformed + numSearchesInPlan > MAX_TOTAL_SEARCHES) {
-        // console.log(`Exceeded max search steps (${MAX_TOTAL_SEARCHES}). Cannot perform these searches.`);
-        return "Could not find sufficient information to answer your query after maximum searches.";
-      }
+    if (action === 'search' && dag) {
+      if (logCallback) logCallback(`<i class="fas fa-cogs"></i> Agent 1: DAG plan received. Executing...`);
+      
+      const dagExecutor = new DAGExecutor(toolExecutor);
+      const dagResults = await dagExecutor.execute(dag);
 
+      // Extract results for downstream agents
       let webSearchResults = [];
       let otherToolResults = [];
+      Object.values(dagResults).forEach(result => {
+          if (result.result.results) { // Serper-like results
+              webSearchResults.push(...result.result.results);
+          } else {
+              otherToolResults.push(result.result);
+          }
+      });
+      
+      // --- New Agent 2 Workflow ---
       let scrapedData = [];
+      if (webSearchResults.length > 0) {
+        if (logCallback) logCallback(`<i class="fas fa-filter"></i> Agent 2: Analyzing search results...`);
 
-      if (search_plan && search_plan.length > 0) {
-        // console.log(`Executing search plan (${search_plan.length} steps) in parallel...`);
-
-        const toolNamesMap = {
-          'serper_web_search': 'Web Search',
-          'serper_news_search': 'News Search',
-          'coingecko': 'Crypto',
-          'wheat': 'Open-Meteo'
+        const agent2Input = {
+          query: userQuery,
+          serper_results: webSearchResults.map(r => ({ title: r.title, link: r.link, snippet: r.snippet }))
         };
 
-        const searchPromises = search_plan.map(async (step) => {
-          if (logCallback) {
-            const toolDisplayName = toolNamesMap[step.tool] || step.tool;
-            logCallback(`<i class="fas fa-tools"></i> Looking up ${toolDisplayName} for: "<b>${step.query}</b>"`);
-          }
-          if (step.tool === 'serper_web_search') {
-            const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
-            return { type: 'web_search', data: result.results };
-          } else if (step.tool === 'coingecko' || step.tool === 'wheat') {
-            const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
-            return { type: 'other_tool', data: result.data, sourceUrl: result.sourceUrl };
-          } else {
-            throw new Error(`Unhandled tool in search_plan: ${step.tool}`);
-          }
-        });
+        const agent2ResponseRaw = await callAgent(agent2Model, agent2SystemPrompt, agent2Input, 0, null, userQuery, userName, userLocalTime);
+        const agent2Response = safeParse(agent2ResponseRaw, true);
 
-        const results = await Promise.all(searchPromises);
+        if (agent2Response.action === 'scrape' && agent2Response.scrape_plan && agent2Response.scrape_plan.length > 0) {
+          const planToExecute = agent2Response.scrape_plan.slice(0, MAX_PARALLEL_SCRAPES_PER_TURN);
+          if (logCallback) logCallback(`<i class="fas fa-spider"></i> Agent 2: Decided to scrape ${planToExecute.length} site(s)...`);
+          
+          const scrapePromises = planToExecute.map(plan =>
+            scrapeWebsite(plan.url, plan.keywords, logCallback)
+          );
+          scrapedData = (await Promise.all(scrapePromises)).filter(d => d.success);
 
-        results.forEach(res => {
-          if (res.type === 'web_search') {
-            webSearchResults.push(...res.data);
-          } else if (res.type === 'other_tool') {
-            otherToolResults.push(res.data);
-            if (res.sourceUrl) {
-                allSourceUrls.push(res.sourceUrl); // Add specific tool source URL
-            }
-          }
-        });
-
-        // console.log("Raw web search results:", webSearchResults);
-        // console.log("Raw other tool results:", otherToolResults);
-
-        // --- New Agent 2 Workflow ---
-        if (webSearchResults.length > 0) {
-          console.log("Analyzing search results to decide on scraping...");
-          if (logCallback) logCallback(`<i class="fas fa-filter"></i> Agent 2: Analyzing search results...`);
-
-          const agent2Input = {
-            query: userQuery,
-            serper_results: webSearchResults.map(r => ({ title: r.title, link: r.link, snippet: r.snippet }))
-          };
-
-          const agent2ResponseRaw = await callAgent(agent2Model, agent2SystemPrompt, agent2Input, 0, null, userQuery, userName, userLocalTime);
-          const agent2Response = safeParse(agent2ResponseRaw, true);
-
-          console.log("Agent Response:", agent2Response);
-
-          if (agent2Response.action === 'scrape' && agent2Response.scrape_plan && agent2Response.scrape_plan.length > 0) {
-            const planToExecute = agent2Response.scrape_plan.slice(0, MAX_PARALLEL_SCRAPES_PER_TURN);
-            if (logCallback) logCallback(`<i class="fas fa-spider"></i> Agent 2: Decided to scrape ${planToExecute.length} site(s)...`);
-            
-            const scrapePromises = planToExecute.map(plan =>
-              scrapeWebsite(plan.url, plan.keywords, logCallback)
-            );
-            scrapedData = (await Promise.all(scrapePromises)).filter(d => d.success);
-            // console.log("Scraped Data (before image processing):", scrapedData);
-
-           // Process image URLs to add dimension tags
-           for (const data of scrapedData) {
-               if (data.images && data.images.length > 0) {
-                   const taggedImagePromises = data.images.map(img => tagImageWithDimensions(img.url));
-                   const taggedUrls = await Promise.all(taggedImagePromises);
-                   data.images.forEach((img, index) => {
-                       img.url = taggedUrls[index];
-                   });
-               }
-           }
-           // console.log("Scraped Data (after image processing):", scrapedData);
-
-          } else {
-            if (logCallback) logCallback(`<i class="fas fa-check-circle"></i> Agent 2: Decided to continue without scraping.`);
-          }
-        }
-
-        totalSearchesPerformed += numSearchesInPlan;
-      } else {
-        // console.log("Agent 1 requested search but provided an empty search_plan.");
-        if (classification !== 'hybrid' || !direct_component) {
-          return "Agent 1 provided an empty search plan without a direct component. Could not proceed.";
+         // Process image URLs to add dimension tags
+         for (const data of scrapedData) {
+             if (data.images && data.images.length > 0) {
+                 const taggedImagePromises = data.images.map(img => tagImageWithDimensions(img.url));
+                 const taggedUrls = await Promise.all(taggedImagePromises);
+                 data.images.forEach((img, index) => {
+                     img.url = taggedUrls[index];
+                 });
+             }
+         }
+        } else {
+          if (logCallback) logCallback(`<i class="fas fa-check-circle"></i> Agent 2: Decided to continue without scraping.`);
         }
       }
 
