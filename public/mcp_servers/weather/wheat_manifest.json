@@ -1,0 +1,30 @@
+{
+  "mcp_version": "1.0",
+  "server_name": "Wheat",
+  "description": "A tool for retrieving weather, air quality, and local time for a given location.",
+  "toolkit": "weather",
+  "tools": [
+    {
+      "name": "wheat",
+      "description": "Gets weather, air quality, and local time for a specified location.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The name of the location (e.g., 'Tokyo', 'New York')."
+          }
+        },
+        "required": ["query"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  ]
+}

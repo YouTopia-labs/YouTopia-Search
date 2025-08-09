@@ -1,0 +1,38 @@
+{
+  "mcp_version": "1.0",
+  "server_name": "SerperWebSearch",
+  "description": "A tool for performing general web searches using the Serper API. It is the primary tool for answering queries that require up-to-date information from the internet.",
+  "toolkit": "web_search",
+  "tools": [
+    {
+      "name": "serper_web_search",
+      "description": "Performs a web search for a given query.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The search query."
+          }
+        },
+        "required": ["query"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": { "type": "string" },
+                "link": { "type": "string" },
+                "snippet": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

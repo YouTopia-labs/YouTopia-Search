@@ -45,11 +45,7 @@ To chain tasks together, use the \`{{task_id.result}}\` syntax in the \`query\` 
 
 ## Available Tools
 
-1.  **serper_web_search**: General web search for any topic.
-2.  **coingecko**: Get the current price of a cryptocurrency.
-3.  **wheat**: Get weather, air quality, and local time for a location.
-4.  **calculator**: Performs basic arithmetic. Use for calculations based on the outputs of other tools.
-    *   **Query**: A mathematical expression, e.g., "19.99 * 4". Can include dynamic references.
+You must only use the tools provided in the 'tools' array in the input. Do not hallucinate or assume any other tools are available.
 
 ## Response Format
 

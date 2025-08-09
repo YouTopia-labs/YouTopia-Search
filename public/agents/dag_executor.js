@@ -11,12 +11,28 @@
 class DAGExecutor {
   /**
    * @param {object} toolExecutor - An object or module with a method `executeTool(toolName, query)`
+   * @param {Array<object>} mcpServers - An array of all available MCP server manifests.
    */
-  constructor(toolExecutor) {
+  constructor(toolExecutor, mcpServers = []) {
     if (!toolExecutor || typeof toolExecutor.executeTool !== 'function') {
       throw new Error('A toolExecutor with an executeTool method is required.');
     }
     this.toolExecutor = toolExecutor;
+    this.mcpServers = mcpServers;
+    this.toolkits = this.buildToolkits();
+  }
+
+  buildToolkits() {
+    const toolkits = {};
+    for (const server of this.mcpServers) {
+        if (server && server.toolkit) {
+            if (!toolkits[server.toolkit]) {
+                toolkits[server.toolkit] = [];
+            }
+            toolkits[server.toolkit].push(...server.tools.map(t => t.name));
+        }
+    }
+    return toolkits;
   }
 
   /**
@@ -64,14 +80,51 @@ class DAGExecutor {
     });
 
     const promise = Promise.all(dependencyPromises).then(async () => {
-      const resolvedQuery = this.resolveQuery(task.query, taskResults);
-      const result = await this.toolExecutor.executeTool(task.tool, resolvedQuery);
-      taskResults.set(task.id, { result }); // Store result in a structured way
-      return result;
+      return this.executeTaskWithFallback(task, taskResults);
     });
 
     taskPromises.set(task.id, promise);
     return promise;
+  }
+
+  async executeTaskWithFallback(task, taskResults) {
+    const resolvedQuery = this.resolveQuery(task.query, taskResults);
+    let currentTool = task.tool;
+    
+    try {
+        const result = await this.toolExecutor.executeTool(currentTool, resolvedQuery);
+        taskResults.set(task.id, { result });
+        return result;
+    } catch (error) {
+        console.warn(`Tool '${currentTool}' failed for task '${task.id}'. Error: ${error.message}. Looking for a fallback.`);
+        
+        const toolkit = this.getToolkitForTool(currentTool);
+        if (toolkit) {
+            const fallbackTools = this.toolkits[toolkit].filter(t => t !== currentTool);
+            for (const fallbackTool of fallbackTools) {
+                console.log(`Attempting fallback with tool '${fallbackTool}'...`);
+                try {
+                    const result = await this.toolExecutor.executeTool(fallbackTool, resolvedQuery);
+                    taskResults.set(task.id, { result });
+                    return result; // Fallback succeeded
+                } catch (fallbackError) {
+                    console.warn(`Fallback tool '${fallbackTool}' also failed. Error: ${fallbackError.message}`);
+                }
+            }
+        }
+        
+        // If no fallback works or is available, throw the original error
+        throw error;
+    }
+  }
+
+  getToolkitForTool(toolName) {
+    for (const toolkit in this.toolkits) {
+        if (this.toolkits[toolkit].includes(toolName)) {
+            return toolkit;
+        }
+    }
+    return null;
   }
 
   /**

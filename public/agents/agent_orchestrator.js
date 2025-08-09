@@ -1,9 +1,10 @@
 import { selectAgents } from './agent_selector.js';
 import agent1SystemPrompt from './agent1_prompt.js';
-import agent2SystemPrompt from './agent2_prompt.js'; // New import for Agent 2 prompt
+import agent2SystemPrompt from './agent2_prompt.js';
 import agent3SystemPrompt from './agent3_prompt.js';
-import { fetchWheatData } from '../tools/wheat_tool.js'; // Import the new Wheat tool
-import { scrapeWebsite, tagImageWithDimensions } from '../tools/scraper_tool.js'; // Import the new scraper tool
+import agentMasterPrompt from './agent_master_prompt.js';
+import { fetchWheatData } from '../tools/wheat_tool.js';
+import { scrapeWebsite, tagImageWithDimensions } from '../tools/scraper_tool.js';
 import { safeParse } from '../js/json_utils.js';
 import DAGExecutor from './dag_executor.js';
 
@@ -385,198 +386,158 @@ function validateAgent1Response(response) {
   return errors;
 }
 
+// A simple in-memory cache for MCP manifests
+const mcpManifestCache = new Map();
+
+async function getMcpManifest(serverPath) {
+    if (mcpManifestCache.has(serverPath)) {
+        return mcpManifestCache.get(serverPath);
+    }
+    try {
+        const response = await fetch(serverPath);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch manifest: ${response.statusText}`);
+        }
+        const manifest = await response.json();
+        mcpManifestCache.set(serverPath, manifest);
+        return manifest;
+    } catch (error) {
+        console.error(`Error loading manifest for ${serverPath}:`, error);
+        return null;
+    }
+}
+
+
+// Function to get all available MCP servers (in a real app, this might be dynamic)
+async function getAvailableMcpServers() {
+    // This is a simplified implementation. A real system would scan a directory
+    // or query a service registry.
+    return [
+        'public/mcp_servers/web_search/serper_manifest.json',
+        'public/mcp_servers/crypto/coingecko_manifest.json',
+        'public/mcp_servers/weather/wheat_manifest.json',
+        'public/mcp_servers/computation/calculator_manifest.json',
+    ];
+}
+
+
 export async function orchestrateAgents(userQuery, userName, userLocalTime, agentSelectionType, streamCallback = null, logCallback = null, isShortResponseEnabled = false) {
-  // console.log(`Starting orchestration for query: "${userQuery}" with selection: "${agentSelectionType}", short responses: ${isShortResponseEnabled}`);
+    const agentConfig = selectAgents(agentSelectionType);
+    const masterModel = 'mistral-small-latest'; // A capable model for master agent
+    const agent1Model = agentConfig.agent1.model;
+    const agent2Model = 'mistral-small-latest';
+    const agent3Model = agentConfig.agent3.model;
 
-  // Validate API configuration before proceeding
+    // 1. Master Agent: Determine Workflow
+    if (logCallback) logCallback(`<i class="fas fa-brain"></i> Master Agent: Analyzing query complexity...`);
+    const masterResponseRaw = await callAgent(masterModel, agentMasterPrompt, { query: userQuery }, 0, null, userQuery, userName, userLocalTime);
+    const masterResponse = safeParse(masterResponseRaw, true);
+    const workflow = masterResponse.workflow;
+    if (logCallback) logCallback(`<i class="fas fa-sitemap"></i> Master Agent: Selected '${workflow}' workflow.`);
 
-  const agentConfig = selectAgents(agentSelectionType);
-  const agent1Model = agentConfig.agent1.model;
-  const agent2Model = 'mistral-small-latest'; // Define Agent 2 model
-  const agent3Model = agentConfig.agent3.model;
+    // 2. Execute Workflow
+    switch (workflow) {
+        case 'Writer-Only':
+            return await executeWriterOnlyWorkflow(userQuery, agent3Model, isShortResponseEnabled, streamCallback, userName, userLocalTime);
+        
+        case 'Executor-Inclusive':
+            return await executeExecutorInclusiveWorkflow(userQuery, agent1Model, agent3Model, isShortResponseEnabled, streamCallback, logCallback, userName, userLocalTime);
 
-  let allSearchResults = [];
-  let allSourceUrls = [];
-  let totalSearchesPerformed = 0;
-  let totalScrapedSites = 0;
+        case 'Planner-Enhanced':
+            return await executePlannerEnhancedWorkflow(userQuery, agent1Model, agent2Model, agent3Model, isShortResponseEnabled, streamCallback, logCallback, userName, userLocalTime);
 
-  const MAX_TOTAL_SEARCHES = 12; // Total individual search steps (web_search, coingecko, wheat)
-  const MAX_TOTAL_SCRAPES = 16; // Total individual sites scraped
-  const MAX_PARALLEL_SCRAPES_PER_TURN = 8; // Max sites scraped in one 'scrape' action
+        default:
+            console.error(`Unknown workflow selected by Master Agent: ${workflow}`);
+            return "An unexpected error occurred during orchestration.";
+    }
+}
 
-  // Loop for orchestration turns
-  while (true) {
-    // console.log(`--- Orchestration Loop: Turn (Searches: ${totalSearchesPerformed}/${MAX_TOTAL_SEARCHES}) ---`);
+async function executeWriterOnlyWorkflow(userQuery, agent3Model, isShortResponseEnabled, streamCallback, userName, userLocalTime) {
+    const directAgent3SystemPrompt = agent3SystemPrompt(isShortResponseEnabled).replace('---END_OF_ANSWER---', '');
+    return await callAgent(agent3Model, directAgent3SystemPrompt, { rawQuery: userQuery, query: userQuery, classification: 'direct' }, 0, streamCallback, userQuery, userName, userLocalTime);
+}
 
-    // Prepare input for Agent 1
-    const agent1Input = {
-      query: userQuery,
+async function executeExecutorInclusiveWorkflow(userQuery, agent1Model, agent3Model, isShortResponseEnabled, streamCallback, logCallback, userName, userLocalTime) {
+     if (logCallback) logCallback(`<i class="fas fa-tools"></i> Retrieving relevant tools...`);
+    const availableServers = await getAvailableMcpServers();
+    const serverManifests = await Promise.all(availableServers.map(getMcpManifest));
+    const toolInfoForPlanner = serverManifests.filter(Boolean).map(m => ({ name: m.tools[0].name, description: m.tools[0].description }));
+
+    if (logCallback) logCallback(`<i class="fas fa-lightbulb"></i> Planner: Creating single-step plan...`);
+    const agent1Input = { query: userQuery, tools: toolInfoForPlanner };
+    const agent1ResponseRaw = await callAgent(agent1Model, agent1SystemPrompt, agent1Input, 0, null, userQuery, userName, userLocalTime);
+    const parsedAgent1Response = safeParse(agent1ResponseRaw, true);
+
+    const { dag } = parsedAgent1Response;
+    if (!dag || dag.length === 0) {
+        return "The planner failed to create a valid single-step plan.";
+    }
+
+    const task = dag[0];
+    if (logCallback) logCallback(`<i class="fas fa-play-circle"></i> Executor: Executing tool '${task.tool}'...`);
+    const toolResult = await toolExecutor.executeTool(task.tool, task.query, {}, userQuery, userName, userLocalTime);
+
+    const dataForAgent3 = {
+        otherToolResults: [toolResult],
+        rawQuery: userQuery,
+        classification: 'tool_web_search',
     };
 
-    // console.log("Agent 1: Deciding next action...");
+    return await callAgent(agent3Model, agent3SystemPrompt(isShortResponseEnabled), dataForAgent3, 0, streamCallback, userQuery, userName, userLocalTime);
+}
 
-    let agent1ResponseRaw;
-    let parsedAgent1Response;
-    let attempt = 0;
-    const maxAttempts = 2;
+async function executePlannerEnhancedWorkflow(userQuery, agent1Model, agent2Model, agent3Model, isShortResponseEnabled, streamCallback, logCallback, userName, userLocalTime) {
+    if (logCallback) logCallback(`<i class="fas fa-tools"></i> Retrieving relevant tools for complex query...`);
+    const availableServers = await getAvailableMcpServers();
+    const serverManifests = await Promise.all(availableServers.map(getMcpManifest));
+    const toolInfoForPlanner = serverManifests.filter(Boolean).map(m => ({ name: m.tools[0].name, description: m.tools[0].description }));
 
-    while (attempt < maxAttempts) {
-      attempt++;
-      // console.log(`Agent 1: Attempt ${attempt} to get a valid JSON response.`);
-      
-      let currentPrompt = agent1SystemPrompt;
-      let currentInput = agent1Input;
+    if (logCallback) logCallback(`<i class="fas fa-lightbulb"></i> Planner: Creating DAG plan...`);
+    const agent1Input = { query: userQuery, tools: toolInfoForPlanner };
+    const agent1ResponseRaw = await callAgent(agent1Model, agent1SystemPrompt, agent1Input, 0, null, userQuery, userName, userLocalTime);
+    const parsedAgent1Response = safeParse(agent1ResponseRaw, true);
+    
+    const { dag } = parsedAgent1Response;
+    if (!dag || dag.length === 0) {
+        return "The planner failed to create a valid DAG plan.";
+    }
 
-      if (attempt > 1 && agent1ResponseRaw) {
-        // If this is a retry, modify the prompt to ask for a fix
-        // console.log("Retrying with a request to fix the malformed JSON.");
-        currentPrompt = `${agent1SystemPrompt}\n\nYour previous response was not valid JSON and could not be parsed. Please review the following error and the malformed response, then provide a corrected and valid JSON object. Do not include any text or markdown formatting outside of the JSON object.\n\nMalformed Response:\n${agent1ResponseRaw}`;
-      }
+    if (logCallback) logCallback(`<i class="fas fa-cogs"></i> DAG Executor: Executing plan...`);
+    const dagExecutor = new DAGExecutor(toolExecutor, serverManifests);
+    const dagResults = await dagExecutor.execute(dag);
 
-      agent1ResponseRaw = await callAgent(agent1Model, currentPrompt, currentInput, 0, null, userQuery, userName, userLocalTime);
-
-    if (agent1ResponseRaw instanceof Response && !agent1ResponseRaw.ok) {
-        if (agent1ResponseRaw.status === 429) {
-            // Re-throw the 429 Response object so main.js can handle the popup
-            throw agent1ResponseRaw;
+    // Process results for Agent 2 and 3
+    let webSearchResults = [];
+    let otherToolResults = [];
+    Object.values(dagResults).forEach(result => {
+        if (result.result && result.result.results) { // Serper-like results
+            webSearchResults.push(...result.result.results);
+        } else {
+            otherToolResults.push(result.result);
         }
-        const errorText = await agent1ResponseRaw.text();
-        return `Error: Agent 1 failed with status ${agent1ResponseRaw.status}. ${errorText}`;
-    }
+    });
 
-      try {
-        parsedAgent1Response = safeParse(agent1ResponseRaw, true);
-        // If parsing is successful, break the loop
-        break;
-      } catch (error) {
-        console.error(`[Error] Agent 1 response parsing failed on attempt ${attempt}:`, error.message);
-        console.error("Raw response:", agent1ResponseRaw);
-        if (attempt >= maxAttempts) {
-          return `Error: Agent 1 failed to return a valid JSON response after ${maxAttempts} attempts. Last error: ${error.message}`;
-        }
-      }
-    }
-
-    try {
-      const validationErrors = validateAgent1Response(parsedAgent1Response);
-      if (validationErrors.length > 0) {
-        console.error("[Error] Agent 1 response validation failed:");
-        validationErrors.forEach(error => console.error(`  - ${error}`));
-        console.error("Response:", JSON.stringify(parsedAgent1Response, null, 2));
-        return `Error: Agent 1 response validation failed: ${validationErrors.join('; ')}`;
-      }
-      // console.log("✓ Agent 1 response validation passed");
-    } catch (error) {
-        console.error("[Error] Agent 1 response validation failed unexpectedly:", error.message);
-        return `Error: Agent 1 response validation failed: ${error.message}`;
-    }
-
-    // console.log("Agent 1 Parsed Response:", parsedAgent1Response);
-
-    const { classification, action, dag, response: agent1DirectResponse, direct_component } = parsedAgent1Response;
-
-    // Handle direct classifications (conversational, math, code, unclear, direct)
-    if (classification && (classification === 'conversational' || classification === 'math' || classification === 'code' || classification === 'unclear' || classification === 'direct')) {
-      // console.log(`${classification} query detected. Passing direct response to Agent 3.`);
-      const queryForAgent3 = (classification === 'direct') ? userQuery : agent1DirectResponse;
-      
-      // For direct classifications, we do not want the end-of-answer delimiter.
-      // We can achieve this by modifying the system prompt for this specific call.
-      const directAgent3SystemPrompt = agent3SystemPrompt(isShortResponseEnabled).replace('---END_OF_ANSWER---', '');
-
-      const finalResponse = await callAgent(agent3Model, directAgent3SystemPrompt, { rawQuery: userQuery, query: queryForAgent3, classification: classification, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime);
-      
-      // console.log("Final Response Generated by Agent 3. Value from callAgent:", finalResponse);
-      if (streamCallback) {
-        // console.log("Stream callback was active, returning from orchestrateAgents.");
-        return;
-      } else {
-        return finalResponse;
-      }
-    }
-
-    // Handle 'search' action for tool_web_search and hybrid classifications
-    if (action === 'search' && dag) {
-      if (logCallback) logCallback(`<i class="fas fa-cogs"></i> Agent 1: DAG plan received. Executing...`);
-      
-      const dagExecutor = new DAGExecutor(toolExecutor);
-      const dagResults = await dagExecutor.execute(dag);
-
-      // Extract results for downstream agents
-      let webSearchResults = [];
-      let otherToolResults = [];
-      Object.values(dagResults).forEach(result => {
-          if (result.result.results) { // Serper-like results
-              webSearchResults.push(...result.result.results);
-          } else {
-              otherToolResults.push(result.result);
-          }
-      });
-      
-      // --- New Agent 2 Workflow ---
-      let scrapedData = [];
-      if (webSearchResults.length > 0) {
+    let scrapedData = [];
+    if (webSearchResults.length > 0) {
         if (logCallback) logCallback(`<i class="fas fa-filter"></i> Agent 2: Analyzing search results...`);
-
-        const agent2Input = {
-          query: userQuery,
-          serper_results: webSearchResults.map(r => ({ title: r.title, link: r.link, snippet: r.snippet }))
-        };
-
+        const agent2Input = { query: userQuery, serper_results: webSearchResults.map(r => ({ title: r.title, link: r.link, snippet: r.snippet })) };
         const agent2ResponseRaw = await callAgent(agent2Model, agent2SystemPrompt, agent2Input, 0, null, userQuery, userName, userLocalTime);
         const agent2Response = safeParse(agent2ResponseRaw, true);
 
-        if (agent2Response.action === 'scrape' && agent2Response.scrape_plan && agent2Response.scrape_plan.length > 0) {
-          const planToExecute = agent2Response.scrape_plan.slice(0, MAX_PARALLEL_SCRAPES_PER_TURN);
-          if (logCallback) logCallback(`<i class="fas fa-spider"></i> Agent 2: Decided to scrape ${planToExecute.length} site(s)...`);
-          
-          const scrapePromises = planToExecute.map(plan =>
-            scrapeWebsite(plan.url, plan.keywords, logCallback)
-          );
-          scrapedData = (await Promise.all(scrapePromises)).filter(d => d.success);
-
-         // Process image URLs to add dimension tags
-         for (const data of scrapedData) {
-             if (data.images && data.images.length > 0) {
-                 const taggedImagePromises = data.images.map(img => tagImageWithDimensions(img.url));
-                 const taggedUrls = await Promise.all(taggedImagePromises);
-                 data.images.forEach((img, index) => {
-                     img.url = taggedUrls[index];
-                 });
-             }
-         }
-        } else {
-          if (logCallback) logCallback(`<i class="fas fa-check-circle"></i> Agent 2: Decided to continue without scraping.`);
+        if (agent2Response.action === 'scrape' && agent2Response.scrape_plan) {
+            if (logCallback) logCallback(`<i class="fas fa-spider"></i> Agent 2: Scraping ${agent2Response.scrape_plan.length} site(s)...`);
+            const scrapePromises = agent2Response.scrape_plan.map(plan => scrapeWebsite(plan.url, plan.keywords, logCallback));
+            scrapedData = (await Promise.all(scrapePromises)).filter(d => d.success);
         }
-      }
-
-      // Combine all results for Agent 3
-      const allSourceUrlsFromSearches = [
-        ...webSearchResults.map(result => result.link),
-        ...scrapedData.map(data => data.url)
-      ].filter(Boolean);
-      
-      const finalSourceUrls = [...new Set([...allSourceUrls, ...allSourceUrlsFromSearches])];
-
-      const dataForAgent3 = {
-        webSearchResults: webSearchResults,
-        otherToolResults: otherToolResults,
-        scrapedData: scrapedData,
-        rawQuery: userQuery,
-        classification: classification,
-        directComponent: direct_component,
-        sourceUrls: finalSourceUrls
-      };
-
-      // console.log("Sending combined data to Agent 3:", dataForAgent3);
-      const finalResponse = await callAgent(agent3Model, agent3SystemPrompt(isShortResponseEnabled), { ...dataForAgent3, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime);
-
-      return finalResponse; // Return the final response from Agent 3
     }
 
-    // If Agent 1 returned a classification that doesn't trigger a 'search' action
-    // and it's not a direct classification handled above, then it's an unhandled action.
-    // console.log(`Agent 1 returned an unhandled action or classification: ${action || classification}.`);
-    return "An unexpected error occurred during orchestration.";
-  }
+    const dataForAgent3 = {
+        webSearchResults,
+        otherToolResults,
+        scrapedData,
+        rawQuery: userQuery,
+        classification: 'tool_web_search',
+    };
+
+    return await callAgent(agent3Model, agent3SystemPrompt(isShortResponseEnabled), dataForAgent3, 0, streamCallback, userQuery, userName, userLocalTime);
 }

@@ -1,0 +1,30 @@
+{
+  "mcp_version": "1.0",
+  "server_name": "Calculator",
+  "description": "A tool for performing basic arithmetic calculations.",
+  "toolkit": "computation",
+  "tools": [
+    {
+      "name": "calculator",
+      "description": "Evaluates a mathematical expression.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The mathematical expression to evaluate (e.g., '5 * (3 + 2)')."
+          }
+        },
+        "required": ["query"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "number"
+          }
+        }
+      }
+    }
+  ]
+}
