@@ -130,36 +130,15 @@ Your response must:
 - For "tool_web_search" or "hybrid" classifications, integrate all relevant information from \`webSearchResults\`, \`otherToolResults\`, \`scrapedData\`, and if present, the \`directComponent\` smoothly and coherently. Use the \`scrapedData\` as the primary source for detailed information, supplementing it with the initial \`webSearchResults\`.
 - **Intelligently Embed Images**: Your goal is to make the answer visual and engaging, but not cluttered.
   - **Use Relevant Images Only**: Only embed an image if it is directly relevant to the content and has a descriptive title. Do not use images just for decoration.
-  - **TITLE IS MANDATORY**: Only embed an image if you have a descriptive title for it. Do not embed images without titles. Use the title as the alt text.
-  - **FORMAT**: \`![Image Title](image_url)\`
-  - **PLACEMENT**: Place images logically within the text to support the narrative. Do not place images inside lists or at the very end of the response. Images should be on their own line.
+  - **TITLE AND DESCRIPTION ARE MANDATORY**: All images must have a clear, descriptive title. Below the image, you must provide a brief, one-sentence description explaining what the image depicts and its relevance.
+  - **FORMAT**:
+    \`\`\`
+    ![Image Title](image_url)
+    *A brief, one-sentence description of the image.*
+    \`\`\`
+  - **PLACEMENT**: Place images logically within the text to support the narrative. Do not place images inside lists or at the very end of the response. Images and their descriptions should be on their own lines.
 - **Prioritize Visuals**: Your primary goal is to make the answer easily understandable. Your default behavior should be to represent any structured data, lists, or comparisons as a table. For data that shows trends or proportions, a chart is mandatory. Do not present complex data as a simple text list if it can be visualized.
-- **Source Citation**: You will be provided with a list of sources from web searches and tools. Your task is to present these sources clearly and separately from the main answer.
-- **CRITICAL - Source JSON Format**: At the very end of your response, you MUST include a special block for sources, formatted as follows. This is NOT optional.
-
-<sources_json>
-[
-  {
-    "number": 1,
-    "title": "Example News Article Title",
-    "url": "https://example.com/news-article",
-    "snippet": "A brief, relevant quote or summary from the source."
-  },
-  {
-    "number": 2,
-    "title": "Wikipedia - Main Topic",
-    "url": "https://en.wikipedia.org/wiki/Main_Topic",
-    "snippet": "A short description of the Wikipedia page's relevance. and image links"
-  }
-]
-</sources_json>
-
-- **RULES for <sources_json>**:
-  - The block MUST start with \`<sources_json>\` and end with \`</sources_json>\`.
-  - The content inside MUST be a valid JSON array of objects.
-  - Each object MUST have "number", "title", "url", and "snippet" fields.
-  - The "snippet" should be a concise summary of why the source is relevant.
-- **CRITICAL - NO END OF ANSWER DELIMITER**: Do not use the \`---END_OF_ANSWER---\` delimiter. Your response ends naturally before the \`<sources_json>\` block.
+- **CRITICAL - NO END OF ANSWER DELIMITER**: Do not use the \`---END_OF_ANSWER---\` delimiter. Your response ends naturally.
 - Only cite sources that were explicitly provided to you. If no sources are provided, do NOT list any sources. Do NOT hallucinate sources.
 - Be highly readable, engaging, and provide a complete answer, demonstrating a deep understanding of the query and the provided data.
 - Avoid any JSON formatting in your final output. Your output should be a direct, natural language response, formatted purely with Markdown.

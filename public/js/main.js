@@ -540,9 +540,17 @@ const renderSourceCards = (sources, container) => {
             // Add custom fonts (ensure these are loaded or available)
             // For this example, we'll assume they are loaded and just define them.
             // In a real app, you'd load the .ttf files.
-            // pdf.addFileToVFS('Roboto-Regular.ttf', robotoRegularBase64);
-            // pdf.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
-            // ... add bold, italic etc.
+            try {
+                const fontResponse = await fetch('/Avenir/Avenir Regular/Avenir Regular.ttf');
+                const font = await fontResponse.arrayBuffer();
+                const fontStr = new TextDecoder('latin1').decode(new Uint8Array(font));
+                pdf.addFileToVFS('Avenir-Regular.ttf', fontStr);
+                pdf.addFont('Avenir-Regular.ttf', 'Avenir', 'normal');
+                pdf.setFont('Avenir');
+            } catch (e) {
+                console.error("Failed to load font, falling back to helvetica", e);
+                pdf.setFont('helvetica');
+            }
             
             const pageWidth = pdf.internal.pageSize.getWidth();
             const pageHeight = pdf.internal.pageSize.getHeight();
@@ -718,82 +726,103 @@ const renderSourceCards = (sources, container) => {
         return sections;
     }
 async function addHtmlElement(pdf, element, startY, options) {
-        let currentY = startY;
-        const { margin, contentWidth, pageHeight } = options;
+    let currentY = startY;
+    const { margin, contentWidth, pageHeight } = options;
 
-        const addPageIfNeeded = (height) => {
-            if (currentY + height > pageHeight - margin) {
-                pdf.addPage();
-                currentY = margin;
-                // Optionally add header to new pages: addHeader(pdf, '...');
-                return true;
-            }
-            return false;
-        };
+    const addPageIfNeeded = (height) => {
+        if (currentY + height > pageHeight - margin) {
+            pdf.addPage();
+            currentY = margin;
+            // Optionally add header to new pages: addHeader(pdf, '...');
+            return true;
+        }
+        return false;
+    };
 
-        const renderNode = async (node) => {
-            const tagName = node.tagName.toLowerCase();
-            const text = node.textContent.trim();
-
-            if (!text) return;
-
-            let fontSize = 11;
-            let fontStyle = 'normal';
-            let spaceAfter = 4;
-
-            switch (tagName) {
-                case 'h1':
-                    fontSize = 24; /* Make h1 larger */
-                    fontStyle = 'bold';
-                    spaceAfter = 10; /* More space after h1 */
-                    break;
-                case 'h2':
-                    fontSize = 20; /* Make h2 larger */
-                    fontStyle = 'bold';
-                    spaceAfter = 8; /* More space after h2 */
-                    break;
-                case 'h3':
-                    fontSize = 16;
-                    fontStyle = 'bold';
-                    spaceAfter = 4;
-                    break;
-                case 'p':
-                    spaceAfter = 2; // Reduced default paragraph spacing
-                    break;
-                case 'b':
-                case 'strong':
-                    fontStyle = 'bold';
-                    break;
-                case 'i':
-                case 'em':
-                    fontStyle = 'italic';
-                    break;
-                case 'li':
-                    const lines = pdf.splitTextToSize(`• ${text}`, contentWidth - 5);
-                    addPageIfNeeded(lines.length * 6);
-                    pdf.setFont('helvetica', 'normal');
-                    pdf.setFontSize(11);
-                    pdf.text(lines, margin + 5, currentY);
-                    currentY += (lines.length * 6);
-                    return; // Skip default text rendering
-            }
-
-            pdf.setFont('helvetica', fontStyle);
-            pdf.setFontSize(fontSize);
-            const lines = pdf.splitTextToSize(text, contentWidth);
-            addPageIfNeeded(lines.length * (fontSize * 0.352778) + spaceAfter);
-            pdf.text(lines, margin, currentY);
-            currentY += (lines.length * (fontSize * 0.352778)) + spaceAfter;
-        };
-
-        await renderNode(element);
-        
-        for (const child of Array.from(element.children)) {
-            currentY = await addHtmlElement(pdf, child, currentY, options);
+    const renderNode = async (node) => {
+        const tagName = node.tagName.toLowerCase();
+        let text = node.textContent;
+        // Check if node is a block element and trim leading/trailing whitespace
+        const blockElements = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'li'];
+        if (blockElements.includes(tagName)) {
+            text = text.trim();
         }
 
-        return currentY;
+
+        if (!text) return;
+
+        let fontSize = 11;
+        let fontStyle = 'normal';
+        let spaceAfter = 4;
+
+        switch (tagName) {
+            case 'h1':
+                fontSize = 24;
+                fontStyle = 'bold';
+                spaceAfter = 10;
+                break;
+            case 'h2':
+                fontSize = 20;
+                fontStyle = 'bold';
+                spaceAfter = 8;
+                break;
+            case 'h3':
+                fontSize = 16;
+                fontStyle = 'bold';
+                spaceAfter = 4;
+                break;
+            case 'p':
+                spaceAfter = 2;
+                break;
+            case 'b':
+            case 'strong':
+                fontStyle = 'bold';
+                break;
+            case 'i':
+            case 'em':
+                fontStyle = 'italic';
+                break;
+            case 'li':
+                const liLines = pdf.splitTextToSize(`• ${text}`, contentWidth - 5);
+                addPageIfNeeded(liLines.length * 6);
+                pdf.setFont('Avenir', 'normal');
+                pdf.setFontSize(11);
+                pdf.text(liLines, margin + 5, currentY);
+                currentY += (liLines.length * 6);
+                return;
+        }
+
+        pdf.setFont('Avenir', fontStyle);
+        pdf.setFontSize(fontSize);
+        const lines = pdf.splitTextToSize(text, contentWidth);
+        const textHeight = lines.length * (fontSize * 0.352778);
+
+        addPageIfNeeded(textHeight + spaceAfter);
+        pdf.text(lines, margin, currentY);
+        currentY += textHeight + spaceAfter;
+    };
+
+    // Process the text nodes of the current element first
+    for (const childNode of Array.from(element.childNodes)) {
+        if (childNode.nodeType === Node.TEXT_NODE) {
+            const text = childNode.textContent;
+            if (text.trim()) {
+                pdf.setFont('Avenir', 'normal');
+                pdf.setFontSize(11);
+                const lines = pdf.splitTextToSize(text, contentWidth);
+                const textHeight = lines.length * (11 * 0.352778);
+                addPageIfNeeded(textHeight);
+                pdf.text(lines, margin, currentY);
+                currentY += textHeight;
+            }
+        } else if (childNode.nodeType === Node.ELEMENT_NODE) {
+            // If it's an element node, recursively process it
+            currentY = await addHtmlElement(pdf, childNode, currentY, options);
+        }
     }
+
+    return currentY;
+}
 
     function extractTableData(tableElement) {
         try {
@@ -985,34 +1014,16 @@ Generated on: ${currentDate}
         resultsContainer.innerHTML = '';
         sourcesContainer.innerHTML = '';
 
-        // Check if log container already exists from a previous search
-        let logContainer = document.getElementById('live-log-container');
-        let logList;
-
+        const logContainer = document.getElementById('live-log-container');
+        const logList = document.getElementById('log-list');
+        if (logList) logList.innerHTML = '';
         if (logContainer) {
-            // If exists, clear its content and reset its state
-            logList = document.getElementById('log-list');
-            if (logList) logList.innerHTML = ''; // Clear previous log messages
-            logContainer.classList.remove('is-done', 'has-error'); // Clear state
-            logContainer.classList.add('is-active'); // Ensure it's active (blue animation)
-        } else {
-            // If not, create and insert it
-            const logHTML = `
-                <div id="live-log-container" class="is-active">
-                    <div class="log-header" id="log-header-toggle">
-                        <h4>Live Execution Log</h4>
-                        <button id="log-toggle-btn" title="Toggle Log"><i class="fas fa-chevron-up"></i></button>
-                    </div>
-                    <ul id="log-list"></ul>
-                </div>`;
-            
-            const tabsDiv = document.querySelector('.tabs');
-            if (tabsDiv) { // Ensure tabsDiv exists before inserting
-                tabsDiv.insertAdjacentHTML('afterend', logHTML);
-                logContainer = document.getElementById('live-log-container'); // Get reference to the newly created container
-                logList = document.getElementById('log-list'); // Get reference to the new log list
-            }
+            logContainer.classList.remove('is-done', 'has-error');
+            logContainer.classList.add('is-active');
         }
+
+        const sourcesCounter = document.getElementById('sources-counter');
+        sourcesCounter.textContent = '';
         
         renderCodeHighlighting(resultsContainer);
         
@@ -1115,9 +1126,6 @@ Generated on: ${currentDate}
                 if (logContainer) {
                     logContainer.classList.remove('is-active');
                     logContainer.classList.add('is-done');
-                    setTimeout(() => logContainer.classList.remove('is-done'), 1000);
-                    await new Promise(resolve => setTimeout(resolve, 1200));
-                    logContainer.classList.add('collapsed');
                 }
             } catch (error) {
                 console.error('Search failed:', error);
@@ -1284,8 +1292,10 @@ Generated on: ${currentDate}
         renderCodeHighlighting(aiResponseElement);
 
         // Process and render the sources from the parsed JSON data
-        if (sourcesData) {
+        if (sourcesData && sourcesData.length > 0) {
             renderSourceCards(sourcesData, sourcesContainer);
+            const sourcesCounter = document.getElementById('sources-counter');
+            sourcesCounter.textContent = sourcesData.length;
         }
         
         // Add the export panel at the very end

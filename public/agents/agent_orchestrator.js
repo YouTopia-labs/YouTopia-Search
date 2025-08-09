@@ -21,13 +21,9 @@ async function executeTool(toolName, query, params = {}, userQuery, userName, us
       api_payload = { type: 'news', body: { q: query } };
       break;
     case 'coingecko':
-        return { data: await fetchWithProxy('coingecko', { params: { ids: query, vs_currencies: 'usd' } }), sourceUrl: `https://www.coingecko.com/en/coins/${query}` };
+        return { data: await fetchWithProxy('coingecko', { params: { ids: query, vs_currencies: 'usd' } }), sourceUrl: `https://www.coingecko.com` };
     case 'wheat':
-      // This tool appears to be a local function, not a worker API call.
-      // It needs to be handled differently or proxied if it requires external access.
-      // For now, assuming it's a local function.
-      // console.log(`Calling fetchWheatData for location: ${query}`);
-      return { data: await fetchWheatData(query), sourceUrl: 'https://open-meteo.com/en/docs' };
+        return { data: await fetchWheatData(query), sourceUrl: 'https://open-meteo.com' };
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
@@ -532,7 +528,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
           } else if (res.type === 'other_tool') {
             otherToolResults.push(res.data);
             if (res.sourceUrl) {
-                allSourceUrls.push(res.sourceUrl); // Add specific tool source URL
+                allSourceUrls.push(res.sourceUrl);
             }
           }
         });
