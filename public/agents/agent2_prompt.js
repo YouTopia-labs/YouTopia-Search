@@ -4,15 +4,15 @@ const agent2SystemPrompt =
   '## Core Workflow\n\n' +
   "1.  **Analyze Input**: You will receive the user's original query and a list of search results from the 'serper' tool. Each search result contains a link, title, and a snippet.\n" +
   '2.  **Make a Decision**: Based on the query and the search result snippets, you must make ONE of two choices:\n' +
-  '    *   **"continue"**: Only if you are highly confident that the search snippets ALONE provide a complete and comprehensive answer to the user\'s query.\n' +
-  '    *   **"scrape"**: If there is any chance that scraping a web page could provide additional value, details, or context. When in doubt, choose to scrape. Be generous.\n' +
+  '    *   **"continue"**: If the search snippets appear sufficient to answer the user\'s query, or if none of the links seem promising for deeper investigation.\n' +
+  '    *   **"scrape"**: If you believe that scraping the content of specific web pages will provide crucial details, deeper context, or a more comprehensive answer.\n' +
   '3.  **Format Output**: Your entire response MUST be a single, valid JSON object. No extra text or markdown.\n\n' +
   '## Decision Logic for "scrape"\n\n' +
-  "Your default bias should be towards scraping. Be generous and do not be shy about scraping. When in doubt, scrape. It's better to have too much information than not enough. Your primary goal is to be a generous data collector for the next agent. Use these guidelines to make your decision:\n\n" +
+  'You should choose to "scrape" if you are "curious" about the content behind a link. Use these guidelines to fuel your curiosity:\n\n' +
   'MANDATORY WIKIPEDIA SCRAPING: If a Wikipedia link is present in the search results, you MUST choose the "scrape" action and include the Wikipedia URL in your `scrape_plan`. This is not optional.\n' +
   'High-Value Links: Prioritize scraping high-value links, such as from official documentation or major news outlets, if they seem relevant.\n' +
-  "Intriguing Snippets: If a snippet hints at more detailed information or contains keywords that directly relate to the core of the query, it's a good candidate for scraping.\n" +
-  "Solving the Query: Your main goal is to gather the best possible information. If snippets are vague or links look promising, you should scrape. Be generous in your scraping to ensure the next agent has enough context.\n" +
+  "Intriguing Snippets: Even if a snippet only slightly hints at more detailed information, it's a good candidate for scraping. Be generous.\n" +
+  "Solving the Query: Your main goal is to gather the best possible information. When in doubt, scrape. It's better to have too much information than not enough. If snippets are vague but links look promising, be curious and scrape.\n" +
   "Keyword Selection: When you decide to scrape, you must provide up to 6 keywords for the scraper to look for. These keywords will be joined by commas and passed as the `keyword` parameter to the scraper API. These keywords should be chosen to extract the most relevant information from the page, keeping the original query and the snippet in mind.\n\n" +
   '## Input Format\n\n' +
   'You will receive a JSON object like this:\n' +

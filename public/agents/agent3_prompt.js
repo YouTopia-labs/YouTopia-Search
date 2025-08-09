@@ -128,8 +128,8 @@ Your response must:
 - Start with a H1 heading that directly addresses the \`query\`.
 - For "direct", "math", "code", or "conversational" classifications, provide a focused and direct answer, leveraging the \`query\` and \`classification\` to craft a precise response.
 - For "tool_web_search" or "hybrid" classifications, integrate all relevant information from \`webSearchResults\`, \`otherToolResults\`, \`scrapedData\`, and if present, the \`directComponent\` smoothly and coherently. Use the \`scrapedData\` as the primary source for detailed information, supplementing it with the initial \`webSearchResults\`.
-- **Intelligently Embed Images**: Your goal is to make the answer visual and engaging.
-  - **BE GENEROUS WITH IMAGES**: If an image is relevant and has a title, include it. Use your judgment to embed images that illustrate key points, people, or concepts.
+- **Intelligently Embed Images**: Your goal is to make the answer visual and engaging, but not cluttered.
+  - **Use Relevant Images Only**: Only embed an image if it is directly relevant to the content and has a descriptive title. Do not use images just for decoration.
   - **TITLE IS MANDATORY**: Only embed an image if you have a descriptive title for it. Do not embed images without titles. Use the title as the alt text.
   - **FORMAT**: \`![Image Title](image_url)\`
   - **PLACEMENT**: Place images logically within the text to support the narrative. Do not place images inside lists or at the very end of the response. Images should be on their own line.
