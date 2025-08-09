@@ -543,8 +543,13 @@ const renderSourceCards = (sources, container) => {
             try {
                 const fontResponse = await fetch('/Avenir/Avenir Regular/Avenir Regular.ttf');
                 const font = await fontResponse.arrayBuffer();
-                const fontStr = new TextDecoder('latin1').decode(new Uint8Array(font));
-                pdf.addFileToVFS('Avenir-Regular.ttf', fontStr);
+                // Manually convert ArrayBuffer to binary string to avoid character encoding issues
+                const uint8 = new Uint8Array(font);
+                let binary = '';
+                for (let i = 0; i < uint8.length; i++) {
+                    binary += String.fromCharCode(uint8[i]);
+                }
+                pdf.addFileToVFS('Avenir-Regular.ttf', binary);
                 pdf.addFont('Avenir-Regular.ttf', 'Avenir', 'normal');
                 pdf.setFont('Avenir');
             } catch (e) {
