@@ -515,179 +515,67 @@ const renderSourceCards = (sources, container) => {
     // Global export functions
     window.exportToPDF = async (elementId) => {
         try {
+            // Show loading feedback
             const pdfBtn = document.querySelector('.pdf-btn');
             if (pdfBtn) {
+                const originalText = pdfBtn.innerHTML;
                 pdfBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
                 pdfBtn.disabled = true;
             }
-
-            await loadPDFLibraries();
-
+            
+            // Load libraries if not available
+            if (typeof window.jspdf === 'undefined') {
+                await loadPDFLibraries();
+            }
+            
+            console.log('Looking for element with ID:', elementId);
             let element = document.getElementById(elementId);
+            console.log('Found element:', element);
+            
             if (!element) {
-                console.error('Element not found, falling back to the last AI response.');
-                element = document.querySelector('.ai-response:last-of-type');
-                if (!element) {
-                    alert('Content not found for PDF export.');
+                console.error('Element not found with ID:', elementId);
+                // Try to find the latest AI response element as fallback
+                const fallbackElement = document.querySelector('.ai-response:last-of-type');
+                if (fallbackElement) {
+                    console.log('Using fallback element:', fallbackElement);
+                    element = fallbackElement;
+                } else {
+                    alert('Content not found for PDF export. No AI response found.');
                     return;
                 }
             }
             
-            const { jsPDF } = window.jspdf;
+            // Use the correct jsPDF constructor
+            const { jsPDF } = window.jspdf || window;
             const pdf = new jsPDF('p', 'mm', 'a4');
             
-            // --- FONT DEFINITIONS ---
-            // Add custom fonts (ensure these are loaded or available)
-            // For this example, we'll assume they are loaded and just define them.
-            // In a real app, you'd load the .ttf files.
-            try {
-                const fontResponse = await fetch('/Avenir/Avenir Regular/Avenir Regular.ttf');
-                const font = await fontResponse.arrayBuffer();
-                // Manually convert ArrayBuffer to binary string to avoid character encoding issues
-                const uint8 = new Uint8Array(font);
-                let binary = '';
-                for (let i = 0; i < uint8.length; i++) {
-                    binary += String.fromCharCode(uint8[i]);
-                }
-                pdf.addFileToVFS('Avenir-Regular.ttf', binary);
-                pdf.addFont('Avenir-Regular.ttf', 'Avenir', 'normal');
-                pdf.setFont('Avenir');
-            } catch (e) {
-                console.error("Failed to load font, falling back to helvetica", e);
-                pdf.setFont('helvetica');
-            }
-            
-            const pageWidth = pdf.internal.pageSize.getWidth();
-            const pageHeight = pdf.internal.pageSize.getHeight();
-            const margin = 15;
+            // PDF dimensions
+            const pageWidth = 210;
+            const pageHeight = 297;
+            const margin = 20;
             const contentWidth = pageWidth - (2 * margin);
             let currentY = margin;
             
-            const addPageIfNeeded = (height) => {
-                if (currentY + height > pageHeight - margin) {
-                    pdf.addPage();
-                    currentY = margin;
-                    addHeader(pdf, 'YouTopia Search Results');
-                    return true;
-                }
-                return false;
-            };
-
-            const addHeader = (doc, title) => {
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(18); /* Slightly larger header for main title */
-                doc.setTextColor(40);
-                doc.text(title, margin, currentY + 10); /* Add more space from top of page */
-                currentY += 20; /* Increased space after header */
-            };
-
-            const addFooter = (doc) => {
-                const pageCount = doc.internal.getNumberOfPages();
-                const generationDate = new Date().toLocaleDateString();
-                for (let i = 1; i <= pageCount; i++) {
-                    doc.setPage(i);
-                    doc.setFont('helvetica', 'normal');
-                    doc.setFontSize(8);
-                    doc.setTextColor(150);
-                    
-                    // Footer content
-                    const firstLine = `Page ${i} of ${pageCount} | Crafted by YouTopia Search`;
-                    const secondLine = `youtopia.co.in | ${generationDate}`;
-                    
-                    // Calculate text widths
-                    const firstLineWidth = doc.getTextWidth(firstLine);
-                    const secondLineWidth = doc.getTextWidth(secondLine);
-                    
-                    // Add text to footer
-                    doc.text(firstLine, (pageWidth - firstLineWidth) / 2, pageHeight - 12);
-                    doc.text(secondLine, (pageWidth - secondLineWidth) / 2, pageHeight - 7);
-                }
-            };
-
-            addHeader(pdf, 'YouTopia Search Results');
+            // Set default font
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(11);
             
-            const sections = parseContentSections(element);
-
-            for (const section of sections) {
-                addPageIfNeeded(20); // Generic check
-
-                if (section.type === 'html') {
-                    currentY = await addHtmlElement(pdf, section.element, currentY, { margin, contentWidth, pageHeight });
-                } else if (section.type === 'image') {
-                    try {
-                        const imgData = await getImageData(section.element.src);
-                        const imgProps = pdf.getImageProperties(imgData);
-                        
-                        const isPortrait = imgProps.height > imgProps.width;
-                        const fixedWidthLandscape = contentWidth;
-                        const fixedWidthPortrait = contentWidth * 0.7; // 70% for portrait
-                        
-                        let imgWidth, imgHeight;
-
-                        if (isPortrait) {
-                            imgWidth = fixedWidthPortrait;
-                            imgHeight = (imgProps.height * imgWidth) / imgProps.width;
-                        } else {
-                            imgWidth = fixedWidthLandscape;
-                            imgHeight = (imgProps.height * imgWidth) / imgProps.width;
-                        }
-
-                        const maxImgHeight = pageHeight * 0.75;
-                        if (imgHeight > maxImgHeight) {
-                            imgHeight = maxImgHeight;
-                            imgWidth = (imgProps.width * imgHeight) / imgProps.height;
-                        }
-
-                        addPageIfNeeded(imgHeight);
-                        const xPos = (pageWidth - imgWidth) / 2;
-                        pdf.addImage(imgData, 'PNG', xPos, currentY, imgWidth, imgHeight, undefined, 'NONE');
-                        currentY += imgHeight + 10;
-
-                    } catch (e) { console.error("Error adding image:", e); }
-                } else if (section.type === 'chart') {
-                     try {
-                        const canvas = section.element.querySelector('canvas');
-                        if (canvas) {
-                            const chartImageData = canvas.toDataURL('image/png', 1.0);
-                            const imgWidth = contentWidth * 0.9;
-                            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                            addPageIfNeeded(imgHeight);
-                            pdf.addImage(chartImageData, 'PNG', (pageWidth - imgWidth) / 2, currentY, imgWidth, imgHeight, undefined, 'NONE');
-                            currentY += imgHeight + 10;
-                        }
-                    } catch (e) { console.error("Error adding chart:", e); }
-                } else if (section.type === 'table') {
-                    const tableData = extractTableData(section.element);
-                    if (tableData) {
-                        pdf.autoTable({
-                            head: [tableData.headers],
-                            body: tableData.rows,
-                            startY: currentY,
-                            theme: 'grid',
-                            styles: {
-                                font: 'helvetica',
-                                fillColor: [245, 245, 245]
-                            },
-                            headStyles: {
-                                fillColor: [60, 70, 80],
-                                textColor: 255
-                            },
-                            didDrawPage: (data) => {
-                                currentY = data.cursor.y + 5;
-                            }
-                        });
-                        // autoTable sets currentY via the callback
-                    }
-                }
+            // Process content by extracting text, charts, and tables separately
+            await processContentForPDF(element, pdf, margin, contentWidth, currentY, pageHeight);
+            
+            pdf.save('youtopia-search.pdf');
+            
+            // Reset button
+            if (pdfBtn) {
+                pdfBtn.innerHTML = '<i class="fas fa-file-pdf"></i> PDF';
+                pdfBtn.disabled = false;
             }
-
-            addFooter(pdf);
-            pdf.save('youtopia-search-results.pdf');
-
+            
         } catch (error) {
             console.error('Error generating PDF:', error);
-            alert('Failed to generate PDF. See console for details.');
-        } finally {
+            alert('Error generating PDF: ' + error.message);
+            
+            // Reset button on error
             const pdfBtn = document.querySelector('.pdf-btn');
             if (pdfBtn) {
                 pdfBtn.innerHTML = '<i class="fas fa-file-pdf"></i> PDF';
@@ -696,179 +584,389 @@ const renderSourceCards = (sources, container) => {
         }
     };
 
-    async function getImageData(url) {
-        const response = await fetch(url);
-        const blob = await response.blob();
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
+    // Process content for PDF with proper handling of text, charts, and tables
+    async function processContentForPDF(element, pdf, margin, contentWidth, startY, pageHeight) {
+        let currentY = startY;
+        const lineHeight = 6;
+        const maxY = pageHeight - margin;
+        
+        // Add YouTopia branding header
+        currentY = await addYoutopiaHeader(pdf, margin, contentWidth, currentY);
+        
+        // Get the markdown content if available
+        const markdownContent = currentResponseContent || element.textContent;
+        
+        // Split content into sections
+        const sections = parseContentSections(element);
+        
+        for (const section of sections) {
+            // Check if we need a new page
+            if (currentY > maxY - 30) {
+                pdf.addPage();
+                currentY = margin;
+                // Add header to new pages too
+                currentY = await addYoutopiaHeader(pdf, margin, contentWidth, currentY);
+            }
+            
+            switch (section.type) {
+                case 'text':
+                    currentY = await addTextToPDF(pdf, section.content, margin, contentWidth, currentY, lineHeight, maxY);
+                    break;
+                case 'chart':
+                    currentY = await addChartToPDF(pdf, section.element, margin, contentWidth, currentY, maxY, pageHeight);
+                    break;
+                case 'table':
+                    currentY = await addTableToPDF(pdf, section.element, margin, contentWidth, currentY, maxY);
+                    break;
+            }
+        }
+        
+        // Add footer with branding
+        addYoutopiaFooter(pdf, margin, contentWidth, pageHeight);
     }
-
-    // This function remains largely the same but simplified
+    
+    // Parse content into sections (text, charts, tables)
     function parseContentSections(element) {
         const sections = [];
         const children = Array.from(element.children);
+        
         for (const child of children) {
-            if (child.classList.contains('export-panel')) continue;
             if (child.classList.contains('chart-display') || child.classList.contains('chart-wrapper')) {
                 sections.push({ type: 'chart', element: child });
             } else if (child.classList.contains('table-display') || child.classList.contains('gridjs-wrapper')) {
                 sections.push({ type: 'table', element: child });
-            } else if (child.tagName === 'IMG') {
-                sections.push({ type: 'image', element: child });
-            } else if (child.querySelector('img')) {
-                const images = Array.from(child.querySelectorAll('img'));
-                images.forEach(img => sections.push({ type: 'image', element: img }));
+            } else if (child.classList.contains('export-panel')) {
+                // Skip export panels
+                continue;
             } else {
-                if (child.textContent.trim()) {
-                    sections.push({ type: 'html', element: child });
+                // Text content
+                const textContent = child.textContent.trim();
+                if (textContent) {
+                    sections.push({ type: 'text', content: textContent });
                 }
             }
         }
+        
         return sections;
     }
-async function addHtmlElement(pdf, element, startY, options) {
-    let currentY = startY;
-    const { margin, contentWidth, pageHeight } = options;
-
-    const addPageIfNeeded = (height) => {
-        if (currentY + height > pageHeight - margin) {
-            pdf.addPage();
-            currentY = margin;
-            // Optionally add header to new pages: addHeader(pdf, '...');
-            return true;
-        }
-        return false;
-    };
-
-    const renderNode = async (node) => {
-        const tagName = node.tagName.toLowerCase();
-        let text = node.textContent;
-        // Check if node is a block element and trim leading/trailing whitespace
-        const blockElements = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'li'];
-        if (blockElements.includes(tagName)) {
-            text = text.trim();
-        }
-
-
-        if (!text) return;
-
-        let fontSize = 11;
-        let fontStyle = 'normal';
-        let spaceAfter = 4;
-
-        switch (tagName) {
-            case 'h1':
-                fontSize = 24;
-                fontStyle = 'bold';
-                spaceAfter = 10;
-                break;
-            case 'h2':
-                fontSize = 20;
-                fontStyle = 'bold';
-                spaceAfter = 8;
-                break;
-            case 'h3':
-                fontSize = 16;
-                fontStyle = 'bold';
-                spaceAfter = 4;
-                break;
-            case 'p':
-                spaceAfter = 2;
-                break;
-            case 'b':
-            case 'strong':
-                fontStyle = 'bold';
-                break;
-            case 'i':
-            case 'em':
-                fontStyle = 'italic';
-                break;
-            case 'li':
-                const liLines = pdf.splitTextToSize(`• ${text}`, contentWidth - 5);
-                addPageIfNeeded(liLines.length * 6);
-                pdf.setFont('Avenir', 'normal');
-                pdf.setFontSize(11);
-                pdf.text(liLines, margin + 5, currentY);
-                currentY += (liLines.length * 6);
-                return;
-        }
-
-        pdf.setFont('Avenir', fontStyle);
-        pdf.setFontSize(fontSize);
+    
+    // Add text to PDF with proper wrapping
+    async function addTextToPDF(pdf, text, margin, contentWidth, currentY, lineHeight, maxY) {
         const lines = pdf.splitTextToSize(text, contentWidth);
-        const textHeight = lines.length * (fontSize * 0.352778);
-
-        addPageIfNeeded(textHeight + spaceAfter);
-        pdf.text(lines, margin, currentY);
-        currentY += textHeight + spaceAfter;
-    };
-
-    // Process the text nodes of the current element first
-    for (const childNode of Array.from(element.childNodes)) {
-        if (childNode.nodeType === Node.TEXT_NODE) {
-            const text = childNode.textContent;
-            if (text.trim()) {
-                pdf.setFont('Avenir', 'normal');
-                pdf.setFontSize(11);
-                const lines = pdf.splitTextToSize(text, contentWidth);
-                const textHeight = lines.length * (11 * 0.352778);
-                addPageIfNeeded(textHeight);
-                pdf.text(lines, margin, currentY);
-                currentY += textHeight;
+        
+        for (const line of lines) {
+            if (currentY > maxY) {
+                pdf.addPage();
+                currentY = margin;
             }
-        } else if (childNode.nodeType === Node.ELEMENT_NODE) {
-            // If it's an element node, recursively process it
-            currentY = await addHtmlElement(pdf, childNode, currentY, options);
+            
+            pdf.text(line, margin, currentY);
+            currentY += lineHeight;
+        }
+        
+        return currentY + lineHeight; // Add extra space after text block
+    }
+    
+    // Add chart to PDF as PNG image
+    async function addChartToPDF(pdf, chartElement, margin, contentWidth, currentY, maxY, pageHeight) {
+        try {
+            // Find the canvas element within the chart
+            const canvas = chartElement.querySelector('canvas');
+            if (!canvas) {
+                console.warn('No canvas found in chart element');
+                return currentY;
+            }
+
+            // Calculate chart dimensions with better aspect ratio
+            const chartAspectRatio = canvas.width / canvas.height;
+            const chartHeight = 120; // Increased height in mm for better quality
+            const chartWidth = Math.min(contentWidth, chartHeight * chartAspectRatio);
+
+            // Check if chart fits on current page, if not start new page
+            if (currentY + chartHeight > maxY) {
+                pdf.addPage();
+                currentY = margin;
+            }
+
+            // Apply dark mode colors to the chart before exporting
+            const isDarkMode = document.body.classList.contains('dark-mode');
+            if (isDarkMode) {
+                // Temporarily apply dark mode colors to the chart
+                const originalStyle = canvas.style.cssText;
+                canvas.style.filter = 'brightness(0.8) contrast(1.2)';
+
+                // Get chart image data with higher quality
+                const chartImageData = canvas.toDataURL('image/png', 1.0); // Highest quality
+
+                // Restore original style
+                canvas.style.cssText = originalStyle;
+
+                // Add chart to PDF
+                pdf.addImage(chartImageData, 'PNG', margin, currentY, chartWidth, chartHeight);
+            } else {
+                // Get chart image data with higher quality
+                const chartImageData = canvas.toDataURL('image/png', 1.0); // Highest quality
+
+                // Add chart to PDF
+                pdf.addImage(chartImageData, 'PNG', margin, currentY, chartWidth, chartHeight);
+            }
+
+            return currentY + chartHeight + 10; // Add space after chart
+
+        } catch (error) {
+            console.error('Error adding chart to PDF:', error);
+            return currentY;
         }
     }
-
-    return currentY;
-}
-
+    
+    // Add table to PDF with proper formatting
+    async function addTableToPDF(pdf, tableElement, margin, contentWidth, currentY, maxY) {
+        try {
+            // Extract table data
+            const tableData = extractTableData(tableElement);
+            if (!tableData || !tableData.headers || !tableData.rows) {
+                return currentY;
+            }
+            
+            // Calculate table dimensions
+            const colWidth = contentWidth / tableData.headers.length;
+            const rowHeight = 8;
+            const headerHeight = 10;
+            
+            // Check if table header fits on current page
+            if (currentY + headerHeight > maxY) {
+                pdf.addPage();
+                currentY = margin;
+            }
+            
+            // Draw table header
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(10);
+            
+            for (let i = 0; i < tableData.headers.length; i++) {
+                const x = margin + (i * colWidth);
+                pdf.rect(x, currentY, colWidth, headerHeight);
+                pdf.text(tableData.headers[i], x + 2, currentY + 7);
+            }
+            
+            currentY += headerHeight;
+            
+            // Draw table rows
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(9);
+            
+            for (const row of tableData.rows) {
+                // Check if row fits on current page
+                if (currentY + rowHeight > maxY) {
+                    pdf.addPage();
+                    currentY = margin;
+                    
+                    // Redraw header on new page
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.setFontSize(10);
+                    for (let i = 0; i < tableData.headers.length; i++) {
+                        const x = margin + (i * colWidth);
+                        pdf.rect(x, currentY, colWidth, headerHeight);
+                        pdf.text(tableData.headers[i], x + 2, currentY + 7);
+                    }
+                    currentY += headerHeight;
+                    pdf.setFont('helvetica', 'normal');
+                    pdf.setFontSize(9);
+                }
+                
+                for (let i = 0; i < row.length && i < tableData.headers.length; i++) {
+                    const x = margin + (i * colWidth);
+                    pdf.rect(x, currentY, colWidth, rowHeight);
+                    
+                    // Truncate long text to fit in cell
+                    const cellText = String(row[i] || '').substring(0, 20);
+                    pdf.text(cellText, x + 2, currentY + 6);
+                }
+                
+                currentY += rowHeight;
+            }
+            
+            return currentY + 10; // Add space after table
+            
+        } catch (error) {
+            console.error('Error adding table to PDF:', error);
+            return currentY;
+        }
+    }
+    
+    // Extract table data from DOM element
     function extractTableData(tableElement) {
         try {
+            // Try to find GridJS table first
             const gridTable = tableElement.querySelector('.gridjs-table');
             if (gridTable) {
                 const headers = Array.from(gridTable.querySelectorAll('.gridjs-th')).map(th => th.textContent.trim());
-                const rows = Array.from(gridTable.querySelectorAll('.gridjs-tr')).map(tr =>
+                const rows = Array.from(gridTable.querySelectorAll('.gridjs-tr')).map(tr => 
                     Array.from(tr.querySelectorAll('.gridjs-td')).map(td => td.textContent.trim())
                 );
                 return { headers, rows };
             }
+            
+            // Try regular HTML table
             const htmlTable = tableElement.querySelector('table');
             if (htmlTable) {
                 const headers = Array.from(htmlTable.querySelectorAll('th')).map(th => th.textContent.trim());
-                const rows = Array.from(htmlTable.querySelectorAll('tbody tr')).map(tr =>
+                const rows = Array.from(htmlTable.querySelectorAll('tbody tr')).map(tr => 
                     Array.from(tr.querySelectorAll('td')).map(td => td.textContent.trim())
                 );
                 return { headers, rows };
             }
+            
             return null;
         } catch (error) {
             console.error('Error extracting table data:', error);
             return null;
         }
     }
-
-    const loadPDFLibraries = async () => {
-        const loadScript = (src) => new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = src;
-            script.onload = resolve;
-            script.onerror = reject;
-            document.head.appendChild(script);
+    
+    // Add YouTopia header with logo and branding
+    async function addYoutopiaHeader(pdf, margin, contentWidth, currentY) {
+        try {
+            // Load and convert cursor.svg to base64
+            const logoData = await loadSVGAsBase64('/svg/cursor.svg');
+            
+            // Add logo (small size)
+            const logoSize = 8; // 8mm
+            pdf.addImage(logoData, 'PNG', margin, currentY, logoSize, logoSize);
+            
+            // Add YouTopia branding text
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(16);
+            pdf.setTextColor(50, 50, 50); // Dark gray
+            pdf.text('YouTopia', margin + logoSize + 5, currentY + 6);
+            
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(10);
+            pdf.setTextColor(100, 100, 100); // Medium gray
+            pdf.text('Intelligently Human AI Assistant', margin + logoSize + 5, currentY + 12);
+            
+            // Add a subtle line separator
+            pdf.setDrawColor(200, 200, 200); // Light gray
+            pdf.setLineWidth(0.5);
+            pdf.line(margin, currentY + 18, margin + contentWidth, currentY + 18);
+            
+            // Reset text color to black for content
+            pdf.setTextColor(0, 0, 0);
+            
+            return currentY + 25; // Return new Y position after header
+            
+        } catch (error) {
+            console.error('Error adding header:', error);
+            // Fallback to text-only header
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(16);
+            pdf.setTextColor(50, 50, 50);
+            pdf.text('YouTopia - Intelligently Human AI Assistant', margin, currentY + 6);
+            
+            pdf.setDrawColor(200, 200, 200);
+            pdf.setLineWidth(0.5);
+            pdf.line(margin, currentY + 12, margin + contentWidth, currentY + 12);
+            
+            pdf.setTextColor(0, 0, 0);
+            return currentY + 20;
+        }
+    }
+    
+    // Add YouTopia footer with branding
+    function addYoutopiaFooter(pdf, margin, contentWidth, pageHeight) {
+        const footerY = pageHeight - 15;
+        
+        // Add footer line
+        pdf.setDrawColor(200, 200, 200);
+        pdf.setLineWidth(0.5);
+        pdf.line(margin, footerY - 5, margin + contentWidth, footerY - 5);
+        
+        // Add footer text
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(8);
+        pdf.setTextColor(120, 120, 120);
+        
+        // Left side - Generated by YouTopia with website link
+        pdf.text('Generated by YouTopia AI Assistant - youtopia.co.in', margin, footerY);
+        
+        // Right side - Date
+        const currentDate = new Date().toLocaleDateString();
+        const dateText = `Generated on ${currentDate}`;
+        const dateWidth = pdf.getTextWidth(dateText);
+        pdf.text(dateText, margin + contentWidth - dateWidth, footerY);
+        
+        // Reset text color
+        pdf.setTextColor(0, 0, 0);
+    }
+    
+    // Load SVG and convert to base64 PNG for PDF
+    async function loadSVGAsBase64(svgPath) {
+        return new Promise((resolve, reject) => {
+            fetch(svgPath)
+                .then(response => response.text())
+                .then(svgText => {
+                    // Create a canvas to convert SVG to PNG
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    const img = new Image();
+                    
+                    // Set canvas size
+                    canvas.width = 64;
+                    canvas.height = 64;
+                    
+                    // Create blob URL from SVG
+                    const svgBlob = new Blob([svgText], { type: 'image/svg+xml' });
+                    const url = URL.createObjectURL(svgBlob);
+                    
+                    img.onload = function() {
+                        // Fill with white background
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        
+                        // Draw SVG
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        
+                        // Convert to base64
+                        const base64 = canvas.toDataURL('image/png');
+                        URL.revokeObjectURL(url);
+                        resolve(base64);
+                    };
+                    
+                    img.onerror = function() {
+                        URL.revokeObjectURL(url);
+                        reject(new Error('Failed to load SVG'));
+                    };
+                    
+                    img.src = url;
+                })
+                .catch(reject);
         });
+    }
 
-        if (typeof window.jspdf === 'undefined' || typeof window.jspdf.jsPDF === 'undefined') {
-             await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-        }
-        if (typeof window.jspdf.autoTable === 'undefined') {
-            await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js');
-        }
+    // Function to load PDF libraries
+    const loadPDFLibraries = () => {
+        return new Promise((resolve, reject) => {
+            // Load jsPDF
+            if (typeof window.jspdf === 'undefined') {
+                const jsPDFScript = document.createElement('script');
+                jsPDFScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+                jsPDFScript.onload = () => {
+                    console.log('jsPDF loaded');
+                    // Give a small delay to ensure library is fully initialized
+                    setTimeout(() => {
+                        if (typeof window.jspdf !== 'undefined') {
+                            resolve();
+                        } else {
+                            reject(new Error('jsPDF loaded but not properly initialized'));
+                        }
+                    }, 100);
+                };
+                jsPDFScript.onerror = () => reject(new Error('Failed to load jsPDF'));
+                document.head.appendChild(jsPDFScript);
+            } else {
+                resolve();
+            }
+        });
     };
 
     // Store the current response content globally for export functions
@@ -1115,21 +1213,315 @@ Generated on: ${currentDate}
                 
                 // Store the current response content for export functions
                 currentResponseContent = aiResponseContent;
+                // Before parsing, extract sources if they are present
+                const sourcesRegex = /## Sources\n([\s\S]*)/;
+                const match = aiResponseContent.match(sourcesRegex);
+                let contentToDisplay = aiResponseContent; // Content to display in the main AI response div
+                let sourcesMarkdown = '';
+                let parsedSources = [];
 
-                // Render the raw markdown content as it streams
-                aiResponseElement.innerHTML = marked.parse(aiResponseContent);
+                if (match) {
+                    sourcesMarkdown = match[1];
+                    // Remove sources from the main content for display
+                    contentToDisplay = aiResponseContent.replace(sourcesRegex, '').trim();
 
-                // Auto-scroll if the user is near the bottom
-                const isScrolledToBottom = resultsContainer.scrollHeight - resultsContainer.clientHeight <= resultsContainer.scrollTop + 1;
+                    // Preprocess sourcesMarkdown to convert plain URLs into markdown links
+                    parsedSources = sourcesMarkdown.split('\n').map(line => {
+                        const sourceRegex = /^(\d+)\.\s*\[([^\]]+)\]\((https?:\/\/[^\)]+)\)(?:\s*-\s*(.*))?$/;
+                        const match = line.match(sourceRegex);
+                        if (match) {
+                            const number = match[1];
+                            const title = match[2];
+                            const url = match[3];
+                            const snippet = match[4] || '';
+                            return { number, title, url, snippet };
+                        }
+                        // Fallback for old/simple URL format
+                        const urlMatch = line.match(/^(\d+\.\s*)(https?:\/\/\S+)$/);
+                        if (urlMatch) {
+                            const number = urlMatch[1].replace('.', '');
+                            const url = urlMatch[2]; // Corrected from urlUrl[2]
+                            let title = url; // Default title is the URL
+                            try {
+                                const urlObj = new URL(url);
+                                title = urlObj.hostname.replace('www.', ''); // Use hostname as title
+                            } catch (e) { /* invalid URL */ }
+                            return { number, title, url, snippet: '' };
+                        }
+                        return null; // Ignore lines that don't match source format
+                    }).filter(Boolean); // Remove null entries
+
+                    renderSourceCards(parsedSources, sourcesContainer);
+                }
+
+                aiResponseElement.innerHTML = marked.parse(contentToDisplay);
+                renderCodeHighlighting(aiResponseElement); // Re-render highlights
+                // Only auto-scroll if the user is near the bottom
+                const isScrolledToBottom = resultsContainer.scrollHeight - resultsContainer.clientHeight <= resultsContainer.scrollTop + 1; // +1 for a small buffer
                 if (isScrolledToBottom) {
                     resultsContainer.scrollTop = resultsContainer.scrollHeight;
                 }
 
-                // Check for the end-of-answer delimiter
-                if (aiResponseContent.includes('---END_OF_ANSWER---')) {
-                    // Stop the main "Answer" tab loading indicator here if needed
-                    // This part is handled by the final processing step now
-                }
+                // Process charts within the stream callback
+                aiResponseElement.querySelectorAll('pre code.language-chart').forEach((codeBlock, index) => {
+                    // Show processing message immediately
+                    const chartContainerId = `chart-container-${Date.now()}-${index}`;
+                    const chartDiv = document.createElement('div');
+                    chartDiv.id = chartContainerId;
+                    chartDiv.classList.add('chart-display');
+                    chartDiv.innerHTML = `
+                        <div style="padding: 20px; text-align: center; color: var(--text-secondary); border: 1px dashed var(--border-color); border-radius: 8px; margin: 10px 0;">
+                            <i class="fas fa-chart-line" style="font-size: 24px; margin-bottom: 8px; opacity: 0.6;"></i>
+                            <div style="font-size: 14px;">Processing chart block...</div>
+                        </div>
+                    `;
+
+                    codeBlock.parentNode.parentNode.insertBefore(chartDiv, codeBlock.parentNode);
+                    codeBlock.parentNode.remove();
+
+                    // Process chart asynchronously without showing errors during streaming
+                    setTimeout(() => {
+                        try {
+                            let chartConfigText = codeBlock.textContent.trim();
+                            if (!chartConfigText) {
+                                throw new Error('Empty chart configuration');
+                            }
+
+                            // Use Safari-compatible chart parsing
+                            const chartConfig = safeParseChartConfig(chartConfigText);
+
+                            // Clear processing message and render chart
+                            chartDiv.innerHTML = '';
+                            renderChart(chartContainerId, chartConfig);
+                        } catch (e) {
+                            console.error("Error processing chart:", e);
+                            console.error("Chart content was:", codeBlock.textContent);
+                            chartDiv.innerHTML = `
+                                <div style="padding: 15px; border: 1px solid var(--error-color, #e74c3c); border-radius: 8px; background-color: var(--error-bg, #fdf2f2); color: var(--error-color, #e74c3c); margin: 10px 0;">
+                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        <strong>Chart Processing Error</strong>
+                                    </div>
+                                    <div style="font-size: 14px; opacity: 0.9;">${e.message}</div>
+                                </div>
+                            `;
+                        }
+                    }, 500); // Delay to allow streaming to complete
+                });
+
+                // Process tables within the stream callback
+                aiResponseElement.querySelectorAll('pre code.language-table').forEach((codeBlock, index) => {
+                    // Show processing message immediately
+                    const tableContainerId = `table-container-${Date.now()}-${index}`;
+                    const tableDiv = document.createElement('div');
+                    tableDiv.id = tableContainerId;
+                    tableDiv.classList.add('table-display');
+                    tableDiv.innerHTML = `
+                        <div style="padding: 20px; text-align: center; color: var(--text-secondary); border: 1px dashed var(--border-color); border-radius: 8px; margin: 10px 0;">
+                            <i class="fas fa-table" style="font-size: 24px; margin-bottom: 8px; opacity: 0.6;"></i>
+                            <div style="font-size: 14px;">Processing table block...</div>
+                        </div>
+                    `;
+
+                    codeBlock.parentNode.parentNode.insertBefore(tableDiv, codeBlock.parentNode);
+                    codeBlock.parentNode.remove();
+
+                    // Process table asynchronously without showing errors during streaming
+                    setTimeout(() => {
+                        try {
+                            let tableConfigText = codeBlock.textContent.trim();
+                            if (!tableConfigText) {
+                                throw new Error('Empty table configuration');
+                            }
+
+                            // Robust JSON parsing with strict validation
+                            let tableConfig;
+                            
+                            // Step 1: Clean and normalize the input
+                            let cleanedText = tableConfigText
+                                .trim()
+                                .replace(/[\x00-\x1F\x7F-\x9F]/g, '') // Remove non-printable characters
+                                .replace(/^\s*```\s*table\s*/i, '') // Remove table code block markers
+                                .replace(/\s*```\s*$/i, '')
+                                .trim();
+                            
+                            // AGGRESSIVE CONTENT SANITIZATION
+                            // Remove problematic characters that cause JSON parsing issues
+                            cleanedText = cleanedText
+                                .replace(/[""'']/g, '"') // Normalize all quote types to standard double quotes
+                                .replace(/…/g, '...') // Replace ellipsis
+                                .replace(/–/g, '-') // Replace en-dash
+                                .replace(/—/g, '-') // Replace em-dash
+                                .replace(/[\u2018\u2019]/g, "'") // Replace smart single quotes
+                                .replace(/[\u201C\u201D]/g, '"') // Replace smart double quotes
+                                .replace(/\r\n/g, ' ') // Replace Windows line breaks
+                                .replace(/\n/g, ' ') // Replace Unix line breaks
+                                .replace(/\r/g, ' ') // Replace Mac line breaks
+                                .replace(/\t/g, ' ') // Replace tabs
+                                .replace(/\s+/g, ' '); // Collapse multiple spaces
+
+                            // Basic structure validation
+                            if (!cleanedText.includes('"headers"') || !cleanedText.includes('"data"')) {
+                                throw new Error('Table must contain both "headers" and "data" properties');
+                            }
+
+                            // Simple cleanup for common issues
+                            cleanedText = cleanedText
+                                .replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3') // Quote unquoted property names
+                                .replace(/'/g, '"') // Convert single quotes to double quotes
+                                .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+                                .replace(/([}\]])(\s*)([{\[])/g, '$1,$2$3'); // Add missing commas between objects/arrays
+
+                            // CRITICAL: Sanitize cell content to prevent JSON parsing errors
+                            // Find all string values in arrays and sanitize them
+                            cleanedText = cleanedText.replace(/"([^"]*?)"/g, (match, content) => {
+                                // Skip if this is a property name (headers or data)
+                                if (content === 'headers' || content === 'data') {
+                                    return match;
+                                }
+                                
+                                // Sanitize the content
+                                let sanitized = content
+                                    .replace(/\\/g, '') // Remove backslashes
+                                    .replace(/"/g, '') // Remove internal quotes
+                                    .replace(/'/g, '') // Remove single quotes
+                                    .replace(/,/g, '') // Remove commas
+                                    .replace(/\n/g, ' ') // Replace newlines with spaces
+                                    .replace(/\r/g, ' ') // Replace carriage returns
+                                    .replace(/\t/g, ' ') // Replace tabs
+                                    .replace(/\s+/g, ' ') // Collapse multiple spaces
+                                    .trim();
+                                
+                                return `"${sanitized}"`;
+                            });
+
+                            // Try to parse the JSON
+                            try {
+                                tableConfig = JSON.parse(cleanedText);
+                            } catch (parseError) {
+                                console.error('JSON parsing failed:', parseError.message);
+                                console.error('Cleaned text:', cleanedText);
+                                throw new Error(`Invalid table JSON format. Error: ${parseError.message}. Expected simple format: {"headers": ["Col1", "Col2"], "data": [["Row1Col1", "Row1Col2"]]}`);
+                            }
+
+                            // FINAL SAFETY NET: Clean the parsed object
+                            if (tableConfig && tableConfig.headers && Array.isArray(tableConfig.headers)) {
+                                tableConfig.headers = tableConfig.headers.map(header => {
+                                    if (typeof header === 'string') {
+                                        return header.replace(/[^a-zA-Z0-9\s\-_]/g, '').replace(/\s+/g, ' ').trim();
+                                    }
+                                    return String(header).replace(/[^a-zA-Z0-9\s\-_]/g, '').replace(/\s+/g, ' ').trim();
+                                });
+                            }
+
+                            if (tableConfig && tableConfig.data && Array.isArray(tableConfig.data)) {
+                                tableConfig.data = tableConfig.data.map(row => {
+                                    if (Array.isArray(row)) {
+                                        return row.map(cell => {
+                                            if (typeof cell === 'string') {
+                                                return cell.replace(/[^a-zA-Z0-9\s\-_.$]/g, '').replace(/\s+/g, ' ').trim();
+                                            }
+                                            if (typeof cell === 'number') {
+                                                return cell;
+                                            }
+                                            return String(cell).replace(/[^a-zA-Z0-9\s\-_.$]/g, '').replace(/\s+/g, ' ').trim();
+                                        });
+                                    }
+                                    return row;
+                                });
+                            }
+
+                            // Step 5: Strict validation of table structure
+                            if (!tableConfig || typeof tableConfig !== 'object') {
+                                throw new Error('Table configuration must be a valid object');
+                            }
+                            
+                            // Check for only allowed properties
+                            const allowedProps = ['headers', 'data'];
+                            const actualProps = Object.keys(tableConfig);
+                            const invalidProps = actualProps.filter(prop => !allowedProps.includes(prop));
+                            if (invalidProps.length > 0) {
+                                throw new Error(`Invalid properties found: ${invalidProps.join(', ')}. Only "headers" and "data" are allowed`);
+                            }
+                            
+                            // Validate headers
+                            if (!tableConfig.headers) {
+                                throw new Error('Table configuration is missing "headers" property');
+                            }
+                            if (!Array.isArray(tableConfig.headers)) {
+                                throw new Error('Headers must be an array');
+                            }
+                            if (tableConfig.headers.length === 0) {
+                                throw new Error('Headers array cannot be empty');
+                            }
+
+                            
+                            // Validate header values
+                            for (let i = 0; i < tableConfig.headers.length; i++) {
+                                const header = tableConfig.headers[i];
+                                if (typeof header !== 'string') {
+                                    throw new Error(`Header at index ${i} must be a string, got ${typeof header}`);
+                                }
+                                if (header.includes('"') || header.includes(',') || header.includes('\n')) {
+                                    throw new Error(`Header "${header}" contains invalid characters (quotes, commas, or line breaks)`);
+                                }
+                            }
+                            
+                            // Validate data
+                            if (!tableConfig.data) {
+                                throw new Error('Table configuration is missing "data" property');
+                            }
+                            if (!Array.isArray(tableConfig.data)) {
+                                throw new Error('Data must be an array');
+                            }
+                            if (tableConfig.data.length === 0) {
+                                throw new Error('Data array cannot be empty');
+                            }
+
+                            
+                            // Validate each row
+                            for (let i = 0; i < tableConfig.data.length; i++) {
+                                const row = tableConfig.data[i];
+                                if (!Array.isArray(row)) {
+                                    throw new Error(`Row ${i} must be an array, got ${typeof row}`);
+                                }
+                                if (row.length !== tableConfig.headers.length) {
+                                    throw new Error(`Row ${i} has ${row.length} columns but headers has ${tableConfig.headers.length} columns`);
+                                }
+                                
+                                // Validate each cell
+                                for (let j = 0; j < row.length; j++) {
+                                    const cell = row[j];
+                                    if (typeof cell !== 'string' && typeof cell !== 'number') {
+                                        throw new Error(`Cell at row ${i}, column ${j} must be a string or number, got ${typeof cell}`);
+                                    }
+                                    if (typeof cell === 'string' && (cell.includes('"') || cell.includes('\n'))) {
+                                        throw new Error(`Cell "${cell}" at row ${i}, column ${j} contains invalid characters (quotes or line breaks)`);
+                                    }
+                                }
+                            }
+
+                            // Clear processing message and render table
+                            tableDiv.innerHTML = '';
+                            console.log('Rendering table with config:', tableConfig);
+                            console.log('Table container ID:', tableContainerId);
+                            renderTable(tableConfig, tableContainerId);
+                        } catch (e) {
+                            console.error("Error processing table:", e);
+                            console.error("Table content was:", codeBlock.textContent);
+                            tableDiv.innerHTML = `
+                                <div style="padding: 15px; border: 1px solid var(--error-color, #e74c3c); border-radius: 8px; background-color: var(--error-bg, #fdf2f2); color: var(--error-color, #e74c3c); margin: 10px 0;">
+                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        <strong>Table Processing Error</strong>
+                                    </div>
+                                    <div style="font-size: 14px; opacity: 0.9;">${e.message}</div>
+                                </div>
+                            `;
+                        }
+                    }, 500); // Delay to allow streaming to complete
+                });
+                resultsContainer.scrollTop = resultsContainer.scrollHeight;
             };
 
             const logCallback = (message) => {
@@ -1137,12 +1529,10 @@ Generated on: ${currentDate}
             };
 
             try {
-                const { finalResponse, sources } = await orchestrateAgents(query, userName, userLocalTime, selectedModel, streamCallback, logCallback, isShortResponseEnabled);
+            const response = await orchestrateAgents(query, userName, userLocalTime, selectedModel, streamCallback, logCallback, isShortResponseEnabled);
 
-                // --- Final Processing Step ---
-                // This code runs after the entire stream is finished.
-                processFinalResponse(aiResponseElement, aiResponseContent, sources);
 
+                addExportPanel(aiResponseElement, aiResponseContent);
                 logStep('<i class="fas fa-check-circle" style="color: #10B981;"></i> Response completed successfully.');
                 setSendButtonState(false);
                 const logContainer = document.getElementById('live-log-container');
@@ -1255,67 +1645,8 @@ Generated on: ${currentDate}
     };
 
 
-    // This new function processes the complete response after streaming is done.
-    const processFinalResponse = (aiResponseElement, fullContent, sources) => {
-        let mainAnswer = fullContent;
-        
-        // Update the global content for export functions
-        currentResponseContent = mainAnswer;
-
-        // Render the final main answer content
-        aiResponseElement.innerHTML = marked.parse(mainAnswer);
-
-        // Now, find and render all charts and tables from the final content
-        aiResponseElement.querySelectorAll('pre code.language-chart').forEach((codeBlock, index) => {
-            const chartContainerId = `chart-container-${Date.now()}-${index}`;
-            const chartDiv = document.createElement('div');
-            chartDiv.id = chartContainerId;
-            chartDiv.classList.add('chart-display');
-            codeBlock.parentNode.parentNode.replaceChild(chartDiv, codeBlock.parentNode);
-
-            try {
-                const chartConfig = safeParseChartConfig(codeBlock.textContent.trim());
-                renderChart(chartContainerId, chartConfig);
-            } catch (e) {
-                console.error("Error processing chart:", e);
-                chartDiv.innerHTML = `<div class="render-error">Chart Processing Error: ${e.message}</div>`;
-            }
-        });
-
-        aiResponseElement.querySelectorAll('pre code.language-table').forEach((codeBlock, index) => {
-            const tableContainerId = `table-container-${Date.now()}-${index}`;
-            const tableDiv = document.createElement('div');
-            tableDiv.id = tableContainerId;
-            tableDiv.classList.add('table-display');
-            codeBlock.parentNode.parentNode.replaceChild(tableDiv, codeBlock.parentNode);
-
-            try {
-                const tableConfig = parseTableConfig(codeBlock.textContent.trim());
-                renderTable(tableConfig, tableContainerId);
-            } catch (e) {
-                console.error("Error processing table:", e);
-                tableDiv.innerHTML = `<div class="render-error">Table Processing Error: ${e.message}</div>`;
-            }
-        });
-
-        // Highlight all code blocks
-        renderCodeHighlighting(aiResponseElement);
-
-        // Process and render the sources from the parsed JSON data
-        if (sources) {
-            renderSourceCards(sources, sourcesContainer);
-            const sourcesTab = document.querySelector('.tab[data-tab="sources"]');
-            if (sourcesTab) {
-                const counter = sourcesTab.querySelector('.source-count') || document.createElement('span');
-                counter.className = 'source-count';
-                counter.textContent = sources.length;
-                sourcesTab.appendChild(counter);
-            }
-        }
-        
-        // Add the export panel at the very end
-        addExportPanel(aiResponseElement, mainAnswer);
-    };
+    // Removed renderAIResponse as content is now streamed and rendered incrementally.
+    // The functionality of rendering Markdown and highlighting code is now part of the streamCallback.
  
  
  

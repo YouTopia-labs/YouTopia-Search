@@ -545,7 +545,7 @@ export function updateChartsTheme() {
 // Parse chart configuration from markdown-style syntax
 export function parseChartConfig(configString) {
     try {
-        return safeParse(configString);
+        return JSON.parse(configString);
     } catch (error) {
         console.error('Error parsing chart configuration:', error);
         return null;
