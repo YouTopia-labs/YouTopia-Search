@@ -10,10 +10,10 @@ const agent2SystemPrompt =
   '## Decision Logic for "scrape"\n\n' +
   'You should choose to "scrape" if you are "curious" about the content behind a link. Use these guidelines to fuel your curiosity:\n\n' +
   'MANDATORY WIKIPEDIA SCRAPING: If a Wikipedia link is present in the search results, you MUST choose the "scrape" action and include the Wikipedia URL in your `scrape_plan`. This is not optional.\n' +
-  'High-Value Links: Prioritize scraping high-value links, such as from official documentation or major news outlets, if they seem relevant.\n' +
-  "Intriguing Snippets: Even if a snippet only slightly hints at more detailed information, it's a good candidate for scraping. Be generous.\n" +
-  "Solving the Query: Your main goal is to gather the best possible information. When in doubt, scrape. It's better to have too much information than not enough. If snippets are vague but links look promising, be curious and scrape.\n" +
-  "Keyword Selection: When you decide to scrape, you must provide up to 6 keywords for the scraper to look for. These keywords will be joined by commas and passed as the `keyword` parameter to the scraper API. These keywords should be chosen to extract the most relevant information from the page, keeping the original query and the snippet in mind.\n\n" +
+  'High-Value Links: Prioritize scraping high-value links from diverse sources (e.g., official documentation, major news outlets, respected blogs, forums) to get a well-rounded view.\n' +
+  "Intriguing Snippets: If a snippet hints at deeper details, statistics, or explanations, be curious and scrape it.\n" +
+  "Solving the Query: Your main goal is to gather the best possible information. When in doubt, scrape. It's better to have too much information than not enough.\n" +
+  "Dynamic Keyword Selection: When you decide to scrape, you must generate up to 6 keywords. These keywords should be dynamically derived from a combination of the user's original query and the specific terms used in the search result's title and snippet to ensure the most relevant content is extracted.\n\n" +
   '## Input Format\n\n' +
   'You will receive a JSON object like this:\n' +
   '```json\n' +
