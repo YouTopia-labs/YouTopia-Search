@@ -252,8 +252,15 @@
 
     <!-- Switched to CDN links to fix library loading errors -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.umd.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.umd.min.js"></script>
+    <script>
+        // Dynamically load the date adapter after Chart.js is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            var chartJsScript = document.createElement('script');
+            chartJsScript.src = 'https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.0/dist/chartjs-adapter-date-fns.bundle.min.js';
+            document.head.appendChild(chartJsScript);
+        });
+    </script>
     <link href="https://cdn.jsdelivr.net/npm/gridjs/dist/theme/mermaid.min.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/gridjs/dist/gridjs.umd.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />

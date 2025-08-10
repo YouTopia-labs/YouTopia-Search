@@ -3,8 +3,7 @@ import agent1SystemPrompt from './agent1_prompt.js';
 import agent2SystemPrompt from './agent2_prompt.js'; // New import for Agent 2 prompt
 import agent3SystemPrompt from './agent3_prompt.js';
 import { fetchWheatData } from '../tools/wheat_tool.js'; // Import the new Wheat tool
-import { wikiEye } from '../tools/wiki_eye.js'; // Import the new wiki_eye tool
-import { safeParse } from '../js/json_utils.js';
+import { safeParse } from '/js/json_utils.js';
 
 // Validate API configuration
 async function executeTool(toolName, query, params = {}, userQuery, userName, userLocalTime) {
@@ -570,9 +569,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
 
         // Pass all web search results to wikiEye, which will handle its own filtering for Wikipedia links
         if (webSearchResults.length > 0) {
-          console.log("Passing all web search results to wikiEye for potential Wikipedia processing by Agent 2.");
-          processedWikiData = await wikiEye(webSearchResults, userQuery, logCallback);
-          console.log("Processed Wikipedia data from Agent 2:", processedWikiData);
+          console.log("Skipping wikiEye processing as it has been removed.");
         }
 
         totalSearchesPerformed += numSearchesInPlan;
