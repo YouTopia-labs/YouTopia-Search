@@ -1,7 +1,7 @@
 // Chart.js utilities for YouTopia
 // Provides comprehensive charting capabilities with theme support and responsive design
 
-import { safeParse } from './json_utils.js'; // Import Safari-compatible JSON parser
+import { safeParse } from '/js/json_utils.js'; // Import Safari-compatible JSON parser
 
 
 const chartColors = {
