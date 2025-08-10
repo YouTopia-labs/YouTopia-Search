@@ -4,6 +4,7 @@ import agent2SystemPrompt from './agent2_prompt.js'; // New import for Agent 2 p
 import agent3SystemPrompt from './agent3_prompt.js';
 import { fetchWheatData } from '../tools/wheat_tool.js'; // Import the new Wheat tool
 import { safeParse } from '/js/json_utils.js';
+import { scrapeWebsite } from '../tools/scraper_tool.js';
 
 // Validate API configuration
 async function executeTool(toolName, query, params = {}, userQuery, userName, userLocalTime) {
@@ -104,158 +105,89 @@ async function fetchWithProxy(api_target, api_payload, query, userName, userLoca
 }
 
 export async function callAgent(model, prompt, input, retryCount = 0, streamCallback = null, query, userName, userLocalTime) {
-  console.log(`Calling agent with model: ${model}, input:`, input);
-  const maxRetries = 2;
+    console.log(`Calling agent with model: ${model}, input:`, input);
 
-  if (streamCallback) {
-    console.log("Streaming enabled.");
-  }
+    let messages = [
+        { role: 'system', content: prompt },
+        { role: 'user', content: typeof input === 'string' ? input : JSON.stringify(input) }
+    ];
 
-  let messages = [
-    { role: 'system', content: prompt }
-  ];
-
-
-  if (input) {
-    const userInputContent = typeof input === 'string' ? input : JSON.stringify(input);
-    messages.push({ role: 'user', content: userInputContent });
-  }
-
-  const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => {
-      reject(new Error('Request timeout: Mistral API took too long to respond (30 seconds)'));
-    }, 30000);
-  });
-
-  try {
-    const api_payload = {
-      body: {
-        model: model,
-        messages: messages,
-        temperature: 0.5,
-        max_tokens: 6000,
-        stream: true
-      }
-    };
-
-    const fetchPromise = fetchWithProxy('mistral', api_payload, query, userName, userLocalTime);
-    const response = await Promise.race([fetchPromise, timeoutPromise]);
-
-    if (!response.ok) {
-        if (response.status === 429) {
-            throw response; // Throw the 429 Response object so main.js can catch it
-        }
-      let errorData;
-      try {
-        errorData = await response.json();
-      } catch (e) {
-        errorData = { message: await response.text() };
-      }
-      throw new Error(`Mistral API error: ${response.status} - ${errorData.message || response.statusText}`);
-    }
-
-    // Check if response body exists
-    if (!response.body) {
-      throw new Error('Empty response body from Mistral API');
-    }
-
-    let content = '';
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder('utf-8');
+    const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+            reject(new Error('Request timeout: API took too long to respond (30 seconds)'));
+        }, 30000);
+    });
 
     try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        if (!value) {
-          console.warn('Received empty chunk from stream');
-          continue;
-        }
-        
-        const chunk = decoder.decode(value, { stream: true });
-        
-        if (!chunk.trim()) {
-          continue; // Skip empty chunks
-        }
-        
-        // Each chunk might contain multiple JSON objects or partial objects
-        const lines = chunk.split('\n');
-        let buffer = ''; // Buffer to accumulate partial JSON
-        for (const line of lines) {
-            if (line.startsWith('data:')) {
-                const jsonStr = line.substring(5).trim();
-                if (jsonStr === '[DONE]') {
-                    break; // End of stream
-                }
-                if (!jsonStr.trim()) { // Check for empty or whitespace-only string
-                    console.warn('Skipping empty or whitespace-only data: line in stream.');
-                    continue; // Skip to the next line
-                }
+        const api_payload = {
+            body: { model, messages, temperature: 0.5, max_tokens: 6000, stream: true }
+        };
 
-                buffer += jsonStr; // Add to buffer
+        const fetchPromise = fetchWithProxy('mistral', api_payload, query, userName, userLocalTime);
+        const response = await Promise.race([fetchPromise, timeoutPromise]);
 
-                try {
-                    const data = JSON.parse(buffer); // Try parsing the accumulated buffer
-                    if (data.choices && data.choices.length > 0) {
-                        const delta = data.choices[0].delta;
-                        if (delta && delta.content) {
-                            content += delta.content;
-                            // If Agent 3 and streamCallback is provided, send the content immediately
-                            if (streamCallback) {
-                                streamCallback(delta.content);
+        if (!response.ok) {
+            if (response.status === 429) throw response;
+            const errorData = await response.json().catch(() => ({ message: response.statusText }));
+            throw new Error(`API error: ${response.status} - ${errorData.message}`);
+        }
+
+        if (!response.body) throw new Error('Empty response body from API');
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let contentBuffer = '';
+        let done = false;
+
+        while (!done) {
+            const { value, done: readerDone } = await reader.read();
+            done = readerDone;
+            const chunk = decoder.decode(value, { stream: !done });
+            
+            // Split chunk by newline in case multiple data events are in one chunk
+            const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const jsonStr = line.substring(6);
+                    if (jsonStr === '[DONE]') {
+                        done = true;
+                        break;
+                    }
+                    try {
+                        const data = JSON.parse(jsonStr);
+                        if (data.choices && data.choices[0] && data.choices[0].delta) {
+                            const deltaContent = data.choices[0].delta.content;
+                            if (deltaContent) {
+                                if (streamCallback) {
+                                    streamCallback(deltaContent); // Stream content for Agent 3
+                                } else {
+                                    contentBuffer += deltaContent; // Buffer content for Agents 1 and 2
+                                }
                             }
                         }
+                    } catch (e) {
+                        console.warn("Skipping non-JSON data in stream:", jsonStr);
                     }
-                    buffer = ''; // Clear buffer on successful parse
-                } catch (e) {
-                    // JSON parse error: could be incomplete JSON, continue buffering
-                    // console.warn("Incomplete JSON chunk, buffering:", buffer, "Error:", e);
                 }
             }
         }
-      }
-    } catch (streamError) {
-      console.error('Error reading stream:', streamError);
-      throw new Error(`Stream reading error: ${streamError.message}`);
-    }
+        
+        if (streamCallback) return null; // For streaming agents, content is handled by callback
 
-    // Check if we got any content
-    if (!content.trim()) {
-      throw new Error('No content received from Mistral API');
-    }
+        if (!contentBuffer.trim()) throw new Error('No content received from API');
+        
+        console.log("callAgent returning buffered content:", contentBuffer.substring(0, 150) + '...');
+        return contentBuffer;
 
-    // For Agent 1, validate JSON format before returning
-    // If Agent 3 and streaming, skip JSON validation here as partials won't be valid
-    // Validation and retry logic has been moved to orchestrateAgents
-    
-    // If Agent 3 and streaming, the final response is sent via callback, so return null here.
-    if (streamCallback) {
-        console.log("Streaming: callAgent returning null as content is streamed via callback.");
-        return null;
+    } catch (error) {
+        if (error instanceof Response && error.status === 429) throw error;
+        console.error(`Error calling agent: ${error.message}`);
+        throw new Error(`Error calling agent: ${error.message}`);
     }
-
-    console.log("callAgent returning content:", content.substring(0, 100) + (content.length > 100 ? '...' : '')); // Log first 100 chars
-    return content;
-
-  } catch (error) {
-    // Check if the thrown error is the 429 Response object. If so, re-throw it for main.js to handle.
-    if (error instanceof Response && error.status === 429) {
-        throw error;
-    }
-
-    let errorMessage = `Error calling Mistral API: ${error.message}`;
-    if (error instanceof TypeError && error.message === 'Load failed') {
-        errorMessage = `Network Error: Could not connect to Mistral API or the request was aborted. Details: ${error.message}`;
-    } else if (error.response && error.response.status) {
-        errorMessage = `Mistral API returned status ${error.response.status}. Details: ${error.message}`;
-    }
-    console.error(errorMessage);
-    throw new Error(errorMessage); // Re-throw with more specific message
-  }
 }
 
-// Extracts and parses a JSON object from a string.
+// Extracts and parses a JSON object from a string, without attempting to fix it.
 function sanitizeAndParseJson(jsonString) {
     console.log("Attempting to extract and parse JSON from string...");
 
@@ -270,6 +202,7 @@ function sanitizeAndParseJson(jsonString) {
     const potentialJson = jsonString.substring(startIndex, endIndex + 1);
 
     try {
+        // We trust the agent to provide valid JSON. If it fails, the retry logic will handle it.
         return JSON.parse(potentialJson);
     } catch (error) {
         console.error("JSON parsing failed after extraction.", error);
@@ -325,208 +258,102 @@ function validateAgent1Response(response) {
 }
 
 export async function orchestrateAgents(userQuery, userName, userLocalTime, agentSelectionType, streamCallback = null, logCallback = null, isShortResponseEnabled = false) {
-  console.log(`Starting orchestration for query: "${userQuery}" with selection: "${agentSelectionType}", short responses: ${isShortResponseEnabled}`);
+    console.log(`Starting orchestration for query: "${userQuery}"`);
+    const agentConfig = selectAgents(agentSelectionType);
+    const { agent1: agent1Config, agent3: agent3Config } = agentConfig;
 
-  // Validate API configuration before proceeding
-
-  const agentConfig = selectAgents(agentSelectionType);
-  const agent1Model = agentConfig.agent1.model;
-  const agent2Model = 'mistral-3b-latest'; // Define Agent 2 model
-  const agent3Model = agentConfig.agent3.model;
-
-  let allSearchResults = [];
-  let totalSearchesPerformed = 0;
-  let totalScrapedSites = 0;
-
-  const MAX_TOTAL_SEARCHES = 12; // Total individual search steps (web_search, coingecko, wheat)
-  const MAX_TOTAL_SCRAPES = 12; // Total individual sites scraped
-  const MAX_PARALLEL_SCRAPES_PER_TURN = 4; // Max sites scraped in one 'scrape' action
-
-  // Loop for orchestration turns
-  while (true) {
-    console.log(`--- Orchestration Loop: Turn (Searches: ${totalSearchesPerformed}/${MAX_TOTAL_SEARCHES}) ---`);
-
-    // Prepare input for Agent 1
-    const agent1Input = {
-      query: userQuery,
-    };
-
-    console.log("Agent 1: Deciding next action...");
-
-    let agent1ResponseRaw;
+    // --- Agent 1: Search Planner ---
     let parsedAgent1Response;
-    let attempt = 0;
-    const maxAttempts = 2;
-
-    while (attempt < maxAttempts) {
-      attempt++;
-      console.log(`Agent 1: Attempt ${attempt} to get a valid JSON response.`);
-      
-      let currentPrompt = agent1SystemPrompt;
-      let currentInput = agent1Input;
-
-      if (attempt > 1 && agent1ResponseRaw) {
-        // If this is a retry, modify the prompt to ask for a fix
-        console.log("Retrying with a request to fix the malformed JSON.");
-        currentPrompt = `${agent1SystemPrompt}\n\nYour previous response was not valid JSON and could not be parsed. Please review the following error and the malformed response, then provide a corrected and valid JSON object. Do not include any text or markdown formatting outside of the JSON object.\n\nMalformed Response:\n${agent1ResponseRaw}`;
-      }
-
-      agent1ResponseRaw = await callAgent(agent1Model, currentPrompt, currentInput, 0, null, userQuery, userName, userLocalTime);
-
-    if (agent1ResponseRaw instanceof Response && !agent1ResponseRaw.ok) {
-        if (agent1ResponseRaw.status === 429) {
-            // Re-throw the 429 Response object so main.js can handle the popup
-            throw agent1ResponseRaw;
-        }
-        const errorText = await agent1ResponseRaw.text();
-        return `Error: Agent 1 failed with status ${agent1ResponseRaw.status}. ${errorText}`;
-    }
-
-      try {
-        parsedAgent1Response = sanitizeAndParseJson(agent1ResponseRaw);
-        // If parsing is successful, break the loop
-        break;
-      } catch (error) {
-        console.error(`[Error] Agent 1 response parsing failed on attempt ${attempt}:`, error.message);
-        console.error("Raw response:", agent1ResponseRaw);
-        if (attempt >= maxAttempts) {
-          return `Error: Agent 1 failed to return a valid JSON response after ${maxAttempts} attempts. Last error: ${error.message}`;
-        }
-      }
-    }
-
     try {
-      const validationErrors = validateAgent1Response(parsedAgent1Response);
-      if (validationErrors.length > 0) {
-        console.error("[Error] Agent 1 response validation failed:");
-        validationErrors.forEach(error => console.error(`  - ${error}`));
-        console.error("Response:", JSON.stringify(parsedAgent1Response, null, 2));
-        return `Error: Agent 1 response validation failed: ${validationErrors.join('; ')}`;
-      }
-      console.log("✓ Agent 1 response validation passed");
+        logCallback("Thinking...");
+        const agent1Input = { query: userQuery };
+        const agent1ResponseRaw = await callAgent(agent1Config.model, agent1SystemPrompt, agent1Input, 0, null, userQuery, userName, userLocalTime);
+        parsedAgent1Response = sanitizeAndParseJson(agent1ResponseRaw);
+        const validationErrors = validateAgent1Response(parsedAgent1Response);
+        if (validationErrors.length > 0) throw new Error(`Agent 1 validation failed: ${validationErrors.join(', ')}`);
+        console.log("✓ Agent 1: Plan validated", parsedAgent1Response);
     } catch (error) {
-        console.error("[Error] Agent 1 response validation failed unexpectedly:", error.message);
-        return `Error: Agent 1 response validation failed: ${error.message}`;
+        console.error("Error in Agent 1 phase:", error);
+        return `Error during planning phase: ${error.message}`;
     }
 
-    console.log("Agent 1 Parsed Response:", parsedAgent1Response);
+    const { classification, search_plan, response: directResponse, direct_component } = parsedAgent1Response;
 
-    const { classification, action, search_plan, response: agent1DirectResponse, direct_component } = parsedAgent1Response;
-
-    // Handle direct classifications (conversational, math, code, unclear, direct)
-    if (classification && (classification === 'conversational' || classification === 'math' || classification === 'code' || classification === 'unclear' || classification === 'direct')) {
-      console.log(`${classification} query detected. Passing direct response to Agent 3.`);
-      // For 'direct' classification, pass the original userQuery as the query to Agent 3
-      // For other direct classifications, Agent 1's response field already contains the relevant part.
-      const queryForAgent3 = (classification === 'direct') ? userQuery : agent1DirectResponse;
-      const finalResponse = await callAgent(agent3Model, agent3SystemPrompt(isShortResponseEnabled), { rawQuery: userQuery, query: queryForAgent3, classification: classification, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime);
-      console.log("Final Response Generated by Agent 3. Value from callAgent:", finalResponse);
-      // If streaming, callAgent returns null, so we return early
-      if (streamCallback) {
-        console.log("Stream callback was active, returning from orchestrateAgents.");
-        return; // Terminate orchestration here, as the stream handles the rest.
-      } else {
-        return finalResponse; // Return the complete response if not streaming.
-      }
+    // --- Direct Answer Path ---
+    if (['direct', 'conversational', 'math', 'code', 'unclear'].includes(classification)) {
+        logCallback("Generating answer...");
+        const agent3Input = { rawQuery: userQuery, query: directResponse || userQuery, classification, isShortResponseEnabled };
+        return await callAgent(agent3Config.model, agent3SystemPrompt(isShortResponseEnabled), agent3Input, 0, streamCallback, userQuery, userName, userLocalTime);
     }
 
-    // Handle 'search' action for tool_web_search and hybrid classifications
-    if (action === 'search') {
-      const numSearchesInPlan = search_plan ? search_plan.length : 0;
-      if (numSearchesInPlan > 0 && totalSearchesPerformed + numSearchesInPlan > MAX_TOTAL_SEARCHES) {
-        console.log(`Exceeded max search steps (${MAX_TOTAL_SEARCHES}). Cannot perform these searches.`);
-        return "Could not find sufficient information to answer your query after maximum searches.";
-      }
-
-      let webSearchResults = [];
-      let otherToolResults = [];
-      let processedWikiData = [];
-
-      if (search_plan && search_plan.length > 0) {
-        console.log(`Executing search plan (${search_plan.length} steps) in parallel...`);
-
-        const toolNamesMap = {
-          'serper_web_search': 'Web Search',
-          'serper_news_search': 'News Search',
-          'coingecko': 'Crypto',
-          'wheat': 'Open-Meteo',
-          'wiki_eye': 'Wikipedia Scraper'
-        };
-
-        // Initialize allSourceUrls array before it's used in the forEach loop
-        const allSourceUrls = [];
-
-        const searchPromises = search_plan.map(async (step) => {
-          if (logCallback) {
-            const toolDisplayName = toolNamesMap[step.tool] || step.tool;
-            logCallback(`<i class="fas fa-tools"></i> Looking up ${toolDisplayName} for: "<b>${step.query}</b>"`);
-          }
-          if (step.tool === 'serper_web_search') {
-            const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
-            return { type: 'web_search', data: result.results };
-          } else if (step.tool === 'coingecko' || step.tool === 'wheat') {
-            const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
-            return { type: 'other_tool', data: result.data, sourceUrl: result.sourceUrl };
-          } else {
-            throw new Error(`Unhandled tool in search_plan: ${step.tool}`);
-          }
-        });
-
-        const results = await Promise.all(searchPromises);
-
-        results.forEach(res => {
-          if (res.type === 'web_search') {
-            webSearchResults.push(...res.data);
-          } else if (res.type === 'other_tool') {
-            otherToolResults.push(res.data);
-            if (res.sourceUrl) {
-                allSourceUrls.push(res.sourceUrl); // Add specific tool source URL
+    // --- Search & Scrape Path ---
+    let webSearchResults = [];
+    let otherToolResults = [];
+    if (classification === 'tool_web_search' || classification === 'hybrid') {
+        if (!search_plan || search_plan.length === 0) {
+            if (classification === 'hybrid' && direct_component) {
+                // This is acceptable, proceed to Agent 3 with only direct component
+            } else {
+                 return "Search was required, but no search plan was provided.";
             }
-          }
-        });
+        }
+        
+        // --- Tool Execution ---
+        try {
+            const searchPromises = (search_plan || []).map(step => {
+                logCallback(`<i class="fas fa-search"></i> Searching for: "<b>${step.query}</b>"`);
+                return executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
+            });
+            const toolPromiseResults = await Promise.all(searchPromises);
+            toolPromiseResults.forEach(result => {
+                if (result.results) webSearchResults.push(...result.results);
+                if (result.data) otherToolResults.push(...result.data);
+            });
+            console.log("✓ Tools executed:", { webSearchResults, otherToolResults });
+        } catch (error) {
+            console.error("Error in Tool Execution phase:", error);
+            return `Error during tool execution: ${error.message}`;
+        }
 
-        console.log("Raw web search results:", webSearchResults);
-        console.log("Raw other tool results:", otherToolResults);
-
-        // Pass all web search results to wikiEye, which will handle its own filtering for Wikipedia links
+        // --- Agent 2: Scraper ---
+        let scrapedData = [];
         if (webSearchResults.length > 0) {
-          console.log("Skipping wikiEye processing as it has been removed.");
+            try {
+                logCallback("Analyzing results...");
+                const agent2Model = 'mistral-small-latest'; // Explicitly define Agent 2 model
+                const agent2Input = { query: userQuery, serper_results: webSearchResults };
+                const agent2ResponseRaw = await callAgent(agent2Model, agent2SystemPrompt, agent2Input, 0, null, userQuery, userName, userLocalTime);
+                const parsedAgent2Response = sanitizeAndParseJson(agent2ResponseRaw);
+                console.log("✓ Agent 2: Decision made", parsedAgent2Response);
+
+                if (parsedAgent2Response.action === 'scrape' && parsedAgent2Response.scrape_plan) {
+                    const scrapePromises = parsedAgent2Response.scrape_plan.map(scrapeStep => {
+                        logCallback(`<i class="fas fa-spider"></i> Scraping ${scrapeStep.url}`);
+                        return scrapeWebsite(scrapeStep.url, scrapeStep.keywords, logCallback);
+                    });
+                    scrapedData = await Promise.all(scrapePromises);
+                    console.log("✓ Scraping complete:", scrapedData);
+                }
+            } catch (error) {
+                console.error("Error in Agent 2 phase:", error);
+                // Non-fatal, we can proceed without scraped data
+            }
         }
-
-        totalSearchesPerformed += numSearchesInPlan;
-      } else {
-        console.log("Agent 1 requested search but provided an empty search_plan.");
-        // If it's a hybrid query with only a direct component, this is fine.
-        if (classification !== 'hybrid' || !direct_component) {
-          return "Agent 1 provided an empty search plan without a direct component. Could not proceed.";
-        }
-      }
-
-      // Combine all results for Agent 3
-      const allSourceUrls = [
-        ...webSearchResults.map(result => result.link),
-        ...processedWikiData.map(data => data.url)
-      ].filter(Boolean); // Filter out any undefined or null links
-
-      const dataForAgent3 = {
-        webSearchResults: webSearchResults,
-        otherToolResults: otherToolResults,
-        processedWikiData: processedWikiData,
-        rawQuery: userQuery, // Pass the raw query to Agent 3
-        classification: classification, // Pass classification to Agent 3
-        directComponent: direct_component, // Pass the direct component for hybrid queries
-        sourceUrls: [...new Set(allSourceUrls)] // Pass unique source URLs to Agent 3
-      };
-
-      console.log("Sending combined data to Agent 3:", dataForAgent3);
-      const finalResponse = await callAgent(agent3Model, agent3SystemPrompt(isShortResponseEnabled), { ...dataForAgent3, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime);
-
-      return finalResponse; // Return the final response from Agent 3
+        
+        // --- Agent 3: Final Response ---
+        logCallback("Generating answer...");
+        const sourceUrls = [...new Set(webSearchResults.map(r => r.link))];
+        const agent3Input = {
+            rawQuery: userQuery,
+            webSearchResults,
+            otherToolResults,
+            scrapedData,
+            directComponent: direct_component,
+            sourceUrls,
+            isShortResponseEnabled
+        };
+        return await callAgent(agent3Config.model, agent3SystemPrompt(isShortResponseEnabled), agent3Input, 0, streamCallback, userQuery, userName, userLocalTime);
     }
 
-    // If Agent 1 returned a classification that doesn't trigger a 'search' action
-    // and it's not a direct classification handled above, then it's an unhandled action.
-    console.log(`Agent 1 returned an unhandled action or classification: ${action || classification}.`);
-    return "An unexpected error occurred during orchestration.";
-  }
+    return "Could not determine an appropriate action based on the query.";
 }
