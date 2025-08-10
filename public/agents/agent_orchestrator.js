@@ -255,106 +255,27 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
   }
 }
 
-// Sanitize and parse JSON, attempting to fix common errors.
+// Extracts and parses a JSON object from a string.
 function sanitizeAndParseJson(jsonString) {
-    console.log("Attempting to parse JSON...");
-    
+    console.log("Attempting to extract and parse JSON from string...");
+
     // Find the first '{' and the last '}' to extract the JSON object
     const startIndex = jsonString.indexOf('{');
     const endIndex = jsonString.lastIndexOf('}');
-    
+
     if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) {
         throw new Error("Could not find a valid JSON object in the response.");
     }
-    
-    let potentialJson = jsonString.substring(startIndex, endIndex + 1);
-    
-    // First attempt: try parsing as-is
+
+    const potentialJson = jsonString.substring(startIndex, endIndex + 1);
+
     try {
         return JSON.parse(potentialJson);
-    } catch (initialError) {
-        console.log("Initial JSON parse failed, attempting to fix common issues...");
-        
-        // Apply multiple sanitization strategies
-        let fixedJson = potentialJson;
-        
-        // Strategy 1: Fix common property name issues
-        // Fix incomplete property names like "ification", -> "classification":
-        fixedJson = fixedJson.replace(/"\s*ification\s*",?\s*/g, '"classification":');
-        
-        // Fix missing colons after property names
-        fixedJson = fixedJson.replace(/"\s*([^"]+)\s*"\s*,?\s*([^:])/g, '"$1": $2');
-        
-        // Strategy 2: Fix missing quotes around property names
-        // This regex finds unquoted property names and adds quotes
-        fixedJson = fixedJson.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
-        
-        // Strategy 3: Fix trailing commas in objects and arrays
-        fixedJson = fixedJson.replace(/,(\s*[}\]])/g, '$1');
-        
-        // Strategy 4: Fix missing commas between properties
-        fixedJson = fixedJson.replace(/"\s*\n\s*"/g, '",\n"');
-        fixedJson = fixedJson.replace(/}\s*\n\s*{/g, '},\n{');
-        
-        // Strategy 5: Fix incomplete strings and missing quotes
-        // Fix cases where quotes are missing around string values
-        fixedJson = fixedJson.replace(/:\s*([a-zA-Z_][a-zA-Z0-9_\s]*)\s*([,}])/g, ': "$1"$2');
-        
-        // Strategy 6: Fix malformed arrays
-        fixedJson = fixedJson.replace(/\[\s*([^[\]]*)\s*\]/g, (match, content) => {
-            if (!content.trim()) return '[]';
-            // Ensure array elements are properly quoted if they're strings
-            const elements = content.split(',').map(el => {
-                el = el.trim();
-                if (el && !el.startsWith('"') && !el.startsWith('{') && !el.match(/^\d+$/)) {
-                    return `"${el}"`;
-                }
-                return el;
-            });
-            return `[${elements.join(', ')}]`;
-        });
-        
-        // Strategy 7: Ensure proper JSON structure
-        // Remove any text before the first { or after the last }
-        const cleanStart = fixedJson.indexOf('{');
-        const cleanEnd = fixedJson.lastIndexOf('}');
-        if (cleanStart !== -1 && cleanEnd !== -1) {
-            fixedJson = fixedJson.substring(cleanStart, cleanEnd + 1);
-        }
-        
-        // Try parsing the fixed JSON
-        try {
-            console.log("Attempting to parse sanitized JSON...");
-            return JSON.parse(fixedJson);
-        } catch (secondError) {
-            console.error("JSON parsing failed even after sanitization.", secondError);
-            console.error("Original JSON:", potentialJson);
-            console.error("Fixed JSON:", fixedJson);
-            
-            // Last resort: try to construct a minimal valid response
-            try {
-                // Extract key information manually for critical fields
-                const classificationMatch = potentialJson.match(/"?classification"?\s*:\s*"?([^",}]+)"?/i);
-                const actionMatch = potentialJson.match(/"?action"?\s*:\s*"?([^",}]+)"?/i);
-                
-                if (classificationMatch) {
-                    const classification = classificationMatch[1].trim();
-                    const fallbackResponse = {
-                        classification: classification,
-                        action: actionMatch ? actionMatch[1].trim() : 'search',
-                        search_plan: []
-                    };
-                    
-                    console.log("Created fallback response:", fallbackResponse);
-                    return fallbackResponse;
-                }
-            } catch (fallbackError) {
-                console.error("Fallback parsing also failed:", fallbackError);
-            }
-            
-            // Throw a new error with a clear message, including the problematic string
-            throw new Error(`Failed to parse JSON: ${secondError.message}. Original content: ${potentialJson}`);
-        }
+    } catch (error) {
+        console.error("JSON parsing failed after extraction.", error);
+        console.error("Extracted JSON string:", potentialJson);
+        // Re-throw the error to be caught by the orchestration logic
+        throw new Error(`Failed to parse extracted JSON: ${error.message}`);
     }
 }
 
