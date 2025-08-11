@@ -385,6 +385,46 @@ document.addEventListener('DOMContentLoaded', () => {
    rateLimitCloseButton.addEventListener('click', () => hidePopup(rateLimitPopupOverlay)); // "Close" button listener
 
 
+   // --- Bypass Functions for Development ---
+   const永久_AUTH_BYPASS_ENABLED = true; // Set to true to permanently enable bypass mode without needing the console.
+
+   // Function to enable auth bypass via console
+   window.enableAuthBypass = (enable = true) => {
+       if (enable) {
+           const bypassUser = {
+               name: 'Bypass User',
+               email: 'bypass@youtopia.ai',
+               token: 'dummy-token-for-bypass',
+           };
+           localStorage.setItem('auth_bypass_enabled', 'true');
+           localStorage.setItem('user_name', bypassUser.name);
+           localStorage.setItem('user_email', bypassUser.email);
+           localStorage.setItem('id_token', bypassUser.token);
+           console.log('Authentication bypass enabled. A dummy user is now active.');
+           // Manually update the UI to reflect the bypass user
+           updateUserUI({
+               displayName: bypassUser.name,
+               photoURL: '' // No photo for bypass user
+           });
+           // Hide sign-in popups if they are visible
+           hidePopup(signinRequiredPopupOverlay);
+       } else {
+           localStorage.removeItem('auth_bypass_enabled');
+           localStorage.removeItem('user_name');
+           localStorage.removeItem('user_email');
+           localStorage.removeItem('id_token');
+           console.log('Authentication bypass disabled.');
+           // Manually sign out to reset the UI
+           window.firebaseSignOut();
+       }
+   };
+
+   // Automatically enable bypass if the permanent flag is set
+   if (永久_AUTH_BYPASS_ENABLED) {
+       window.enableAuthBypass(true);
+   }
+
+
     // Hide the bottom bar initially
     bottomSearchWrapper.style.display = 'none';
 
@@ -996,7 +1036,9 @@ Generated on: ${currentDate}
         const userName = localStorage.getItem('user_name');
         const idToken = localStorage.getItem('id_token'); // Get the ID Token
 
-        if (!userEmail || !idToken) { // Also check for the token
+        const isAuthBypassEnabled = localStorage.getItem('auth_bypass_enabled') === 'true' || 永久_AUTH_BYPASS_ENABLED;
+
+        if (!isAuthBypassEnabled && (!userEmail || !idToken)) { // Also check for the token
             console.warn('User email or ID token is missing. Showing sign-in popup.');
             showPopup(signinRequiredPopupOverlay);
             return; // Prevent search if not signed in or token is missing
@@ -1151,24 +1193,7 @@ Generated on: ${currentDate}
             } catch (error) {
                 console.error('Search failed:', error);
 
-                // Handle 429 Rate Limit error specifically
-                if (error instanceof Response && error.status === 429) {
-                    const errorData = await error.json();
-                    displayRateLimitPopup(errorData.cooldown_end_timestamp, errorData.message_from_developer);
-                    logStep('<i class="fas fa-hourglass-half" style="color: #FBBF24;"></i> Query limit exceeded.');
-                    setSendButtonState(false); // Ensure button is reset
-                    const logContainer = document.getElementById('live-log-container');
-                    if (logContainer) {
-                        logContainer.classList.remove('is-active');
-                        logContainer.classList.add('has-error'); // Indicate an error state
-                        await new Promise(resolve => setTimeout(resolve, 1200));
-                        logContainer.classList.add('collapsed');
-                        setTimeout(() => {
-                            logContainer.classList.remove('has-error');
-                        }, 1000);
-                    }
-                    return; // Stop further processing
-                }
+                // Rate limit handling is now bypassed
 
                 // Handle all other errors
                 let errorMessage = error.message || 'Unknown error occurred';
