@@ -52,17 +52,11 @@ async function executeTool(toolName, query, params = {}, userQuery, userName, us
 
 // Helper function to proxy requests through the Cloudflare Worker
 async function fetchWithProxy(api_target, api_payload, query, userName, userLocalTime) {
-  const idToken = localStorage.getItem('id_token');
-  if (!idToken) {
-    throw new Error('Authentication token not found. Please sign in.');
-  }
-
   const getWorkerBaseUrl = () => {
     const hostname = window.location.hostname;
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       return 'http://localhost:8788/';
     }
-    // Add your preview branch hostname here if it's different from production
     if (hostname.endsWith('.pages.dev')) {
         return `https://${hostname}/`;
     }
@@ -70,6 +64,17 @@ async function fetchWithProxy(api_target, api_payload, query, userName, userLoca
   };
 
   const WORKER_BASE_URL = getWorkerBaseUrl();
+  const isPreview = WORKER_BASE_URL.includes('localhost') || WORKER_BASE_URL.includes('.pages.dev');
+
+  let idToken = localStorage.getItem('id_token');
+  if (!isPreview && !idToken) {
+    throw new Error('Authentication token not found. Please sign in.');
+  }
+
+  // For preview, if no token is found, use a placeholder
+  if (isPreview && !idToken) {
+    idToken = 'preview_placeholder_token';
+  }
   const response = await fetch(`${WORKER_BASE_URL}api/query-proxy`, {
     method: 'POST',
     headers: {
