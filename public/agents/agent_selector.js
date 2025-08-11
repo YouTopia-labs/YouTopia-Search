@@ -9,7 +9,7 @@ export function selectAgents(selection) {
   if (lowerCaseSelection === 'amaya') {
     agentConfig = {
       agent1: {
-        model: 'mistral-medium-latest',
+        model: 'mistral-small-latest',
         prompt: agent1SystemPrompt
       },
       agent3: {
@@ -24,7 +24,7 @@ export function selectAgents(selection) {
         prompt: agent1SystemPrompt
       },
       agent3: {
-        model: 'mistral-tiny-latest',
+        model: 'mistral-small-latest',
         prompt: agent3SystemPrompt
       }
     };
