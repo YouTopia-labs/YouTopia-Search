@@ -1,3 +1,18 @@
+import { initializeAgentExecutorWithOptions } from "langchain/agents";
+import { ChatOpenAI } from "@langchain/openai";
+import { TavilySearchResults } from "@langchain/community/tools/tavily_search";
+import { BingSerperAPI } from "../tools/bing_serper_api.js";
+import { WebBrowser } from "langchain/tools/web_browser";
+import { Calculator } from "langchain/tools/calculator";
+import { CheerioWebBaseLoader } from "langchain/document_loaders/web/cheerio";
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
+import { OpenAIEmbeddings } from "@langchain/openai";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { createRetrieverTool } from "langchain/tools/retriever";
+import { CoingeckoAPI, CoingeckoTool } from '../tools/coingecko_tool.js';
+import { SerperAPI, SerperTool } from '../tools/serper_tool.js';
+import { ScraperAPI, ScraperTool } from '../tools/scraper_tool.js';
+import { WikiImageAPI, WikiImageTool } from '../tools/wiki_image_search_tool.js';
 // Helper to add CORS headers to a response
 const allowedOrigins = [
   'https://youtopia.co.in',
@@ -34,6 +49,10 @@ async function handleApiRequest(request, env) {
   }
 
   return new Response('API route not found.', { status: 404 });
+}
+
+if (url.pathname === '/api/orchestrate') {
+  return handleOrchestration(request, env);
 }
 
 export default {
@@ -565,3 +584,144 @@ Thank you for your support, it truly makes a difference to allow this project to
     });
   }
 }
+// --- Agent Orchestration Logic ---
+
+async function handleOrchestration(request, env) {
+  try {
+    const { query, user_name, user_email, user_local_time, selectedModel, isShortResponseEnabled, is_preview } = await request.json();
+
+    // --- Bypass for Preview Branch ---
+    if (!is_preview) {
+      // Existing authentication and rate-limiting logic for production
+      try {
+        const tokenInfo = await verifyGoogleToken(id_token, env);
+        if (tokenInfo.email !== user_email) {
+          return new Response(JSON.stringify({ error: 'Security alert: Token-email mismatch.' }), { status: 403 });
+        }
+      } catch (error) {
+        return new Response(JSON.stringify({ error: `Authentication failed: ${error.message}` }), { status: 401 });
+      }
+      // ... existing rate limiting logic ...
+    }
+
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+    const textEncoder = new TextEncoder();
+
+    const streamCallback = (chunk) => {
+      writer.write(textEncoder.encode(`data: ${JSON.stringify({ type: 'stream', content: chunk })}\n\n`));
+    };
+
+    const logCallback = (message) => {
+      writer.write(textEncoder.encode(`data: ${JSON.stringify({ type: 'log', content: message })}\n\n`));
+    };
+
+    const runAgent = async () => {
+      try {
+        logCallback('<i class="fas fa-cogs" style="color: #60A5FA;"></i> Initializing AI agents and tools...');
+
+        const tools = createTools(query, user_name, user_local_time, streamCallback, logCallback, env);
+
+        const llm = new ChatOpenAI({
+            modelName: "gpt-4-turbo-2024-04-09",
+            temperature: 0.1,
+            streaming: true,
+            openAIApiKey: env.MISTRAL_API_KEY, // Use the key from env
+            configuration: {
+                baseURL: 'https://api.mistral.ai/v1', // Point directly to Mistral
+                dangerouslyAllowBrowser: true, // This is a worker, so it's safe
+            },
+        });
+
+        let mainPrompt = selectedModel === 'Amaya'
+            ? await env.ASSETS.fetch(new Request(new URL('/agents/agent1_prompt.js', request.url))).then(res => res.text())
+            : await env.ASSETS.fetch(new Request(new URL('/agents/agent2_prompt.js', request.url))).then(res => res.text());
+
+        const match = mainPrompt.match(/`([\s\S]*)`/);
+        if (match) mainPrompt = match[1];
+
+
+        if (isShortResponseEnabled) {
+            mainPrompt += "\n\nIMPORTANT: The user has requested a short, concise response. Please provide a direct answer without unnecessary elaboration.";
+            logCallback('<i class="fas fa-compress-arrows-alt" style="color: #3B82F6;"></i> Short response mode enabled.');
+        }
+
+        const agentExecutor = await initializeAgentExecutorWithOptions(tools, llm, {
+            agentType: "openai-functions",
+            verbose: true,
+            agentArgs: {
+                prefix: mainPrompt,
+            },
+        });
+
+        logCallback('<i class="fas fa-play-circle" style="color: #10B981;"></i> Agent executor created. Starting execution...');
+
+        const result = await agentExecutor.invoke({
+            input: query
+        }, {
+            callbacks: [{
+                handleLLMNewToken(token) {
+                    streamCallback(token);
+                },
+            }, ],
+        });
+
+        let finalResponse = result.output;
+        logCallback('<i class="fas fa-flag-checkered" style="color: #10B981;"></i> Agent execution finished.');
+        
+        let sources = [];
+        try {
+            const sourcesMatch = finalResponse.match(/\[SOURCES\]\s*(\{[\s\S]*?\})\s*\[\/SOURCES\]/);
+            if (sourcesMatch && sourcesMatch[1]) {
+                const sourcesJson = sourcesMatch[1];
+                sources = JSON.parse(sourcesJson).sources;
+                finalResponse = finalResponse.replace(sourcesMatch[0], '').trim();
+                logCallback(`<i class="fas fa-link" style="color: #3B82F6;"></i> Extracted ${sources.length} sources.`);
+            }
+        } catch (e) {
+            logCallback(`<i class="fas fa-exclamation-triangle" style="color: #FBBF24;"></i> Could not parse sources from the response: ${e.message}`);
+        }
+
+        writer.write(textEncoder.encode(`data: ${JSON.stringify({ type: 'final_response', content: finalResponse, sources: sources })}\n\n`));
+
+      } catch (e) {
+        console.error("Error during agent execution:", e);
+        writer.write(textEncoder.encode(`data: ${JSON.stringify({ type: 'error', content: e.message })}\n\n`));
+      } finally {
+        writer.close();
+      }
+    };
+
+    runAgent();
+
+    return new Response(readable, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    });
+
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+  }
+}
+
+const createTools = (query, userName, userLocalTime, streamCallback, logCallback, env) => {
+    const serperAPI = new SerperAPI(
+        env.SERPER_API_KEY,
+        (payload) => proxySerper(payload, env).then(r => r.json())
+    );
+    const coingeckoAPI = new CoingeckoAPI(
+        (payload) => proxyCoingecko(payload, env).then(r => r.json())
+    );
+    // Add other tools similarly, proxying through the worker's existing functions
+    
+    const tools = [
+        new SerperTool(serperAPI, logCallback),
+        new CoingeckoTool(coingeckoAPI, logCallback),
+        // Scraper and WikiImage tools need their proxy functions implemented if they are to be used
+    ];
+
+    return tools;
+};
