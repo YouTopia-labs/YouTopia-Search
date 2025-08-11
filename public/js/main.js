@@ -385,46 +385,6 @@ document.addEventListener('DOMContentLoaded', () => {
    rateLimitCloseButton.addEventListener('click', () => hidePopup(rateLimitPopupOverlay)); // "Close" button listener
 
 
-   // --- Bypass Functions for Development ---
-   const永久_AUTH_BYPASS_ENABLED = true; // Set to true to permanently enable bypass mode without needing the console.
-
-   // Function to enable auth bypass via console
-   window.enableAuthBypass = (enable = true) => {
-       if (enable) {
-           const bypassUser = {
-               name: 'Bypass User',
-               email: 'bypass@youtopia.ai',
-               token: 'dummy-token-for-bypass',
-           };
-           localStorage.setItem('auth_bypass_enabled', 'true');
-           localStorage.setItem('user_name', bypassUser.name);
-           localStorage.setItem('user_email', bypassUser.email);
-           localStorage.setItem('id_token', bypassUser.token);
-           console.log('Authentication bypass enabled. A dummy user is now active.');
-           // Manually update the UI to reflect the bypass user
-           updateUserUI({
-               displayName: bypassUser.name,
-               photoURL: '' // No photo for bypass user
-           });
-           // Hide sign-in popups if they are visible
-           hidePopup(signinRequiredPopupOverlay);
-       } else {
-           localStorage.removeItem('auth_bypass_enabled');
-           localStorage.removeItem('user_name');
-           localStorage.removeItem('user_email');
-           localStorage.removeItem('id_token');
-           console.log('Authentication bypass disabled.');
-           // Manually sign out to reset the UI
-           window.firebaseSignOut();
-       }
-   };
-
-   // Automatically enable bypass if the permanent flag is set
-   if (永久_AUTH_BYPASS_ENABLED) {
-       window.enableAuthBypass(true);
-   }
-
-
     // Hide the bottom bar initially
     bottomSearchWrapper.style.display = 'none';
 
@@ -1032,17 +992,10 @@ Generated on: ${currentDate}
 
     // --- Main Search Handler ---
     const handleSearch = async (query, sourceElement = null) => {
-        const userEmail = localStorage.getItem('user_email');
-        const userName = localStorage.getItem('user_name');
-        const idToken = localStorage.getItem('id_token'); // Get the ID Token
-
-        const isAuthBypassEnabled = localStorage.getItem('auth_bypass_enabled') === 'true' || 永久_AUTH_BYPASS_ENABLED;
-
-        if (!isAuthBypassEnabled && (!userEmail || !idToken)) { // Also check for the token
-            console.warn('User email or ID token is missing. Showing sign-in popup.');
-            showPopup(signinRequiredPopupOverlay);
-            return; // Prevent search if not signed in or token is missing
-        }
+        // AUTHENTICATION BYPASSED
+        const userEmail = 'bypass@youtopia.ai';
+        const userName = 'Bypass User';
+        const idToken = 'dummy-token-for-bypass';
 
         const isBottomSearch = sourceElement && sourceElement.id === 'query-input-bottom';
         let selectedModel = isBottomSearch ? 'Amaya' : (document.getElementById('selected-model')?.textContent || 'Amaya');
@@ -1193,7 +1146,7 @@ Generated on: ${currentDate}
             } catch (error) {
                 console.error('Search failed:', error);
 
-                // Rate limit handling is now bypassed
+                // RATE LIMITING BYPASSED
 
                 // Handle all other errors
                 let errorMessage = error.message || 'Unknown error occurred';
@@ -1400,28 +1353,19 @@ Generated on: ${currentDate}
          }
      };
 
-     document.querySelector('.search-wrapper .send-btn').addEventListener('click', () => {
-         console.log('Top send button clicked.');
-         triggerSearchOrPause(queryInputTop);
-     });
+     sendBtnTop.addEventListener('click', () => triggerSearchOrPause(queryInputTop));
      queryInputTop.addEventListener('keydown', (e) => {
          if (e.key === 'Enter' && !e.shiftKey) {
              e.preventDefault();
-             console.log('Enter key pressed on top input.');
-             triggerSearchOrPause(e.target);
+             triggerSearchOrPause(queryInputTop);
          }
      });
 
-     // Fix follow-up search box functionality
-     document.getElementById('send-btn-bottom').addEventListener('click', () => {
-         console.log('Bottom send button clicked.');
-         triggerSearchOrPause(queryInputBottom);
-     });
+     sendBtnBottom.addEventListener('click', () => triggerSearchOrPause(queryInputBottom));
      queryInputBottom.addEventListener('keydown', (e) => {
          if (e.key === 'Enter' && !e.shiftKey) {
              e.preventDefault();
-             console.log('Enter key pressed on bottom input.');
-             triggerSearchOrPause(e.target);
+             triggerSearchOrPause(queryInputBottom);
          }
      });
  
