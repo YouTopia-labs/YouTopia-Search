@@ -992,10 +992,15 @@ Generated on: ${currentDate}
 
     // --- Main Search Handler ---
     const handleSearch = async (query, sourceElement = null) => {
-        // AUTHENTICATION BYPASSED
-        const userEmail = 'bypass@youtopia.ai';
-        const userName = 'Bypass User';
-        const idToken = 'dummy-token-for-bypass';
+        const userEmail = localStorage.getItem('user_email');
+        const userName = localStorage.getItem('user_name');
+        const idToken = localStorage.getItem('id_token'); // Get the ID Token
+
+        if (!userEmail || !idToken) { // Also check for the token
+            console.warn('User email or ID token is missing. Showing sign-in popup.');
+            showPopup(signinRequiredPopupOverlay);
+            return; // Prevent search if not signed in or token is missing
+        }
 
         const isBottomSearch = sourceElement && sourceElement.id === 'query-input-bottom';
         let selectedModel = isBottomSearch ? 'Amaya' : (document.getElementById('selected-model')?.textContent || 'Amaya');
@@ -1146,7 +1151,24 @@ Generated on: ${currentDate}
             } catch (error) {
                 console.error('Search failed:', error);
 
-                // RATE LIMITING BYPASSED
+                // Handle 429 Rate Limit error specifically
+                if (error instanceof Response && error.status === 429) {
+                    const errorData = await error.json();
+                    displayRateLimitPopup(errorData.cooldown_end_timestamp, errorData.message_from_developer);
+                    logStep('<i class="fas fa-hourglass-half" style="color: #FBBF24;"></i> Query limit exceeded.');
+                    setSendButtonState(false); // Ensure button is reset
+                    const logContainer = document.getElementById('live-log-container');
+                    if (logContainer) {
+                        logContainer.classList.remove('is-active');
+                        logContainer.classList.add('has-error'); // Indicate an error state
+                        await new Promise(resolve => setTimeout(resolve, 1200));
+                        logContainer.classList.add('collapsed');
+                        setTimeout(() => {
+                            logContainer.classList.remove('has-error');
+                        }, 1000);
+                    }
+                    return; // Stop further processing
+                }
 
                 // Handle all other errors
                 let errorMessage = error.message || 'Unknown error occurred';
@@ -1353,19 +1375,28 @@ Generated on: ${currentDate}
          }
      };
 
-     sendBtnTop.addEventListener('click', () => triggerSearchOrPause(queryInputTop));
+     document.querySelector('.search-wrapper .send-btn').addEventListener('click', () => {
+         console.log('Top send button clicked.');
+         triggerSearchOrPause(queryInputTop);
+     });
      queryInputTop.addEventListener('keydown', (e) => {
          if (e.key === 'Enter' && !e.shiftKey) {
              e.preventDefault();
-             triggerSearchOrPause(queryInputTop);
+             console.log('Enter key pressed on top input.');
+             triggerSearchOrPause(e.target);
          }
      });
 
-     sendBtnBottom.addEventListener('click', () => triggerSearchOrPause(queryInputBottom));
+     // Fix follow-up search box functionality
+     document.getElementById('send-btn-bottom').addEventListener('click', () => {
+         console.log('Bottom send button clicked.');
+         triggerSearchOrPause(queryInputBottom);
+     });
      queryInputBottom.addEventListener('keydown', (e) => {
          if (e.key === 'Enter' && !e.shiftKey) {
              e.preventDefault();
-             triggerSearchOrPause(queryInputBottom);
+             console.log('Enter key pressed on bottom input.');
+             triggerSearchOrPause(e.target);
          }
      });
  
