@@ -1,18 +1,3 @@
-import { initializeAgentExecutorWithOptions } from "langchain/agents";
-import { ChatOpenAI } from "@langchain/openai";
-import { TavilySearchResults } from "@langchain/community/tools/tavily_search";
-import { BingSerperAPI } from "../tools/bing_serper_api.js";
-import { WebBrowser } from "langchain/tools/web_browser";
-import { Calculator } from "langchain/tools/calculator";
-import { CheerioWebBaseLoader } from "langchain/document_loaders/web/cheerio";
-import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { OpenAIEmbeddings } from "@langchain/openai";
-import { MemoryVectorStore } from "langchain/vectorstores/memory";
-import { createRetrieverTool } from "langchain/tools/retriever";
-import { CoingeckoAPI, CoingeckoTool } from '../tools/coingecko_tool.js';
-import { SerperAPI, SerperTool } from '../tools/serper_tool.js';
-import { ScraperAPI, ScraperTool } from '../tools/scraper_tool.js';
-import { WikiImageAPI, WikiImageTool } from '../tools/wiki_image_search_tool.js';
 // Helper to add CORS headers to a response
 const allowedOrigins = [
   'https://youtopia.co.in',
@@ -49,10 +34,6 @@ async function handleApiRequest(request, env) {
   }
 
   return new Response('API route not found.', { status: 404 });
-}
-
-if (url.pathname === '/api/orchestrate') {
-  return handleOrchestration(request, env);
 }
 
 export default {
@@ -425,94 +406,106 @@ async function handleQueryProxy(request, env) {
 
     const { query, user_name, user_email, user_local_time, api_target, api_payload, id_token } = await request.json();
 
-    try {
-      const tokenInfo = await verifyGoogleToken(id_token, env);
-      if (tokenInfo.email !== user_email) {
-        console.error('Security Alert: Email mismatch between ID token and request body. Token email:', tokenInfo.email, 'Request email:', user_email);
-        return new Response(JSON.stringify({ error: 'Security alert: Token-email mismatch.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+    const origin = request.headers.get('Origin');
+    const previewOrigins = [
+      'https://youtopia-search-e7z.pages.dev',
+      'http://localhost:8788',
+      'http://127.0.0.1:8788'
+    ];
+    const isPreview = previewOrigins.includes(origin);
+
+    if (isPreview) {
+      console.log(`Preview environment detected for origin: ${origin}. Bypassing auth and rate limiting.`);
+    } else {
+      // Production logic: enforce auth and rate limiting
+      try {
+        const tokenInfo = await verifyGoogleToken(id_token, env);
+        if (tokenInfo.email !== user_email) {
+          console.error('Security Alert: Email mismatch between ID token and request body. Token email:', tokenInfo.email, 'Request email:', user_email);
+          return new Response(JSON.stringify({ error: 'Security alert: Token-email mismatch.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+        }
+      } catch (error) {
+        console.error('Authentication error in handleQueryProxy:', error.message);
+        return new Response(JSON.stringify({ error: `Authentication failed: ${error.message}` }), { status: 401, headers: { 'Content-Type': 'application/json' } });
       }
-    } catch (error) {
-      console.error('Authentication error in handleQueryProxy:', error.message);
-      return new Response(JSON.stringify({ error: `Authentication failed: ${error.message}` }), { status: 401, headers: { 'Content-Type': 'application/json' } });
-    }
 
-    // Handle status check first to bypass all other logic
-    if (api_target === 'status_check') {
-        const now = Date.now();
-        const userKvKey = `user:${user_email}`;
-        let userData = await env.YOUTOPIA_DATA.get(userKvKey, { type: 'json' });
-        if (!userData) {
-            userData = { queries: [], cooldown_end_timestamp: null, whitelist_start_date: null };
-        }
+      // Handle status check first to bypass all other logic
+      if (api_target === 'status_check') {
+          const now = Date.now();
+          const userKvKey = `user:${user_email}`;
+          let userData = await env.YOUTOPIA_DATA.get(userKvKey, { type: 'json' });
+          if (!userData) {
+              userData = { queries: [], cooldown_end_timestamp: null, whitelist_start_date: null };
+          }
 
-        const whitelistEmailsString = await env.YOUTOPIA_CONFIG.get('whitelist_emails');
-        const whitelistEmails = whitelistEmailsString ? JSON.parse(whitelistEmailsString) : [];
-        const WHITELIST_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000;
-        
-        let is_whitelisted_20x_plan = false;
-        if (whitelistEmails.includes(user_email)) {
-            let userDataUpdated = false;
-            if (!userData.whitelist_start_date) {
-                userData.whitelist_start_date = now;
-                userDataUpdated = true;
-            }
-            if (userData.cooldown_end_timestamp) {
-                userData.cooldown_end_timestamp = null;
-                userDataUpdated = true;
-            }
-            if (now - userData.whitelist_start_date < WHITELIST_VALIDITY_MS) {
-                is_whitelisted_20x_plan = true;
-            } else {
-                userData.whitelist_start_date = null;
-                userDataUpdated = true;
-            }
-            if (userDataUpdated) {
-                await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
-            }
-        }
-        
-        return new Response(JSON.stringify({ success: true, is_whitelisted_20x_plan }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        });
-    }
+          const whitelistEmailsString = await env.YOUTOPIA_CONFIG.get('whitelist_emails');
+          const whitelistEmails = whitelistEmailsString ? JSON.parse(whitelistEmailsString) : [];
+          const WHITELIST_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000;
+          
+          let is_whitelisted_20x_plan = false;
+          if (whitelistEmails.includes(user_email)) {
+              let userDataUpdated = false;
+              if (!userData.whitelist_start_date) {
+                  userData.whitelist_start_date = now;
+                  userDataUpdated = true;
+              }
+              if (userData.cooldown_end_timestamp) {
+                  userData.cooldown_end_timestamp = null;
+                  userDataUpdated = true;
+              }
+              if (now - userData.whitelist_start_date < WHITELIST_VALIDITY_MS) {
+                  is_whitelisted_20x_plan = true;
+              } else {
+                  userData.whitelist_start_date = null;
+                  userDataUpdated = true;
+              }
+              if (userDataUpdated) {
+                  await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
+              }
+          }
+          
+          return new Response(JSON.stringify({ success: true, is_whitelisted_20x_plan }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+      }
 
-    // --- Rate Limiting Logic for all other API targets ---
-    const now = Date.now();
-    const userKvKey = `user:${user_email}`;
-    let userData = await env.YOUTOPIA_DATA.get(userKvKey, { type: 'json' });
+      // --- Rate Limiting Logic for all other API targets ---
+      const now = Date.now();
+      const userKvKey = `user:${user_email}`;
+      let userData = await env.YOUTOPIA_DATA.get(userKvKey, { type: 'json' });
 
-    if (!userData) {
-      userData = { queries: [], cooldown_end_timestamp: null, whitelist_start_date: null };
-    }
+      if (!userData) {
+        userData = { queries: [], cooldown_end_timestamp: null, whitelist_start_date: null };
+      }
 
-    const whitelistEmailsString = await env.YOUTOPIA_CONFIG.get('whitelist_emails');
-    const whitelistEmails = whitelistEmailsString ? JSON.parse(whitelistEmailsString) : [];
-    const WHITELIST_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000;
-    
-    let is_whitelisted_20x_plan = false;
-    if (whitelistEmails.includes(user_email)) {
-        if (!userData.whitelist_start_date) {
-            userData.whitelist_start_date = now;
-        }
-        if (now - userData.whitelist_start_date < WHITELIST_VALIDITY_MS) {
-            is_whitelisted_20x_plan = true;
-        } else {
-            userData.whitelist_start_date = null; // Whitelist has expired
-        }
-    }
-    
-    const FREE_RATE_LIMIT = 8;
-    const FREE_RATE_LIMIT_WINDOW_MS = 6 * 60 * 60 * 1000;
-    const WHITELIST_RATE_LIMIT = 200;
-    const WHITELIST_RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
-    
-    const currentRateLimit = is_whitelisted_20x_plan ? WHITELIST_RATE_LIMIT : FREE_RATE_LIMIT;
-    const currentRateLimitWindowMs = is_whitelisted_20x_plan ? WHITELIST_RATE_LIMIT_WINDOW_MS : FREE_RATE_LIMIT_WINDOW_MS;
-    
-    let messageFromDeveloper = is_whitelisted_20x_plan
-      ? "Thank you for supporting YouTopia! You've reached your daily query limit for the 20x Plus Plan. Your generosity keeps this project running. You can make more queries after the cooldown."
-      : `If you appreciate this project and responses, please consider supporting it! This is a solo, self-funded research project by a full time student.
+      const whitelistEmailsString = await env.YOUTOPIA_CONFIG.get('whitelist_emails');
+      const whitelistEmails = whitelistEmailsString ? JSON.parse(whitelistEmailsString) : [];
+      const WHITELIST_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000;
+      
+      let is_whitelisted_20x_plan = false;
+      if (whitelistEmails.includes(user_email)) {
+          if (!userData.whitelist_start_date) {
+              userData.whitelist_start_date = now;
+          }
+          if (now - userData.whitelist_start_date < WHITELIST_VALIDITY_MS) {
+              is_whitelisted_20x_plan = true;
+          } else {
+              userData.whitelist_start_date = null; // Whitelist has expired
+          }
+      }
+      
+      const FREE_RATE_LIMIT = 8;
+      const FREE_RATE_LIMIT_WINDOW_MS = 6 * 60 * 60 * 1000;
+      const WHITELIST_RATE_LIMIT = 200;
+      const WHITELIST_RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+      
+      const currentRateLimit = is_whitelisted_20x_plan ? WHITELIST_RATE_LIMIT : FREE_RATE_LIMIT;
+      const currentRateLimitWindowMs = is_whitelisted_20x_plan ? WHITELIST_RATE_LIMIT_WINDOW_MS : FREE_RATE_LIMIT_WINDOW_MS;
+      
+      let messageFromDeveloper = is_whitelisted_20x_plan
+        ? "Thank you for supporting YouTopia! You've reached your daily query limit for the 20x Plus Plan. Your generosity keeps this project running. You can make more queries after the cooldown."
+        : `If you appreciate this project and responses, please consider supporting it! This is a solo, self-funded research project by a full time student.
 Your donations would help to keep running it for everyone (and fund my coffee for improving it). Contributions over $20 also qualify for the 20x Plus Plan, which includes:
 ✅ 200 queries per day
 ✅ Valid for an entire month
@@ -520,47 +513,48 @@ Your donations would help to keep running it for everyone (and fund my coffee fo
 To activate the 20x plan after donating, simply email us at support@youtopia.co.in or youtopialabs@gmail.com
 
 Thank you for your support, it truly makes a difference to allow this project to be funded by users and not advertisers.`;
-    
-    const relevantTimeAgo = now - currentRateLimitWindowMs;
-    userData.queries = userData.queries.filter(q => q.timestamp > relevantTimeAgo);
-    const queryCount = userData.queries.length;
+      
+      const relevantTimeAgo = now - currentRateLimitWindowMs;
+      userData.queries = userData.queries.filter(q => q.timestamp > relevantTimeAgo);
+      const queryCount = userData.queries.length;
 
-    if (userData.cooldown_end_timestamp && now < userData.cooldown_end_timestamp) {
-      return new Response(JSON.stringify({
-        error: 'Query limit exceeded.',
-        cooldown_end_timestamp: userData.cooldown_end_timestamp,
-        message_from_developer: messageFromDeveloper
-      }), { status: 429, headers: { 'Content-Type': 'application/json' } });
-    }
-
-    if (queryCount > currentRateLimit) {
-      if (!userData.cooldown_end_timestamp || now >= userData.cooldown_end_timestamp) {
-        const cooldownStart = userData.queries.length > 0 ? userData.queries[currentRateLimit - 1].timestamp : now;
-        userData.cooldown_end_timestamp = cooldownStart + currentRateLimitWindowMs;
+      if (userData.cooldown_end_timestamp && now < userData.cooldown_end_timestamp) {
+        return new Response(JSON.stringify({
+          error: 'Query limit exceeded.',
+          cooldown_end_timestamp: userData.cooldown_end_timestamp,
+          message_from_developer: messageFromDeveloper
+        }), { status: 429, headers: { 'Content-Type': 'application/json' } });
       }
+
+      if (queryCount > currentRateLimit) {
+        if (!userData.cooldown_end_timestamp || now >= userData.cooldown_end_timestamp) {
+          const cooldownStart = userData.queries.length > 0 ? userData.queries[currentRateLimit - 1].timestamp : now;
+          userData.cooldown_end_timestamp = cooldownStart + currentRateLimitWindowMs;
+        }
+        await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
+        return new Response(JSON.stringify({
+          error: 'Query limit exceeded.',
+          cooldown_end_timestamp: userData.cooldown_end_timestamp,
+          message_from_developer: messageFromDeveloper
+        }), { status: 429, headers: { 'Content-Type': 'application/json' } });
+      }
+
+      // Increment query count and save user data
+      userData.queries.push({
+        timestamp: now,
+        query: query,
+        user_name: user_name,
+        user_email: user_email,
+        user_local_time: user_local_time,
+        api_target: api_target,
+      });
+
+      if (userData.cooldown_end_timestamp && now >= userData.cooldown_end_timestamp) {
+          userData.cooldown_end_timestamp = null;
+      }
+      
       await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
-      return new Response(JSON.stringify({
-        error: 'Query limit exceeded.',
-        cooldown_end_timestamp: userData.cooldown_end_timestamp,
-        message_from_developer: messageFromDeveloper
-      }), { status: 429, headers: { 'Content-Type': 'application/json' } });
     }
-
-    // Increment query count and save user data
-    userData.queries.push({
-      timestamp: now,
-      query: query,
-      user_name: user_name,
-      user_email: user_email,
-      user_local_time: user_local_time,
-      api_target: api_target,
-    });
-
-    if (userData.cooldown_end_timestamp && now >= userData.cooldown_end_timestamp) {
-        userData.cooldown_end_timestamp = null;
-    }
-    
-    await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
 
     // --- Proxy the request to the target API ---
     switch (api_target) {
@@ -584,144 +578,3 @@ Thank you for your support, it truly makes a difference to allow this project to
     });
   }
 }
-// --- Agent Orchestration Logic ---
-
-async function handleOrchestration(request, env) {
-  try {
-    const { query, user_name, user_email, user_local_time, selectedModel, isShortResponseEnabled, is_preview } = await request.json();
-
-    // --- Bypass for Preview Branch ---
-    if (!is_preview) {
-      // Existing authentication and rate-limiting logic for production
-      try {
-        const tokenInfo = await verifyGoogleToken(id_token, env);
-        if (tokenInfo.email !== user_email) {
-          return new Response(JSON.stringify({ error: 'Security alert: Token-email mismatch.' }), { status: 403 });
-        }
-      } catch (error) {
-        return new Response(JSON.stringify({ error: `Authentication failed: ${error.message}` }), { status: 401 });
-      }
-      // ... existing rate limiting logic ...
-    }
-
-    const { readable, writable } = new TransformStream();
-    const writer = writable.getWriter();
-    const textEncoder = new TextEncoder();
-
-    const streamCallback = (chunk) => {
-      writer.write(textEncoder.encode(`data: ${JSON.stringify({ type: 'stream', content: chunk })}\n\n`));
-    };
-
-    const logCallback = (message) => {
-      writer.write(textEncoder.encode(`data: ${JSON.stringify({ type: 'log', content: message })}\n\n`));
-    };
-
-    const runAgent = async () => {
-      try {
-        logCallback('<i class="fas fa-cogs" style="color: #60A5FA;"></i> Initializing AI agents and tools...');
-
-        const tools = createTools(query, user_name, user_local_time, streamCallback, logCallback, env);
-
-        const llm = new ChatOpenAI({
-            modelName: "gpt-4-turbo-2024-04-09",
-            temperature: 0.1,
-            streaming: true,
-            openAIApiKey: env.MISTRAL_API_KEY, // Use the key from env
-            configuration: {
-                baseURL: 'https://api.mistral.ai/v1', // Point directly to Mistral
-                dangerouslyAllowBrowser: true, // This is a worker, so it's safe
-            },
-        });
-
-        let mainPrompt = selectedModel === 'Amaya'
-            ? await env.ASSETS.fetch(new Request(new URL('/agents/agent1_prompt.js', request.url))).then(res => res.text())
-            : await env.ASSETS.fetch(new Request(new URL('/agents/agent2_prompt.js', request.url))).then(res => res.text());
-
-        const match = mainPrompt.match(/`([\s\S]*)`/);
-        if (match) mainPrompt = match[1];
-
-
-        if (isShortResponseEnabled) {
-            mainPrompt += "\n\nIMPORTANT: The user has requested a short, concise response. Please provide a direct answer without unnecessary elaboration.";
-            logCallback('<i class="fas fa-compress-arrows-alt" style="color: #3B82F6;"></i> Short response mode enabled.');
-        }
-
-        const agentExecutor = await initializeAgentExecutorWithOptions(tools, llm, {
-            agentType: "openai-functions",
-            verbose: true,
-            agentArgs: {
-                prefix: mainPrompt,
-            },
-        });
-
-        logCallback('<i class="fas fa-play-circle" style="color: #10B981;"></i> Agent executor created. Starting execution...');
-
-        const result = await agentExecutor.invoke({
-            input: query
-        }, {
-            callbacks: [{
-                handleLLMNewToken(token) {
-                    streamCallback(token);
-                },
-            }, ],
-        });
-
-        let finalResponse = result.output;
-        logCallback('<i class="fas fa-flag-checkered" style="color: #10B981;"></i> Agent execution finished.');
-        
-        let sources = [];
-        try {
-            const sourcesMatch = finalResponse.match(/\[SOURCES\]\s*(\{[\s\S]*?\})\s*\[\/SOURCES\]/);
-            if (sourcesMatch && sourcesMatch[1]) {
-                const sourcesJson = sourcesMatch[1];
-                sources = JSON.parse(sourcesJson).sources;
-                finalResponse = finalResponse.replace(sourcesMatch[0], '').trim();
-                logCallback(`<i class="fas fa-link" style="color: #3B82F6;"></i> Extracted ${sources.length} sources.`);
-            }
-        } catch (e) {
-            logCallback(`<i class="fas fa-exclamation-triangle" style="color: #FBBF24;"></i> Could not parse sources from the response: ${e.message}`);
-        }
-
-        writer.write(textEncoder.encode(`data: ${JSON.stringify({ type: 'final_response', content: finalResponse, sources: sources })}\n\n`));
-
-      } catch (e) {
-        console.error("Error during agent execution:", e);
-        writer.write(textEncoder.encode(`data: ${JSON.stringify({ type: 'error', content: e.message })}\n\n`));
-      } finally {
-        writer.close();
-      }
-    };
-
-    runAgent();
-
-    return new Response(readable, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    });
-
-  } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), { status: 500 });
-  }
-}
-
-const createTools = (query, userName, userLocalTime, streamCallback, logCallback, env) => {
-    const serperAPI = new SerperAPI(
-        env.SERPER_API_KEY,
-        (payload) => proxySerper(payload, env).then(r => r.json())
-    );
-    const coingeckoAPI = new CoingeckoAPI(
-        (payload) => proxyCoingecko(payload, env).then(r => r.json())
-    );
-    // Add other tools similarly, proxying through the worker's existing functions
-    
-    const tools = [
-        new SerperTool(serperAPI, logCallback),
-        new CoingeckoTool(coingeckoAPI, logCallback),
-        // Scraper and WikiImage tools need their proxy functions implemented if they are to be used
-    ];
-
-    return tools;
-};
