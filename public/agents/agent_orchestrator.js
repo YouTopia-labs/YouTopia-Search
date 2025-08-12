@@ -52,29 +52,12 @@ async function executeTool(toolName, query, params = {}, userQuery, userName, us
 
 // Helper function to proxy requests through the Cloudflare Worker
 async function fetchWithProxy(api_target, api_payload, query, userName, userLocalTime) {
-  const getWorkerBaseUrl = () => {
-    const hostname = window.location.hostname;
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:8788/';
-    }
-    if (hostname.endsWith('.pages.dev')) {
-        return `https://${hostname}/`;
-    }
-    return 'https://youtopia-worker.youtopialabs.workers.dev/';
-  };
-
-  const WORKER_BASE_URL = getWorkerBaseUrl();
-  const isPreview = WORKER_BASE_URL.includes('localhost') || WORKER_BASE_URL.includes('.pages.dev');
-
-  let idToken = localStorage.getItem('id_token');
-  if (!isPreview && !idToken) {
+  const idToken = localStorage.getItem('id_token');
+  if (!idToken) {
     throw new Error('Authentication token not found. Please sign in.');
   }
 
-  // For preview, if no token is found, use a placeholder
-  if (isPreview && !idToken) {
-    idToken = 'preview_placeholder_token';
-  }
+  const WORKER_BASE_URL = 'https://youtopia-worker.youtopialabs.workers.dev/';
   const response = await fetch(`${WORKER_BASE_URL}api/query-proxy`, {
     method: 'POST',
     headers: {

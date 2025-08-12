@@ -406,106 +406,94 @@ async function handleQueryProxy(request, env) {
 
     const { query, user_name, user_email, user_local_time, api_target, api_payload, id_token } = await request.json();
 
-    const origin = request.headers.get('Origin');
-    const previewOrigins = [
-      'https://youtopia-search-e7z.pages.dev',
-      'http://localhost:8788',
-      'http://127.0.0.1:8788'
-    ];
-    const isPreview = previewOrigins.includes(origin);
+    try {
+      const tokenInfo = await verifyGoogleToken(id_token, env);
+      if (tokenInfo.email !== user_email) {
+        console.error('Security Alert: Email mismatch between ID token and request body. Token email:', tokenInfo.email, 'Request email:', user_email);
+        return new Response(JSON.stringify({ error: 'Security alert: Token-email mismatch.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+      }
+    } catch (error) {
+      console.error('Authentication error in handleQueryProxy:', error.message);
+      return new Response(JSON.stringify({ error: `Authentication failed: ${error.message}` }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+    }
 
-    if (isPreview) {
-      console.log(`Preview environment detected for origin: ${origin}. Bypassing auth and rate limiting.`);
-    } else {
-      // Production logic: enforce auth and rate limiting
-      try {
-        const tokenInfo = await verifyGoogleToken(id_token, env);
-        if (tokenInfo.email !== user_email) {
-          console.error('Security Alert: Email mismatch between ID token and request body. Token email:', tokenInfo.email, 'Request email:', user_email);
-          return new Response(JSON.stringify({ error: 'Security alert: Token-email mismatch.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+    // Handle status check first to bypass all other logic
+    if (api_target === 'status_check') {
+        const now = Date.now();
+        const userKvKey = `user:${user_email}`;
+        let userData = await env.YOUTOPIA_DATA.get(userKvKey, { type: 'json' });
+        if (!userData) {
+            userData = { queries: [], cooldown_end_timestamp: null, whitelist_start_date: null };
         }
-      } catch (error) {
-        console.error('Authentication error in handleQueryProxy:', error.message);
-        return new Response(JSON.stringify({ error: `Authentication failed: ${error.message}` }), { status: 401, headers: { 'Content-Type': 'application/json' } });
-      }
 
-      // Handle status check first to bypass all other logic
-      if (api_target === 'status_check') {
-          const now = Date.now();
-          const userKvKey = `user:${user_email}`;
-          let userData = await env.YOUTOPIA_DATA.get(userKvKey, { type: 'json' });
-          if (!userData) {
-              userData = { queries: [], cooldown_end_timestamp: null, whitelist_start_date: null };
-          }
+        const whitelistEmailsString = await env.YOUTOPIA_CONFIG.get('whitelist_emails');
+        const whitelistEmails = whitelistEmailsString ? JSON.parse(whitelistEmailsString) : [];
+        const WHITELIST_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000;
+        
+        let is_whitelisted_20x_plan = false;
+        if (whitelistEmails.includes(user_email)) {
+            let userDataUpdated = false;
+            if (!userData.whitelist_start_date) {
+                userData.whitelist_start_date = now;
+                userDataUpdated = true;
+            }
+            if (userData.cooldown_end_timestamp) {
+                userData.cooldown_end_timestamp = null;
+                userDataUpdated = true;
+            }
+            if (now - userData.whitelist_start_date < WHITELIST_VALIDITY_MS) {
+                is_whitelisted_20x_plan = true;
+            } else {
+                userData.whitelist_start_date = null;
+                userDataUpdated = true;
+            }
+            if (userDataUpdated) {
+                await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
+            }
+        }
+        
+        return new Response(JSON.stringify({ success: true, is_whitelisted_20x_plan }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+    }
 
-          const whitelistEmailsString = await env.YOUTOPIA_CONFIG.get('whitelist_emails');
-          const whitelistEmails = whitelistEmailsString ? JSON.parse(whitelistEmailsString) : [];
-          const WHITELIST_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000;
-          
-          let is_whitelisted_20x_plan = false;
-          if (whitelistEmails.includes(user_email)) {
-              let userDataUpdated = false;
-              if (!userData.whitelist_start_date) {
-                  userData.whitelist_start_date = now;
-                  userDataUpdated = true;
-              }
-              if (userData.cooldown_end_timestamp) {
-                  userData.cooldown_end_timestamp = null;
-                  userDataUpdated = true;
-              }
-              if (now - userData.whitelist_start_date < WHITELIST_VALIDITY_MS) {
-                  is_whitelisted_20x_plan = true;
-              } else {
-                  userData.whitelist_start_date = null;
-                  userDataUpdated = true;
-              }
-              if (userDataUpdated) {
-                  await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
-              }
-          }
-          
-          return new Response(JSON.stringify({ success: true, is_whitelisted_20x_plan }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' }
-          });
-      }
+    // --- Rate Limiting Logic for all other API targets ---
+    const now = Date.now();
+    const userKvKey = `user:${user_email}`;
+    let userData = await env.YOUTOPIA_DATA.get(userKvKey, { type: 'json' });
 
-      // --- Rate Limiting Logic for all other API targets ---
-      const now = Date.now();
-      const userKvKey = `user:${user_email}`;
-      let userData = await env.YOUTOPIA_DATA.get(userKvKey, { type: 'json' });
+    if (!userData) {
+      userData = { queries: [], cooldown_end_timestamp: null, whitelist_start_date: null };
+    }
 
-      if (!userData) {
-        userData = { queries: [], cooldown_end_timestamp: null, whitelist_start_date: null };
-      }
-
-      const whitelistEmailsString = await env.YOUTOPIA_CONFIG.get('whitelist_emails');
-      const whitelistEmails = whitelistEmailsString ? JSON.parse(whitelistEmailsString) : [];
-      const WHITELIST_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000;
-      
-      let is_whitelisted_20x_plan = false;
-      if (whitelistEmails.includes(user_email)) {
-          if (!userData.whitelist_start_date) {
-              userData.whitelist_start_date = now;
-          }
-          if (now - userData.whitelist_start_date < WHITELIST_VALIDITY_MS) {
-              is_whitelisted_20x_plan = true;
-          } else {
-              userData.whitelist_start_date = null; // Whitelist has expired
-          }
-      }
-      
-      const FREE_RATE_LIMIT = 8;
-      const FREE_RATE_LIMIT_WINDOW_MS = 6 * 60 * 60 * 1000;
-      const WHITELIST_RATE_LIMIT = 200;
-      const WHITELIST_RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
-      
-      const currentRateLimit = is_whitelisted_20x_plan ? WHITELIST_RATE_LIMIT : FREE_RATE_LIMIT;
-      const currentRateLimitWindowMs = is_whitelisted_20x_plan ? WHITELIST_RATE_LIMIT_WINDOW_MS : FREE_RATE_LIMIT_WINDOW_MS;
-      
-      let messageFromDeveloper = is_whitelisted_20x_plan
-        ? "Thank you for supporting YouTopia! You've reached your daily query limit for the 20x Plus Plan. Your generosity keeps this project running. You can make more queries after the cooldown."
-        : `If you appreciate this project and responses, please consider supporting it! This is a solo, self-funded research project by a full time student.
+    const whitelistEmailsString = await env.YOUTOPIA_CONFIG.get('whitelist_emails');
+    const whitelistEmails = whitelistEmailsString ? JSON.parse(whitelistEmailsString) : [];
+    const WHITELIST_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000;
+    
+    let is_whitelisted_20x_plan = false;
+    if (whitelistEmails.includes(user_email)) {
+        if (!userData.whitelist_start_date) {
+            userData.whitelist_start_date = now;
+        }
+        if (now - userData.whitelist_start_date < WHITELIST_VALIDITY_MS) {
+            is_whitelisted_20x_plan = true;
+        } else {
+            userData.whitelist_start_date = null; // Whitelist has expired
+        }
+    }
+    
+    const FREE_RATE_LIMIT = 8;
+    const FREE_RATE_LIMIT_WINDOW_MS = 6 * 60 * 60 * 1000;
+    const WHITELIST_RATE_LIMIT = 200;
+    const WHITELIST_RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+    
+    const currentRateLimit = is_whitelisted_20x_plan ? WHITELIST_RATE_LIMIT : FREE_RATE_LIMIT;
+    const currentRateLimitWindowMs = is_whitelisted_20x_plan ? WHITELIST_RATE_LIMIT_WINDOW_MS : FREE_RATE_LIMIT_WINDOW_MS;
+    
+    let messageFromDeveloper = is_whitelisted_20x_plan
+      ? "Thank you for supporting YouTopia! You've reached your daily query limit for the 20x Plus Plan. Your generosity keeps this project running. You can make more queries after the cooldown."
+      : `If you appreciate this project and responses, please consider supporting it! This is a solo, self-funded research project by a full time student.
 Your donations would help to keep running it for everyone (and fund my coffee for improving it). Contributions over $20 also qualify for the 20x Plus Plan, which includes:
 ✅ 200 queries per day
 ✅ Valid for an entire month
@@ -513,48 +501,47 @@ Your donations would help to keep running it for everyone (and fund my coffee fo
 To activate the 20x plan after donating, simply email us at support@youtopia.co.in or youtopialabs@gmail.com
 
 Thank you for your support, it truly makes a difference to allow this project to be funded by users and not advertisers.`;
-      
-      const relevantTimeAgo = now - currentRateLimitWindowMs;
-      userData.queries = userData.queries.filter(q => q.timestamp > relevantTimeAgo);
-      const queryCount = userData.queries.length;
+    
+    const relevantTimeAgo = now - currentRateLimitWindowMs;
+    userData.queries = userData.queries.filter(q => q.timestamp > relevantTimeAgo);
+    const queryCount = userData.queries.length;
 
-      if (userData.cooldown_end_timestamp && now < userData.cooldown_end_timestamp) {
-        return new Response(JSON.stringify({
-          error: 'Query limit exceeded.',
-          cooldown_end_timestamp: userData.cooldown_end_timestamp,
-          message_from_developer: messageFromDeveloper
-        }), { status: 429, headers: { 'Content-Type': 'application/json' } });
-      }
-
-      if (queryCount > currentRateLimit) {
-        if (!userData.cooldown_end_timestamp || now >= userData.cooldown_end_timestamp) {
-          const cooldownStart = userData.queries.length > 0 ? userData.queries[currentRateLimit - 1].timestamp : now;
-          userData.cooldown_end_timestamp = cooldownStart + currentRateLimitWindowMs;
-        }
-        await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
-        return new Response(JSON.stringify({
-          error: 'Query limit exceeded.',
-          cooldown_end_timestamp: userData.cooldown_end_timestamp,
-          message_from_developer: messageFromDeveloper
-        }), { status: 429, headers: { 'Content-Type': 'application/json' } });
-      }
-
-      // Increment query count and save user data
-      userData.queries.push({
-        timestamp: now,
-        query: query,
-        user_name: user_name,
-        user_email: user_email,
-        user_local_time: user_local_time,
-        api_target: api_target,
-      });
-
-      if (userData.cooldown_end_timestamp && now >= userData.cooldown_end_timestamp) {
-          userData.cooldown_end_timestamp = null;
-      }
-      
-      await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
+    if (userData.cooldown_end_timestamp && now < userData.cooldown_end_timestamp) {
+      return new Response(JSON.stringify({
+        error: 'Query limit exceeded.',
+        cooldown_end_timestamp: userData.cooldown_end_timestamp,
+        message_from_developer: messageFromDeveloper
+      }), { status: 429, headers: { 'Content-Type': 'application/json' } });
     }
+
+    if (queryCount > currentRateLimit) {
+      if (!userData.cooldown_end_timestamp || now >= userData.cooldown_end_timestamp) {
+        const cooldownStart = userData.queries.length > 0 ? userData.queries[currentRateLimit - 1].timestamp : now;
+        userData.cooldown_end_timestamp = cooldownStart + currentRateLimitWindowMs;
+      }
+      await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
+      return new Response(JSON.stringify({
+        error: 'Query limit exceeded.',
+        cooldown_end_timestamp: userData.cooldown_end_timestamp,
+        message_from_developer: messageFromDeveloper
+      }), { status: 429, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    // Increment query count and save user data
+    userData.queries.push({
+      timestamp: now,
+      query: query,
+      user_name: user_name,
+      user_email: user_email,
+      user_local_time: user_local_time,
+      api_target: api_target,
+    });
+
+    if (userData.cooldown_end_timestamp && now >= userData.cooldown_end_timestamp) {
+        userData.cooldown_end_timestamp = null;
+    }
+    
+    await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
 
     // --- Proxy the request to the target API ---
     switch (api_target) {
