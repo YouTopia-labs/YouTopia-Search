@@ -16,6 +16,7 @@ export function safeParse(jsonString, allowFallback = false) {
 
     // Aggressively strip markdown and other non-JSON text
     let cleanJson = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
+    cleanJson = cleanJson.replace(/\{ and end with \}\. Any text before or after the JSON object will cause a system failure\./g, '').trim();
 
     // Find the first '{' and the last '}' to extract the JSON object
     const startIndex = cleanJson.indexOf('{');
