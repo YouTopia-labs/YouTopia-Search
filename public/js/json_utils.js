@@ -225,42 +225,51 @@ export function parseChartConfig(jsonString) {
         throw new Error('Invalid input: JSON string is required');
     }
 
-    let chartConfigText = jsonString.trim();
+    // Step 1: Remove markdown and find the core JSON object.
+    let cleanJson = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
+    const startIndex = cleanJson.indexOf('{');
+    const endIndex = cleanJson.lastIndexOf('}');
     
-    // Clean up the JSON format
-    chartConfigText = chartConfigText.replace(/(\w+):/g, "\"$1\":");
+    if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) {
+        throw new Error("Could not find a valid JSON object in the chart configuration.");
+    }
     
+    let potentialJson = cleanJson.substring(startIndex, endIndex + 1);
+
+    // Step 2: Apply a series of cleaning operations.
+    // This is an aggressive cleaning approach.
+    let sanitizedJson = potentialJson
+        // Remove newlines, tabs, and other whitespace issues
+        .replace(/\n/g, ' ')
+        .replace(/\r/g, '')
+        .replace(/\t/g, ' ')
+        // Add quotes to unquoted property names. Handles names with underscores.
+        .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')
+        // Convert single quotes to double quotes
+        .replace(/'/g, '"')
+        // Remove trailing commas from objects and arrays
+        .replace(/,(\s*[}\]])/g, '$1')
+        // Add missing commas between properties where a " is followed by a "
+        .replace(/""/g, '","')
+        // Final whitespace cleanup
+        .replace(/\s+/g, ' ');
+
+    // Step 3: Attempt to parse the sanitized JSON.
     try {
-        return JSON.parse(chartConfigText);
-    } catch (parseError) {
-        // Try to fix common JSON issues
-        let cleanedText = chartConfigText;
-        cleanedText = cleanedText.replace(/\"(\w+):\"/g, "\"$1\":");
-        cleanedText = cleanedText.replace(/}\s*{/g, '},{');
-        cleanedText = cleanedText.replace(/}\s*]/g, '}]');
-        cleanedText = cleanedText.replace(/}\s*\]/g, '}]');
-        
-        // Normalize quotes
-        cleanedText = cleanedText.replace(/[""'']/g, '"');
-        cleanedText = cleanedText.replace(/[\u2018\u2019]/g, "'");
-        cleanedText = cleanedText.replace(/[\u201C\u201D]/g, '"');
-        
-        // Remove trailing commas
-        cleanedText = cleanedText.replace(/,(\s*[}\]])/g, '$1');
-        
-        try {
-            const chartConfig = JSON.parse(cleanedText);
-            
-            if (!chartConfig.type) {
-                throw new Error('Chart configuration is missing "type" property');
-            }
-            if (!chartConfig.data) {
-                throw new Error('Chart configuration is missing "data" property');
-            }
-            
-            return chartConfig;
-        } catch (secondParseError) {
-            throw new Error(`Invalid chart configuration format: ${secondParseError.message}`);
+        const chartConfig = JSON.parse(sanitizedJson);
+
+        // Final validation of the parsed object
+        if (!chartConfig.type || !chartConfig.data || !chartConfig.data.labels || !chartConfig.data.datasets) {
+            throw new Error('Chart configuration is missing required properties (type, data, labels, datasets).');
         }
+        
+        return chartConfig;
+    } catch (parseError) {
+        console.error("Failed to parse chart configuration after sanitization.", {
+            original: jsonString,
+            sanitized: sanitizedJson,
+            error: parseError.message
+        });
+        throw new Error(`Invalid chart configuration format: JSON Parse error: ${parseError.message}`);
     }
 }

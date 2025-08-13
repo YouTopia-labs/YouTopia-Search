@@ -33,6 +33,10 @@ async function handleApiRequest(request, env) {
     return handleQueryProxy(request, env);
   }
 
+  if (url.pathname === '/api/kv-data') {
+    return handleKvData(request, env);
+  }
+
   return new Response('API route not found.', { status: 404 });
 }
 
@@ -562,6 +566,43 @@ Thank you for your support, it truly makes a difference to allow this project to
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
       },
+    });
+  }
+}
+
+async function handleKvData(request, env) {
+  try {
+    const { id_token } = await request.json();
+    const tokenInfo = await verifyGoogleToken(id_token, env);
+
+    const authorizedEmails = ['ayushhroyy@gmail.com', 'youtopialabs@gmail.com'];
+
+    // Only allow authorized users to view KV data
+    if (!tokenInfo.email || !authorizedEmails.includes(tokenInfo.email)) {
+      return new Response(JSON.stringify({ error: 'Unauthorized: Your email is not authorized to view this data.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    const listResponse = await env.YOUTOPIA_DATA.list();
+    const keys = listResponse.keys;
+    const kvData = {};
+
+    for (const key of keys) {
+      if (key.name.startsWith('user:')) { // Only fetch user data
+        const value = await env.YOUTOPIA_DATA.get(key.name, { type: 'json' });
+        kvData[key.name] = value;
+      }
+    }
+
+    return new Response(JSON.stringify({ success: true, data: kvData }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Error in handleKvData:', error.stack);
+    return new Response(JSON.stringify({ error: `Error retrieving KV data: ${error.message}` }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 }

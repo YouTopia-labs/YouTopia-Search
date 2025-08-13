@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTopia KV Data Viewer</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #0056b3;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .loading, .error {
+            text-align: center;
+            font-style: italic;
+            margin-top: 20px;
+        }
+        .data-section {
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            background-color: #f9f9f9;
+        }
+        .data-section h2 {
+            color: #0056b3;
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .query-item {
+            background-color: #e9e9e9;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            word-wrap: break-word;
+        }
+        .query-item:last-child {
+            margin-bottom: 0;
+        }
+        .query-item p {
+            margin: 5px 0;
+        }
+        .query-item strong {
+            color: #0056b3;
+        }
+        .user-email {
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 10px;
+            display: block;
+            font-size: 1.1em;
+        }
+        .login-button {
+            display: block;
+            margin: 20px auto;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .login-button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>YouTopia KV Data Viewer</h1>
+        <div id="auth-status">
+            <p>Please sign in to view data.</p>
+            <button id="login-button" class="login-button">Sign in with Google</button>
+        </div>
+        <div id="data-display" style="display: none;">
+            <p class="loading" id="loading-message">Loading KV data...</p>
+            <p class="error" id="error-message" style="display: none; color: red;"></p>
+            <div id="kv-data-container"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDTvIqWeT6mm634BTZ_RNtvSX5KTzNlL9w",
+            authDomain: "youtopia-search-prod.firebaseapp.com",
+            projectId: "youtopia-search-prod",
+            storageBucket: "youtopia-search-prod.firebasestorage.app",
+            messagingSenderId: "834501863463",
+            appId: "1:834501863463:web:b69c0a72e63b7b6b264602",
+            measurementId: "G-466B7XWEDK"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
+
+        const API_ENDPOINT = 'https://youtopia-worker.youtopialabs.workers.dev/api/kv-data';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const authStatusDiv = document.getElementById('auth-status');
+            const loginButton = document.getElementById('login-button');
+            const dataDisplayDiv = document.getElementById('data-display');
+            const loadingMessage = document.getElementById('loading-message');
+            const errorMessage = document.getElementById('error-message');
+            const kvDataContainer = document.getElementById('kv-data-container');
+
+            loginButton.addEventListener('click', async () => {
+                try {
+                    const result = await signInWithPopup(auth, provider);
+                    const user = result.user;
+                    const id_token = await user.getIdToken();
+                    fetchKvData(id_token);
+                } catch (error) {
+                    console.error("Authentication Error:", error);
+                    errorMessage.textContent = `Authentication failed: ${error.message}`;
+                    errorMessage.style.display = 'block';
+                }
+            });
+
+            async function fetchKvData(id_token) {
+                loadingMessage.style.display = 'block';
+                errorMessage.style.display = 'none';
+                dataDisplayDiv.style.display = 'block';
+                authStatusDiv.style.display = 'none';
+
+                try {
+                    const response = await fetch(API_ENDPOINT, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ id_token: id_token }),
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    renderKvData(result.data);
+
+                } catch (error) {
+                    console.error('Error fetching KV data:', error);
+                    errorMessage.textContent = `Failed to load data: ${error.message}`;
+                    errorMessage.style.display = 'block';
+                    loadingMessage.style.display = 'none';
+                }
+            }
+
+            function renderKvData(data) {
+                kvDataContainer.innerHTML = ''; // Clear previous data
+                loadingMessage.style.display = 'none';
+
+                if (Object.keys(data).length === 0) {
+                    kvDataContainer.innerHTML = '<p class="loading">No KV data found.</p>';
+                    return;
+                }
+
+                for (const key in data) {
+                    const userData = data[key];
+                    const email = key.replace('user:', '');
+
+                    const section = document.createElement('div');
+                    section.classList.add('data-section');
+
+                    const emailHeader = document.createElement('span');
+                    emailHeader.classList.add('user-email');
+                    emailHeader.textContent = `Email: ${email}`;
+                    section.appendChild(emailHeader);
+
+                    if (userData.whitelist_start_date) {
+                        const whitelistDate = new Date(userData.whitelist_start_date).toLocaleString();
+                        const whitelistP = document.createElement('p');
+                        whitelistP.innerHTML = `<strong>Whitelisted since:</strong> ${whitelistDate}`;
+                        section.appendChild(whitelistP);
+                    }
+
+                    if (userData.cooldown_end_timestamp) {
+                        const cooldownDate = new Date(userData.cooldown_end_timestamp).toLocaleString();
+                        const cooldownP = document.createElement('p');
+                        cooldownP.innerHTML = `<strong>Cooldown ends:</strong> ${cooldownDate}`;
+                        section.appendChild(cooldownP);
+                    }
+
+                    if (userData.queries && userData.queries.length > 0) {
+                        const queriesHeader = document.createElement('h2');
+                        queriesHeader.textContent = `Queries (${userData.queries.length})`;
+                        section.appendChild(queriesHeader);
+
+                        userData.queries.forEach(queryItem => {
+                            const queryDiv = document.createElement('div');
+                            queryDiv.classList.add('query-item');
+                            
+                            const timestamp = new Date(queryItem.timestamp).toLocaleString();
+                            queryDiv.innerHTML += `<p><strong>Timestamp:</strong> ${timestamp}</p>`;
+                            queryDiv.innerHTML += `<p><strong>Query:</strong> ${queryItem.query}</p>`;
+                            if (queryItem.user_name) {
+                                queryDiv.innerHTML += `<p><strong>User Name:</strong> ${queryItem.user_name}</p>`;
+                            }
+                            if (queryItem.api_target) {
+                                queryDiv.innerHTML += `<p><strong>API Target:</strong> ${queryItem.api_target}</p>`;
+                            }
+                            if (queryItem.user_local_time) {
+                                queryDiv.innerHTML += `<p><strong>Local Time:</strong> ${queryItem.user_local_time}</p>`;
+                            }
+                            section.appendChild(queryDiv);
+                        });
+                    } else {
+                        const noQueriesP = document.createElement('p');
+                        noQueriesP.textContent = 'No queries recorded for this user.';
+                        section.appendChild(noQueriesP);
+                    }
+                    kvDataContainer.appendChild(section);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
