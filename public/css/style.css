@@ -529,7 +529,7 @@ body.dark-mode {
     flex-direction: column;
     overflow: hidden; /* Prevent any overflow */
     /* Prevent compression on Chrome/Edge */
-    min-height: 600px; /* Minimum height to prevent extreme compression */
+    /* Removed min-height to allow dynamic height adjustment on smaller screens */
     /* Ensure consistent box sizing */
     box-sizing: border-box;
     /* Ensure full width */
@@ -639,7 +639,7 @@ body.search-active .background-glow {
     padding: 16px 12px; /* Add consistent padding */
     position: relative;
     z-index: 1;
-    overflow-y: auto; /* Allow scrolling within the content area */
+    /* Removed overflow-y: auto; to prevent unintended scrolling of the main content area */
     min-height: 0; /* Remove min-height to prevent overflow */
     box-sizing: border-box; /* Include padding in width calculation */
 }
@@ -1185,36 +1185,51 @@ body:not(.dark-mode) .placeholder-text-span {
 }
 
 /* Mobile-specific placeholder improvements */
+/* Mobile-specific placeholder improvements - CORRECTED FOR SPACING & CENTERING */
 @media (max-width: 767px) {
+    /* Reduce the overall padding on the main content area for mobile */
     .main-content {
-        padding: 12px 8px; /* Reduced padding for mobile */
-    }
-    
-    .site-title-container,
-    .search-wrapper,
-    .example-prompts {
-        padding-left: 8px;
-        padding-right: 8px;
+        padding: 16px 12px;
     }
 
+    /* Drastically reduce the upward push of the content on mobile */
+    .initial-view-content {
+        transform: translateY(-20px);
+    }
+
+    /* Tighten spacing between title and description */
     .site-title-container {
         white-space: normal; /* Allow wrapping */
-        margin-bottom: 12px; /* Consistent bottom margin */
+        margin-bottom: 16px; /* Was -6px on desktop, which is too tight on mobile */
+        padding: 0 12px; /* Consistent horizontal padding */
     }
 
-    .search-wrapper {
-        max-width: 100%; /* Ensure it resizes */
-        margin-bottom: 12px; /* Reduced bottom margin for mobile */
+    /* Reduce description font size and margin */
+    .site-description {
+        font-size: 0.95rem;
+        margin-bottom: 16px;
     }
     
+    /* FIX: This is the key fix for the search box centering and spacing */
+    .search-wrapper {
+        max-width: 100%;    /* Use full available width */
+        padding: 0 12px;    /* Add consistent padding on the sides */
+        margin: 0 auto 16px auto; /* Center it and reduce bottom margin */
+        box-sizing: border-box; /* Ensure padding is included in the width */
+    }
+    
+    /* Also apply the same centering and spacing logic to the example prompts */
     .example-prompts {
-        max-width: 100%; /* Ensure it resizes */
-        margin-bottom: 16px; /* Consistent bottom margin */
+        max-width: 100%;
+        padding: 0 12px;
+        margin: 0 auto 20px auto;
+        box-sizing: border-box;
     }
 
+    /* Minor adjustment for results view */
     #query-heading {
-        max-width: 100%; /* Ensure it resizes */
-        margin: 4px auto; /* Reduced margin for mobile */
+        max-width: 100%;
+        margin: 4px auto;
     }
 }
 
@@ -1575,8 +1590,6 @@ body.dark-mode .send-btn:active {
     .example-prompts {
         margin-top: 0.5rem;
         margin-bottom: 0.5rem;
-        max-height: 200px; /* Limit height to prevent overflow */
-        overflow-y: auto; /* Allow scrolling if content exceeds height */
     }
     
     .example-prompts-grid {
@@ -1605,7 +1618,6 @@ body.dark-mode .send-btn:active {
 
 .example-prompt-btn:hover {
     border-color: var(--send-button-grad-start);
-    transform: translateY(-2px); /* Subtle lift effect on hover */
 }
 
 /* For tablets and medium screens */
@@ -3866,7 +3878,7 @@ body.dark-mode .google-signin-btn:hover {
 /* Chrome/Edge specific fixes to prevent compression */
 @media screen and (-webkit-min-device-pixel-ratio:0) and (min-resolution: .001dpcm) {
     .app-wrapper {
-        min-height: 600px;
+        /* Removed min-height for flexible layout in Webkit browsers */
         height: 100vh;
     }
     
@@ -3885,9 +3897,7 @@ body.dark-mode .google-signin-btn:hover {
     
     /* Ensure example prompts are properly sized */
     .example-prompts {
-        min-height: 120px;
-        max-height: 300px;
-        overflow-y: auto;
+        overflow-y: visible;
     }
     
     .example-prompts-grid {
@@ -3955,7 +3965,7 @@ body.dark-mode .google-signin-btn:hover {
 /* Firefox specific fixes */
 @-moz-document url-prefix() {
     .app-wrapper {
-        min-height: 600px;
+        /* Removed min-height for flexible layout in Mozilla browsers */
         height: 100vh;
     }
     
@@ -3969,9 +3979,7 @@ body.dark-mode .google-signin-btn:hover {
     
     /* Ensure example prompts are properly sized */
     .example-prompts {
-        min-height: 120px;
-        max-height: 300px;
-        overflow-y: auto;
+        overflow-y: visible;
     }
     
     .example-prompts-grid {
@@ -3994,5 +4002,54 @@ body.dark-mode .google-signin-btn:hover {
     /* Ensure social footer stays visible */
     .social-footer {
         min-height: 50px;
+    }
+}
+
+/* --- MOBILE & SMALL SCREEN FIXES --- */
+@media (max-width: 767px) {
+    /*
+     * Fix for search box centering and spacing.
+     * Ensures the search box and prompts use the full available width
+     * with consistent padding, preventing them from becoming too distanced
+     * or misaligned on small screens.
+     */
+    .search-wrapper,
+    .example-prompts {
+        max-width: 100%;    /* Use full available width */
+        padding: 0 12px;    /* Add consistent padding on the sides */
+        margin-left: auto;
+        margin-right: auto;
+        box-sizing: border-box; /* Ensure padding is included in the width */
+    }
+
+    .search-wrapper {
+        margin-bottom: 16px; /* Consistent bottom margin */
+    }
+
+    .example-prompts {
+        margin-bottom: 20px; /* Consistent bottom margin */
+    }
+
+    /*
+     * Drastically reduce the upward push of the content on mobile
+     * to ensure it remains centered and does not create awkward spacing.
+     */
+    .initial-view-content {
+        transform: translateY(-15px);
+    }
+
+    /*
+     * Adjust title container to allow wrapping and add appropriate
+     * spacing for mobile view.
+     */
+    .site-title-container {
+        white-space: normal; /* Allow wrapping */
+        margin-bottom: 12px; /* Was -6px on desktop, which is too tight on mobile */
+    }
+
+    /* Reduce description font size and margin for better fit */
+    .site-description {
+        font-size: 0.95rem;
+        margin-bottom: 16px;
     }
 }
