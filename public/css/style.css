@@ -669,13 +669,13 @@ body.search-active .background-glow {
     }
     
     .initial-view-content {
-        transform: translateY(-60px); /* Moved section further upward */
+        transform: translateY(-40px); /* Moved section further upward */
     }
 }
 
 @media (min-width: 1440px) {
     .initial-view-content {
-        transform: translateY(-70px); /* Moved section further upward */
+        transform: translateY(-50px); /* Moved section further upward */
     }
     
     html {
@@ -772,7 +772,7 @@ body.search-active .background-glow {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    margin-bottom: -6px; /* Adjusted to bring "YouTopia Search" closer to the description */
+    margin-bottom: -15px; /* Further adjusted to bring "YouTopia Search" closer to the description */
     white-space: nowrap; /* Prevent text wrapping */
     /* Removed padding here, will apply in media query */
 }
@@ -803,7 +803,7 @@ body.search-active .background-glow {
     color: var(--text-secondary);
     opacity: 0.9;
     line-height: 1.6; /* Slightly tighter */
-    margin-bottom: 20px; /* Increased for more breathing room */
+    margin-bottom: 0px; /* Further reduced for less space between title and description */
     text-align: center;
 }
 
@@ -1194,27 +1194,27 @@ body:not(.dark-mode) .placeholder-text-span {
 
     /* Drastically reduce the upward push of the content on mobile */
     .initial-view-content {
-        transform: translateY(-20px);
+        transform: translateY(-55px);
     }
 
     /* Tighten spacing between title and description */
     .site-title-container {
         white-space: normal; /* Allow wrapping */
-        margin-bottom: 16px; /* Was -6px on desktop, which is too tight on mobile */
+        margin-bottom: 4px; /* Reduced to decrease space between title and description */
         padding: 0 12px; /* Consistent horizontal padding */
     }
 
     /* Reduce description font size and margin */
     .site-description {
         font-size: 0.95rem;
-        margin-bottom: 16px;
+        margin-bottom: 0px;
     }
     
     /* FIX: This is the key fix for the search box centering and spacing */
     .search-wrapper {
         max-width: 100%;    /* Use full available width */
         padding: 0 12px;    /* Add consistent padding on the sides */
-        margin: 0 auto 16px auto; /* Center it and reduce bottom margin */
+        margin: 0 auto 12px auto; /* Center it and reduce bottom margin */
         box-sizing: border-box; /* Ensure padding is included in the width */
     }
     
@@ -1530,6 +1530,8 @@ body.dark-mode .send-btn:active {
     width: 100%;
     max-width: 800px; /* Keep max-width for desktop, adjust for mobile in media query */
     align-self: center;
+    overflow-y: auto; /* Make this scrollable */
+    max-height: 140px; /* Limit height to enable scrolling */
     /* Removed padding here, will apply in media query */
 }
 
@@ -2592,7 +2594,7 @@ body.dark-mode .google-signin-btn-enhanced:hover {
 /* Social Media Footer */
 .social-footer {
     position: fixed;
-    bottom: 0px;
+    bottom: 10px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 100;
@@ -2691,7 +2693,7 @@ body.search-active .social-footer {
 /* Mobile adjustments for social footer */
 @media (max-width: 768px) {
     .social-footer {
-        bottom: 0px;
+        bottom: 10px;
     }
     
     .social-links {
@@ -2720,7 +2722,7 @@ body.search-active .social-footer {
     }
 
     .initial-view-content {
-        transform: translateY(-10px); /* Less upward transform */
+        transform: translateY(-20px); /* Less upward transform */
     }
 
     .site-title-container {
@@ -2901,13 +2903,13 @@ body.search-active .social-footer {
         font-size: 11px; /* Even smaller base font size */
     }
     .main-content {
-        padding: 4px 8px; /* Further reduced padding */
+        padding: 4px 8px 50px 8px; /* Further reduced padding, added bottom padding for social footer */
         min-height: 0; /* Allow content to define height */
         justify-content: center; /* Center content vertically */
     }
 
     .initial-view-content {
-        transform: translateY(0px);
+        transform: translateY(-10px);
         justify-content: center; /* Center content vertically */
         flex-grow: 0; /* Don't grow to fill space */
         width: 100%;
@@ -2955,6 +2957,8 @@ body.search-active .social-footer {
     .example-prompts {
         margin-top: 0.5vh; /* Further reduced margin */
         margin-bottom: 0.5vh; /* Further reduced margin */
+        max-height: 90px; /* Make example prompts scrollable on short screens */
+        overflow-y: auto; /* Ensure scrolling is enabled */
     }
 
     .example-prompts-grid {
@@ -2972,7 +2976,7 @@ body.search-active .social-footer {
     }
 
     .social-footer {
-        position: static; /* Let it be part of the flow */
+        /* position: static; Consider making this fixed if overlap persists */
         transform: none;
         margin-top: 0.5vh; /* Further reduced margin */
         padding-bottom: 0.5vh; /* Further reduced padding */
@@ -2996,12 +3000,13 @@ body.search-active .social-footer {
 /* Ultra-narrow AND short screens (hide description, preserve social icons) */
 @media (max-width: 320px) and (max-height: 600px) {
     .main-content {
-        padding: 4px 6px;
-        min-height: calc(100vh - 40px);
+        padding: 4px 6px 50px 6px; /* Added bottom padding for social footer */
+        /* Removed min-height to allow content to define height */
     }
 
     .initial-view-content {
-        transform: translateY(0px); /* No upward transform for ultra-narrow and short screens */
+        transform: translateY(-10px); /* No upward transform for ultra-narrow and short screens */
+        flex-grow: 0; /* Prevent it from expanding unnecessarily */
     }
 
     .site-title {
@@ -3022,6 +3027,8 @@ body.search-active .social-footer {
     .example-prompts {
         margin-top: 0.125rem;
         margin-bottom: 15px; /* Reduced margin since social icons are preserved */
+        max-height: 90px; /* Make example prompts scrollable on ultra-narrow and short screens */
+        overflow-y: auto; /* Ensure scrolling is enabled */
     }
 
     .example-prompts-grid {
@@ -3031,7 +3038,7 @@ body.search-active .social-footer {
     .example-prompt-btn {
         padding: 8px;
         font-size: 0.7rem;
-        min-height: 36px;
+        min-height: 0; /* Allow example prompt buttons to shrink */
     }
 
     /* Keep social footer visible and properly positioned */
@@ -4044,12 +4051,12 @@ body.dark-mode .google-signin-btn:hover {
      */
     .site-title-container {
         white-space: normal; /* Allow wrapping */
-        margin-bottom: 12px; /* Was -6px on desktop, which is too tight on mobile */
+        margin-bottom: -5px; /* Further adjusted to bring "YouTopia Search" closer on mobile */
     }
 
     /* Reduce description font size and margin for better fit */
     .site-description {
         font-size: 0.95rem;
-        margin-bottom: 16px;
+        margin-bottom: 8px; /* Increased margin for mobile */
     }
 }
