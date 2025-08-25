@@ -1681,7 +1681,7 @@ body.dark-mode .send-btn:active {
 
 /* --- Search Active State (Floating Search Box) --- */
 body.search-active {
-    overflow-y: hidden; /* Prevent vertical scrolling on body */
+    overflow-y: auto; /* Allow vertical scrolling on body */
 }
 
 body.search-active .app-container {
