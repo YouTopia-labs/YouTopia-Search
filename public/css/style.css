@@ -576,7 +576,7 @@ body.search-active .background-glow {
     position: sticky; /* Changed to sticky for blur effect */
     top: 0;
     background-color: transparent; /* Removed white filling */
-    z-index: 10;
+    z-index: 1000; /* Increased z-index to ensure it stays on top */
     gap: 10px; /* Space between logo and controls */
 }
 
@@ -3068,17 +3068,24 @@ body.search-active .social-footer {
     border-radius: 16px !important; /* Increased border-radius for more squircleness */
     min-height: 16px !important;
     box-shadow: none !important;
+    display: flex;
+    align-items: center;
+    justify-content: center; /* Center the content */
 }
 
 .compact-search-box .search-input-container {
     display: flex !important;
     align-items: center !important;
     gap: 2px !important; /* Further reduced from 4px */
+    width: 100%;
+    justify-content: center; /* Center the content */
 }
 
 .compact-search-box .textarea-wrapper {
     flex: 1 !important;
     min-height: 14px !important;
+    display: flex;
+    align-items: center;
 }
 
 #bottom-search-wrapper .placeholder-content {
@@ -3089,13 +3096,18 @@ body.search-active .social-footer {
     margin: 0 !important;
     padding: 0 !important;
     border: 0 !important;
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    transform: translateY(-50%);
 }
 
 #bottom-search-wrapper .placeholder-cat-icon {
     width: 28px !important; /* Reduced from 32px */
     height: 28px !important; /* Reduced from 32px */
     left: 6px !important; /* Adjusted for smaller size */
-    top: 150% !important; /* Moved further down from 60% for better positioning */
+    top: 50% !important; /* Center vertically */
     transform: translateY(-50%) !important;
     /* CRITICAL: Remove any spacing that could affect positioning */
     margin: 0 !important;
@@ -3108,7 +3120,7 @@ body.search-active .social-footer {
     width: 16px !important; /* Reduced from 18px */
     height: 16px !important; /* Reduced from 18px */
     left: 36px !important; /* Moved left from 40px */
-    top: 150% !important; /* Moved further down from 60% to align with cat icon */
+    top: 50% !important; /* Center vertically */
     transform: translateY(-50%) !important;
     /* CRITICAL: Remove any spacing that could affect positioning */
     margin: 0 !important;
@@ -3120,7 +3132,7 @@ body.search-active .social-footer {
 #bottom-search-wrapper .placeholder-text-span {
     /* CRITICAL: This MUST match textarea's left padding exactly */
     left: 58px !important; /* Moved left from 62px */
-    top: 150% !important; /* Adjusted to align cursor with 'A' in placeholder text */
+    top: 50% !important; /* Center vertically */
     transform: translateY(-50%) !important;
     /* CRITICAL: Font properties MUST match textarea exactly */
     font-size: 0.9rem !important; /* Increased from 0.8rem */
@@ -3156,7 +3168,7 @@ body.search-active .social-footer {
     vertical-align: baseline !important;
     /* Position textarea to align with placeholder text */
     position: relative !important;
-    top: 7px !important; /* Adjusted top to align with placeholder text */
+    top: 0 !important; /* Reset top positioning */
 }
 
 #send-btn-bottom {
@@ -3171,7 +3183,8 @@ body.search-active .social-footer {
     align-items: center !important;
     justify-content: center !important;
     flex-shrink: 0 !important;
-    transform: translateX(-4px) !important; /* Moved left by 4px */
+    transform: none !important; /* Remove transform that was moving it left */
+    margin-left: 4px; /* Add proper margin instead of transform */
 }
 
 /* --- Chart.js Styling --- */
