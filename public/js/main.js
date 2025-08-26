@@ -2,7 +2,7 @@ import { orchestrateAgents } from '../agents/agent_orchestrator.js';
 import { renderTable, renderChart, parseChartConfig } from './render_tools.js';
 import { updateChartsTheme } from './chart_utils.js';
 import { parseChartConfig as safeParseChartConfig, parseTableConfig } from './json_utils.js';
-import { ConversationManager } from './conversation_manager.js';
+import ConversationManager from './conversation_manager.js';
 
 const WORKER_BASE_URL = 'https://youtopia-worker.youtopialabs.workers.dev/';
 
