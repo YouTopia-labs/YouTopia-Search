@@ -1709,17 +1709,14 @@ body.search-active .search-wrapper:first-of-type {
 body.search-active .search-wrapper:last-of-type {
     position: sticky;
     background-color: var(--bg-color);
-    bottom: 0; /* Changed from -8px to 0 to remove gap */
-    left: 50%;
-    transform: translateX(-50%);
+    bottom: 0;
+    left: 0;
     z-index: 9999;
     flex-shrink: 0;
     margin: 0;
     padding: 8px;
-    width: 100%; /* Changed from 96% to 100% for full width */
-    max-width: 100%; /* Changed from 750px to 100% for full width */
-    display: flex;
-    justify-content: center; /* Center the search box */
+    width: 100%;
+    max-width: 100%;
 }
 
 /* Ensure compact search box is centered in search-active state */
@@ -1728,6 +1725,7 @@ body.search-active .compact-search-box {
     display: flex;
     align-items: center;
     justify-content: center;
+    max-width: 766px; /* Match the max-width of other search boxes */
 }
 
 /* Dropdown adjustments for floating search */
@@ -1744,10 +1742,10 @@ body.search-active .search-wrapper .dropdown-menu {
 
 /* Floating Search Box Styling */
 body.search-active .search-box {
-    max-width: 766px; /* Adjusted to 730px */
+    max-width: 766px;
     margin: 0 auto;
-    transform: none; /* Remove scaling for better positioning */
-    box-shadow: var(--shadow-top); /* Add top shadow for readability */
+    transform: none;
+    box-shadow: var(--shadow-top);
     border-radius: 12px;
 }
 
@@ -3087,9 +3085,9 @@ body.search-active .social-footer {
 .compact-search-box .search-input-container {
     display: flex !important;
     align-items: center !important;
-    gap: 2px !important; /* Further reduced from 4px */
+    gap: 2px !important;
     width: 100%;
-    justify-content: center; /* Center the content */
+    justify-content: center;
 }
 
 .compact-search-box .textarea-wrapper {
