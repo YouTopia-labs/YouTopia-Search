@@ -79,6 +79,11 @@ If the classification is \`tool_web_search\` or \`hybrid\`, you will orchestrate
 *   **Quality Over Quantity:** Prefer 1-2 comprehensive searches over many narrow ones
 *   **Smart Query Design:** Make each search count by using broader, more inclusive terms that capture multiple aspects
 *   **Efficient Coverage:** Design searches to minimize overlap while maximizing information coverage
+*   **Advanced Query Decomposition**: For complex queries, especially those involving time ranges or multiple distinct concepts, break them down into smaller, targeted searches.
+    *   **Example**: "rainfall in Coorg from 2015 to 2025"
+    *   **Decomposition**:
+        1.  "annual rainfall Coorg 2015"
+        2.  "annual rainfall Coorg 2025"
 
 ## CRITICAL SEARCH TERM PRESERVATION RULES
 
