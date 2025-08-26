@@ -1,4 +1,5 @@
 import agent1SystemPrompt from './agent1_prompt.js';
+import agent2SystemPrompt from './agent2_prompt.js';
 import agent3SystemPrompt from './agent3_prompt.js';
 
 export function selectAgents(selection) {
@@ -9,8 +10,12 @@ export function selectAgents(selection) {
   if (lowerCaseSelection === 'amaya') {
     agentConfig = {
       agent1: {
-        model: 'mistral-medium-latest',
+        model: 'mistral-small-latest',
         prompt: agent1SystemPrompt
+      },
+      agent2: {
+        model: 'mistral-small-latest',
+        prompt: agent2SystemPrompt
       },
       agent3: {
         model: 'mistral-small-latest',
@@ -20,8 +25,12 @@ export function selectAgents(selection) {
   } else if (lowerCaseSelection === 'amaya lite') {
     agentConfig = {
       agent1: {
-        model: 'mistral-medium-latest',
+        model: 'mistral-small-latest',
         prompt: agent1SystemPrompt
+      },
+      agent2: {
+        model: 'mistral-small-latest',
+        prompt: agent2SystemPrompt
       },
       agent3: {
         model: 'mistral-small-latest',

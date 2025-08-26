@@ -382,7 +382,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
   // Validate API configuration before proceeding
 
   const agentConfig = selectAgents(agentSelectionType);
-  const agent1Model = 'mistral-medium-latest';
+  const agent1Model = 'mistral-small-latest';
   const agent2Model = 'mistral-small-latest';
   const agent3Model = agentConfig.agent3.model;
 
