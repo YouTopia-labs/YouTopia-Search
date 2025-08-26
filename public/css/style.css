@@ -527,7 +527,6 @@ body.dark-mode {
     height: var(--app-height, 100vh); /* Fallback to dynamically set height */
     display: flex;
     flex-direction: column;
-    overflow: hidden; /* Prevent any overflow */
     /* Prevent compression on Chrome/Edge */
     /* Removed min-height to allow dynamic height adjustment on smaller screens */
     /* Ensure consistent box sizing */
@@ -1692,7 +1691,7 @@ body.search-active .app-container {
 }
 
 body.search-active .main-content {
-    height: 100vh;
+    min-height: 100vh;
     padding: 0;
     max-width: 100%;
     justify-content: flex-start;
