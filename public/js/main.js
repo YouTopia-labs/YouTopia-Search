@@ -2,10 +2,13 @@ import { orchestrateAgents } from '../agents/agent_orchestrator.js';
 import { renderTable, renderChart, parseChartConfig } from './render_tools.js';
 import { updateChartsTheme } from './chart_utils.js';
 import { parseChartConfig as safeParseChartConfig, parseTableConfig } from './json_utils.js';
+import { ConversationManager } from './conversation_manager.js';
 
 const WORKER_BASE_URL = 'https://youtopia-worker.youtopialabs.workers.dev/';
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize conversation manager
+    const conversationManager = new ConversationManager();
 
     // Dynamic cursor alignment function
     const alignCursorWithPlaceholder = (textareaId) => {
@@ -84,6 +87,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const signoutButton = document.getElementById('signout-button');
     const firebaseSignInButton = document.getElementById('firebase-sign-in-button'); // Firebase Sign-In button
     const firebasePopupSignInButton = document.getElementById('firebase-popup-sign-in-button'); // Firebase Sign-In button in popup
+    const historyButton = document.getElementById('history-button'); // History button
+    const historyModal = document.getElementById('history-modal'); // History modal
+    const closeHistoryModal = document.getElementById('close-history-modal'); // Close history modal button
+    const historyList = document.getElementById('history-list'); // History list container
 
     // Popup elements
     const rateLimitPopupOverlay = document.getElementById('rate-limit-popup-overlay');
@@ -243,6 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
             userInfo.style.display = 'flex';
             firebaseSignInButton.style.display = 'none';
             signoutButton.style.display = 'block';
+            historyButton.style.display = 'block'; // Show history button when signed in
             userDropdown.classList.add('signed-in');
 
             try {
@@ -280,6 +288,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error('Failed to fetch user status:', await userStatusResponse.text());
                 }
 
+                // Fetch and load conversation history
+                try {
+                    const historyResponse = await fetch(`${WORKER_BASE_URL}api/conversation-history?id_token=${idToken}`);
+                    if (historyResponse.ok) {
+                        const historyData = await historyResponse.json();
+                        if (historyData.success && historyData.history) {
+                            conversationManager.loadHistory(historyData.history);
+                            console.log('Conversation history loaded.');
+                        }
+                    } else {
+                        console.error('Failed to fetch conversation history:', await historyResponse.text());
+                    }
+                } catch (error) {
+                    console.error('Error fetching conversation history:', error);
+                }
+
             } catch (error) {
                 console.error('Error getting ID token or user status:', error);
                 // Handle error, maybe sign the user out
@@ -292,6 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
             userInfo.style.display = 'none';
             firebaseSignInButton.style.display = 'block';
             signoutButton.style.display = 'none';
+            historyButton.style.display = 'none'; // Hide history button when signed out
             userDropdown.classList.remove('signed-in');
 
             // Clear all user-related data from localStorage
@@ -299,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.removeItem('user_email');
             localStorage.removeItem('user_profile_pic');
             localStorage.removeItem('id_token'); // Remove the Firebase token
-            
+
             const userStatusElement = document.getElementById('user-status');
             if (userStatusElement) {
                 userStatusElement.textContent = ''; // Clear status indicator
@@ -355,8 +380,100 @@ document.addEventListener('DOMContentLoaded', () => {
        popupElement.classList.remove('show');
    };
 
+   // --- History Modal Functions ---
+   const showHistoryModal = () => {
+       // Get conversation history from the conversation manager
+       const history = conversationManager.getHistory();
+       
+       // Clear the history list
+       historyList.innerHTML = '';
+       
+       // Check if there's any history
+       if (history.length === 0) {
+           // Show empty state
+           const emptyState = document.getElementById('history-empty-state');
+           if (emptyState) {
+               emptyState.style.display = 'block';
+           }
+       } else {
+           // Hide empty state
+           const emptyState = document.getElementById('history-empty-state');
+           if (emptyState) {
+               emptyState.style.display = 'none';
+           }
+           
+           // Add history items to the list
+           history.forEach((item, index) => {
+               const historyItem = document.createElement('div');
+               historyItem.classList.add('history-item');
+               
+               // Format timestamp
+               const date = new Date(item.timestamp);
+               const formattedDate = date.toLocaleString();
+               
+               // Get a preview of the response (first 100 characters)
+               const responsePreview = item.response ? item.response.substring(0, 100) + (item.response.length > 100 ? '...' : '') : 'No response yet';
+               
+               historyItem.innerHTML = `
+                   <div class="history-item-title">${item.query}</div>
+                   <div class="history-item-preview">${responsePreview}</div>
+                   <div class="history-item-date">${formattedDate}</div>
+               `;
+               
+               // Add click event to load this conversation
+               historyItem.addEventListener('click', () => {
+                   // Hide the modal
+                   hidePopup(historyModal);
+                   
+                   // Load the conversation into the UI
+                   loadConversation(item);
+               });
+               
+               historyList.appendChild(historyItem);
+           });
+       }
+       
+       // Show the modal
+       showPopup(historyModal);
+   };
+
+   const loadConversation = (item) => {
+       // Clear current results
+       resultsContainer.innerHTML = '';
+       sourcesContainer.innerHTML = '';
+       
+       // Set the query in the heading
+       queryTextContent.textContent = item.query;
+       
+       // Process and display the response
+       if (item.response) {
+           // Create AI response element
+           const aiResponseElement = document.createElement('div');
+           aiResponseElement.classList.add('ai-response');
+           aiResponseElement.innerHTML = marked.parse(item.response);
+           
+           // Add to results container
+           resultsContainer.appendChild(aiResponseElement);
+           
+           // Process any charts or tables in the response
+           processFinalResponse(aiResponseElement, item.response, item.sources || []);
+       }
+       
+       // Show the results view
+       if (!body.classList.contains('search-active')) {
+           initialViewContent.style.display = 'none';
+           bottomSearchWrapper.style.display = 'flex';
+           body.classList.add('search-active');
+       }
+   };
+
    // Initial UI update on page load
    updateUserUI();
+   
+   // Initially hide the history button
+   if (historyButton) {
+       historyButton.style.display = 'none';
+   }
 
    // Event listeners for user dropdown (now handled by generic dropdown logic in index.html)
    // userIconButton.addEventListener('click', (e) => {
@@ -373,6 +490,28 @@ document.addEventListener('DOMContentLoaded', () => {
    userDropdown.addEventListener('click', (e) => e.stopPropagation()); // Prevent closing when clicking inside
    signoutButton.addEventListener('click', window.firebaseSignOut); // Sign out button listener
    rateLimitCloseButton.addEventListener('click', () => hidePopup(rateLimitPopupOverlay)); // "Close" button listener
+
+   // Event listeners for history modal
+   if (historyButton) {
+       historyButton.addEventListener('click', () => {
+           showHistoryModal();
+       });
+   }
+
+   if (closeHistoryModal) {
+       closeHistoryModal.addEventListener('click', () => {
+           hidePopup(historyModal);
+       });
+   }
+
+   // Close modal when clicking outside
+   if (historyModal) {
+       historyModal.addEventListener('click', (e) => {
+           if (e.target === historyModal) {
+               hidePopup(historyModal);
+           }
+       });
+   }
 
 
     // Hide the bottom bar initially
@@ -1001,6 +1140,12 @@ Generated on: ${currentDate}
 
         if (!query.trim()) return;
 
+        // Add query to conversation history
+        conversationManager.addUserQuery(query);
+        
+        // Get conversation history
+        const conversationHistory = conversationManager.getConversationHistory();
+
         resultsContainer.innerHTML = '';
         sourcesContainer.innerHTML = '';
 
@@ -1122,7 +1267,10 @@ Generated on: ${currentDate}
             };
 
             try {
-                const { finalResponse, sources } = await orchestrateAgents(query, userName, userLocalTime, selectedModel, streamCallback, logCallback, isShortResponseEnabled);
+                const { finalResponse, sources } = await orchestrateAgents(query, userName, userLocalTime, selectedModel, streamCallback, logCallback, isShortResponseEnabled, conversationHistory);
+
+                // Add interaction to conversation history
+                conversationManager.addInteraction(query, finalResponse);
 
                 // --- Final Processing Step ---
                 // This code runs after the entire stream is finished.
@@ -1435,50 +1583,53 @@ Generated on: ${currentDate}
      });
      
      document.querySelector('.logo a').addEventListener('click', (e) => {
-         e.preventDefault();
-         if (body.classList.contains('search-active')) {
-             body.classList.remove('search-active');
-             // Clear all results and log messages when navigating home
-             document.getElementById('results-container').innerHTML = '';
-             document.getElementById('query-heading').classList.remove('expanded');
-             document.getElementById('query-text-content').innerHTML = '';
-             document.getElementById('show-more-btn').style.display = 'none';
-             document.getElementById('show-less-btn').style.display = 'none';
-             
-             // Remove the live log container when navigating home
-             const logContainer = document.getElementById('live-log-container');
-             if (logContainer) {
-                 logContainer.remove(); // Remove the entire container since it's positioned after tabs
-             }
-
-             queryInputTop.value = '';
-             queryInputBottom.value = '';
-
-             // Reset textarea heights to default
-             queryInputTop.style.height = '';
-             queryInputTop.style.overflowY = 'hidden';
-             queryInputBottom.style.height = '';
-             queryInputBottom.style.overflowY = 'hidden';
-
-             mainContent.insertBefore(initialViewContent, mainContent.firstChild);
-             bottomSearchWrapper.style.display = 'none';
- 
-             // Reset the placeholder text
-             const bottomPlaceholderSpan = document.querySelector('#bottom-search-wrapper .placeholder-text-span');
-             if (bottomPlaceholderSpan) {
-                 bottomPlaceholderSpan.textContent = 'type your query';
-             }
-             
-             // Reset placeholder visibility for top search box
-             const topWrapper = queryInputTop.closest('.textarea-wrapper');
-             if (topWrapper) {
-                 const topPlaceholderText = topWrapper.querySelector('.placeholder-text-span');
-                 if (topPlaceholderText) {
-                     topPlaceholderText.classList.remove('hidden');
-                 }
-             }
-         }
-       });
+              e.preventDefault();
+              if (body.classList.contains('search-active')) {
+                  body.classList.remove('search-active');
+                  // Clear all results and log messages when navigating home
+                  document.getElementById('results-container').innerHTML = '';
+                  document.getElementById('query-heading').classList.remove('expanded');
+                  document.getElementById('query-text-content').innerHTML = '';
+                  document.getElementById('show-more-btn').style.display = 'none';
+                  document.getElementById('show-less-btn').style.display = 'none';
+                  
+                  // Remove the live log container when navigating home
+                  const logContainer = document.getElementById('live-log-container');
+                  if (logContainer) {
+                      logContainer.remove(); // Remove the entire container since it's positioned after tabs
+                  }
+     
+                  queryInputTop.value = '';
+                  queryInputBottom.value = '';
+     
+                  // Reset textarea heights to default
+                  queryInputTop.style.height = '';
+                  queryInputTop.style.overflowY = 'hidden';
+                  queryInputBottom.style.height = '';
+                  queryInputBottom.style.overflowY = 'hidden';
+     
+                  mainContent.insertBefore(initialViewContent, mainContent.firstChild);
+                  bottomSearchWrapper.style.display = 'none';
+      
+                  // Reset the placeholder text
+                  const bottomPlaceholderSpan = document.querySelector('#bottom-search-wrapper .placeholder-text-span');
+                  if (bottomPlaceholderSpan) {
+                      bottomPlaceholderSpan.textContent = 'type your query';
+                  }
+                  
+                  // Reset placeholder visibility for top search box
+                  const topWrapper = queryInputTop.closest('.textarea-wrapper');
+                  if (topWrapper) {
+                      const topPlaceholderText = topWrapper.querySelector('.placeholder-text-span');
+                      if (topPlaceholderText) {
+                          topPlaceholderText.classList.remove('hidden');
+                      }
+                  }
+                  
+                  // Clear conversation history when navigating home
+                  conversationManager.clearHistory();
+              }
+            });
  
  
      // --- Custom Placeholder Logic and Cat Icon Rotation ---

@@ -5,6 +5,7 @@ import agent3SystemPrompt from './agent3_prompt.js';
 import { fetchWheatData } from '../tools/wheat_tool.js'; // Import the new Wheat tool
 import { scrapeWebsite, tagImageWithDimensions } from '../tools/scraper_tool.js'; // Import the new scraper tool
 import { safeParse } from '../js/json_utils.js';
+import { condenseContext } from '../js/conversation_manager.js'; // Import context condensing function
 async function executeTool(toolName, query, params = {}, userQuery, userName, userLocalTime) {
   // console.log(`Executing tool: ${toolName} with query: ${query} and params:`, params);
 
@@ -100,7 +101,7 @@ async function fetchWithProxy(api_target, api_payload, query, userName, userLoca
   return response.json();
 }
 
-export async function callAgent(model, prompt, input, retryCount = 0, streamCallback = null, query, userName, userLocalTime) {
+export async function callAgent(model, prompt, input, retryCount = 0, streamCallback = null, query, userName, userLocalTime, conversationHistory = null) {
   // console.log(`Calling agent with model: ${model}, input:`, input);
   const maxRetries = 2;
 
@@ -376,7 +377,7 @@ function validateAgent1Response(response) {
   return errors;
 }
 
-export async function orchestrateAgents(userQuery, userName, userLocalTime, agentSelectionType, streamCallback = null, logCallback = null, isShortResponseEnabled = false) {
+export async function orchestrateAgents(userQuery, userName, userLocalTime, agentSelectionType, streamCallback = null, logCallback = null, isShortResponseEnabled = false, conversationHistory = null) {
   // console.log(`Starting orchestration for query: "${userQuery}" with selection: "${agentSelectionType}", short responses: ${isShortResponseEnabled}`);
 
   // Validate API configuration before proceeding
@@ -404,6 +405,18 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
       query: userQuery,
     };
 
+    // If we have conversation history, add condensed context
+    if (conversationHistory && conversationHistory.length > 0) {
+      const condensedContext = condenseContext(conversationHistory);
+      agent1Input.context = {
+        summary: condensedContext.summary,
+        key_entities: condensedContext.keyEntities,
+        recent_focus: condensedContext.recentFocus
+      };
+      // Add recent detailed context (last 2 interactions)
+      agent1Input.recent_context = conversationHistory.slice(-2);
+    }
+
     // console.log("Agent 1: Deciding next action...");
 
     let agent1ResponseRaw;
@@ -415,16 +428,16 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
       attempt++;
       // console.log(`Agent 1: Attempt ${attempt} to get a valid JSON response.`);
       
-      let currentPrompt = agent1SystemPrompt;
+      let currentPrompt = agent1SystemPrompt(conversationHistory && conversationHistory.length > 0);
       let currentInput = agent1Input;
 
       if (attempt > 1 && agent1ResponseRaw) {
         // If this is a retry, modify the prompt to ask for a fix
         // console.log("Retrying with a request to fix the malformed JSON.");
-        currentPrompt = `${agent1SystemPrompt}\n\nYour previous response was not valid JSON and could not be parsed. Please review the following error and the malformed response, then provide a corrected and valid JSON object. Do not include any text or markdown formatting outside of the JSON object.\n\nMalformed Response:\n${agent1ResponseRaw}`;
+        currentPrompt = `${agent1SystemPrompt(conversationHistory && conversationHistory.length > 0)}\n\nYour previous response was not valid JSON and could not be parsed. Please review the following error and the malformed response, then provide a corrected and valid JSON object. Do not include any text or markdown formatting outside of the JSON object.\n\nMalformed Response:\n${agent1ResponseRaw}`;
       }
 
-      agent1ResponseRaw = await callAgent(agent1Model, currentPrompt, currentInput, 0, null, userQuery, userName, userLocalTime);
+      agent1ResponseRaw = await callAgent(agent1Model, currentPrompt, currentInput, 0, null, userQuery, userName, userLocalTime, conversationHistory);
 
     if (agent1ResponseRaw instanceof Response && !agent1ResponseRaw.ok) {
         if (agent1ResponseRaw.status === 429) {
@@ -475,7 +488,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
       // We can achieve this by modifying the system prompt for this specific call.
       const directAgent3SystemPrompt = agent3SystemPrompt(isShortResponseEnabled).replace('---END_OF_ANSWER---', '');
 
-      const finalResponse = await callAgent(agent3Model, directAgent3SystemPrompt, { rawQuery: userQuery, query: queryForAgent3, classification: classification, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime);
+      const finalResponse = await callAgent(agent3Model, directAgent3SystemPrompt, { rawQuery: userQuery, query: queryForAgent3, classification: classification, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime, conversationHistory);
       
       // console.log("Final Response Generated by Agent 3. Value from callAgent:", finalResponse);
       if (streamCallback) {
@@ -568,7 +581,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
             serper_results: webSearchResults.map(r => ({ title: r.title, link: r.link, snippet: r.snippet }))
           };
 
-          const agent2ResponseRaw = await callAgent(agent2Model, agent2SystemPrompt, agent2Input, 0, null, userQuery, userName, userLocalTime);
+          const agent2ResponseRaw = await callAgent(agent2Model, agent2SystemPrompt, agent2Input, 0, null, userQuery, userName, userLocalTime, conversationHistory);
           const agent2Response = safeParse(agent2ResponseRaw, true);
 
           console.log("Agent Response:", agent2Response);
@@ -619,7 +632,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
       };
 
       // console.log("Sending combined data to Agent 3:", dataForAgent3);
-      const finalResponse = await callAgent(agent3Model, agent3SystemPrompt(isShortResponseEnabled), { ...dataForAgent3, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime);
+      const finalResponse = await callAgent(agent3Model, agent3SystemPrompt(isShortResponseEnabled), { ...dataForAgent3, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime, conversationHistory);
 
       return { finalResponse, sources: allSources };
     }

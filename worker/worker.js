@@ -37,6 +37,10 @@ async function handleApiRequest(request, env) {
     return handleKvData(request, env);
   }
 
+  if (url.pathname === '/api/conversation-history') {
+    return handleConversationHistory(request, env);
+  }
+
   return new Response('API route not found.', { status: 404 });
 }
 
@@ -601,6 +605,64 @@ async function handleKvData(request, env) {
   } catch (error) {
     console.error('Error in handleKvData:', error.stack);
     return new Response(JSON.stringify({ error: `Error retrieving KV data: ${error.message}` }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+async function handleConversationHistory(request, env) {
+  try {
+    let id_token, history;
+
+    if (request.method === 'GET') {
+      const url = new URL(request.url);
+      id_token = url.searchParams.get('id_token');
+    } else if (request.method === 'POST') {
+      const body = await request.json();
+      id_token = body.id_token;
+      history = body.history;
+    } else {
+      return new Response('Method not allowed.', { status: 405 });
+    }
+
+    if (!id_token) {
+      return new Response(JSON.stringify({ error: 'Bad Request: Missing id_token.' }), { status: 400 });
+    }
+
+    const tokenInfo = await verifyGoogleToken(id_token, env);
+    const user_email = tokenInfo.email;
+
+    if (!user_email) {
+      return new Response(JSON.stringify({ error: 'Unauthorized: Invalid user email.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    const historyKey = `history:${user_email}`;
+
+    if (request.method === 'GET') {
+      const storedHistory = await env.YOUTOPIA_DATA.get(historyKey, { type: 'json' });
+      return new Response(JSON.stringify({ success: true, history: storedHistory || [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (request.method === 'POST') {
+      if (!history) {
+        return new Response(JSON.stringify({ error: 'Bad Request: Missing history data.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+      }
+      await env.YOUTOPIA_DATA.put(historyKey, JSON.stringify(history));
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    
+    return new Response('Invalid request method.', { status: 400 });
+
+  } catch (error) {
+    console.error('Error in handleConversationHistory:', error.stack);
+    return new Response(JSON.stringify({ error: `Error handling conversation history: ${error.message}` }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
