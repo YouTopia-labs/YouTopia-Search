@@ -380,6 +380,32 @@ document.addEventListener('DOMContentLoaded', () => {
        popupElement.classList.remove('show');
    };
 
+   // --- Toast Function ---
+   const showToast = (message, duration = 3000) => {
+       // Create toast element
+       const toast = document.createElement('div');
+       toast.className = 'toast';
+       toast.textContent = message;
+       
+       // Add to document
+       document.body.appendChild(toast);
+       
+       // Show toast
+       setTimeout(() => {
+           toast.classList.add('show');
+       }, 100);
+       
+       // Hide and remove toast after duration
+       setTimeout(() => {
+           toast.classList.remove('show');
+           setTimeout(() => {
+               if (toast.parentNode) {
+                   toast.parentNode.removeChild(toast);
+               }
+           }, 300);
+       }, duration);
+   };
+
    // --- History Modal Functions ---
    const showHistoryModal = () => {
        // Get conversation history from the conversation manager
@@ -533,15 +559,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
     
-    const logStep = (message) => {
-        const logList = document.getElementById('log-list');
-        if (logList) {
-            const li = document.createElement('li');
-            li.innerHTML = message; // Use innerHTML to allow icons
-            logList.appendChild(li);
-            logList.scrollTop = logList.scrollHeight; // Scroll to bottom
-        }
-    };
 const renderSourceCards = (sources, container) => {
         container.innerHTML = ''; // Clear previous content
         if (!sources || sources.length === 0) {
@@ -1157,39 +1174,43 @@ Generated on: ${currentDate}
             sourcesContainer.innerHTML = '';
         }
 
-        // Check if log container already exists from a previous search
-        let logContainer = document.getElementById('live-log-container');
-        let logList;
-
-        if (logContainer) {
-            // If exists, clear its content and reset its state
-            logList = document.getElementById('log-list');
-            if (logList) logList.innerHTML = ''; // Clear previous log messages
-            logContainer.classList.remove('is-done', 'has-error'); // Clear state
-            logContainer.classList.add('is-active'); // Ensure it's active (blue animation)
-        } else {
-            // If not, create and insert it
-            const logHTML = `
-                <div id="live-log-container" class="is-active">
-                    <div class="log-header" id="log-header-toggle">
-                        <h4>Live Execution Log</h4>
-                        <button id="log-toggle-btn" title="Toggle Log"><i class="fas fa-chevron-up"></i></button>
-                    </div>
-                    <ul id="log-list"></ul>
-                </div>`;
-            
-            const tabsDiv = document.querySelector('.tabs');
-            if (tabsDiv) { // Ensure tabsDiv exists before inserting
-                tabsDiv.insertAdjacentHTML('afterend', logHTML);
-                logContainer = document.getElementById('live-log-container'); // Get reference to the newly created container
-                logList = document.getElementById('log-list'); // Get reference to the new log list
-            }
+        // For follow-up queries, always create a new log container
+        // Remove any existing log container first
+        let existingLogContainer = document.getElementById('live-log-container');
+        if (existingLogContainer) {
+            existingLogContainer.remove();
+        }
+        
+        // Create a new log container for each query
+        const logHTML = `
+            <div id="live-log-container" class="is-active">
+                <div class="log-header" id="log-header-toggle">
+                    <h4>Live Execution Log</h4>
+                    <button id="log-toggle-btn" title="Toggle Log"><i class="fas fa-chevron-up"></i></button>
+                </div>
+                <ul id="log-list"></ul>
+            </div>`;
+        
+        const tabsDiv = document.querySelector('.tabs');
+        let logContainer, logList;
+        if (tabsDiv) { // Ensure tabsDiv exists before inserting
+            tabsDiv.insertAdjacentHTML('afterend', logHTML);
+            logContainer = document.getElementById('live-log-container'); // Get reference to the newly created container
+            logList = document.getElementById('log-list'); // Get reference to the new log list
         }
         
         renderCodeHighlighting(resultsContainer);
         
         // Initialize the log
-        logStep('<i class="fas fa-search"></i> Orchestrating a search...');
+        if (logList) {
+            const li = document.createElement('li');
+            li.innerHTML = '<i class="fas fa-search"></i> Orchestrating a search...';
+            logList.appendChild(li);
+            logList.scrollTo({
+                top: logList.scrollHeight,
+                behavior: 'smooth'
+            });
+        }
         
         if (!body.classList.contains('search-active')) {
             initialViewContent.style.display = 'none';
@@ -1241,7 +1262,15 @@ Generated on: ${currentDate}
         // Set button state to loading
         setSendButtonState(true);
         try {
-            logStep(`<i class="fas fa-brain"></i> Generating response for: "<b>${query.trim()}</b>"`);
+            if (logList) {
+                const li = document.createElement('li');
+                li.innerHTML = `<i class="fas fa-brain"></i> Generating response for: "<b>${query.trim()}</b>"`;
+                logList.appendChild(li);
+                logList.scrollTo({
+                    top: logList.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }
 
             let aiResponseContent = ''; // Accumulate streamed content here
             const aiResponseElement = document.createElement('div');
@@ -1262,6 +1291,14 @@ Generated on: ${currentDate}
             
             // Add conversation pair to results container
             resultsContainer.appendChild(conversationPair);
+            
+            // For follow-up queries, smoothly scroll to the new content
+            if (body.classList.contains('search-active')) {
+                resultsContainer.scrollTo({
+                    top: resultsContainer.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }
 
             const streamCallback = (chunk) => {
                 aiResponseContent += chunk;
@@ -1275,7 +1312,22 @@ Generated on: ${currentDate}
                 // Auto-scroll if the user is near the bottom
                 const isScrolledToBottom = resultsContainer.scrollHeight - resultsContainer.clientHeight <= resultsContainer.scrollTop + 1;
                 if (isScrolledToBottom) {
-                    resultsContainer.scrollTop = resultsContainer.scrollHeight;
+                    resultsContainer.scrollTo({
+                        top: resultsContainer.scrollHeight,
+                        behavior: 'smooth'
+                    });
+                }
+                
+                // For follow-up queries, ensure we scroll to the new content as it streams
+                if (body.classList.contains('search-active')) {
+                    // Only scroll if we're near the bottom
+                    const scrollThreshold = 50; // pixels from bottom
+                    if (resultsContainer.scrollHeight - resultsContainer.scrollTop - resultsContainer.clientHeight < scrollThreshold) {
+                        resultsContainer.scrollTo({
+                            top: resultsContainer.scrollHeight,
+                            behavior: 'smooth'
+                        });
+                    }
                 }
 
                 // Check for the end-of-answer delimiter
@@ -1286,7 +1338,12 @@ Generated on: ${currentDate}
             };
 
             const logCallback = (message) => {
-                logStep(message);
+                if (logList) {
+                    const li = document.createElement('li');
+                    li.innerHTML = message; // Use innerHTML to allow icons
+                    logList.appendChild(li);
+                    logList.scrollTop = logList.scrollHeight; // Scroll to bottom
+                }
             };
 
             try {
@@ -1298,8 +1355,21 @@ Generated on: ${currentDate}
                 // --- Final Processing Step ---
                 // This code runs after the entire stream is finished.
                 processFinalResponse(aiResponseElement, aiResponseContent, sources);
+                
+                // For follow-up queries, scroll to the new content when response is complete
+                if (body.classList.contains('search-active')) {
+                    resultsContainer.scrollTo({
+                        top: resultsContainer.scrollHeight,
+                        behavior: 'smooth'
+                    });
+                }
 
-                logStep('<i class="fas fa-check-circle" style="color: #10B981;"></i> Response completed successfully.');
+                if (logList) {
+                    const li = document.createElement('li');
+                    li.innerHTML = '<i class="fas fa-check-circle" style="color: #10B981;"></i> Response completed successfully.';
+                    logList.appendChild(li);
+                    logList.scrollTop = logList.scrollHeight; // Scroll to bottom
+                }
                 setSendButtonState(false);
                 const logContainer = document.getElementById('live-log-container');
                 if (logContainer) {
@@ -1316,7 +1386,12 @@ Generated on: ${currentDate}
                 if (error instanceof Response && error.status === 429) {
                     const errorData = await error.json();
                     displayRateLimitPopup(errorData.cooldown_end_timestamp, errorData.message_from_developer);
-                    logStep('<i class="fas fa-hourglass-half" style="color: #FBBF24;"></i> Query limit exceeded.');
+                    if (logList) {
+                        const li = document.createElement('li');
+                        li.innerHTML = '<i class="fas fa-hourglass-half" style="color: #FBBF24;"></i> Query limit exceeded.';
+                        logList.appendChild(li);
+                        logList.scrollTop = logList.scrollHeight; // Scroll to bottom
+                    }
                     setSendButtonState(false); // Ensure button is reset
                     const logContainer = document.getElementById('live-log-container');
                     if (logContainer) {
@@ -1339,21 +1414,46 @@ Generated on: ${currentDate}
                 if (errorMessage.includes('JSON.parse')) {
                     errorIcon = 'fas fa-code';
                     userFriendlyMessage = 'There was an issue processing the AI response. This might be a temporary problem with the AI service.';
-                    logStep(`<i class="${errorIcon}" style="color: #EF4444;"></i> JSON parsing error in AI response`);
+                    if (logList) {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<i class="${errorIcon}" style="color: #EF4444;"></i> JSON parsing error in AI response`;
+                        logList.appendChild(li);
+                        logList.scrollTop = logList.scrollHeight; // Scroll to bottom
+                    }
                 } else if (errorMessage.includes('Network Error') || errorMessage.includes('Load failed') || errorMessage.includes('Failed to fetch')) {
                     errorIcon = 'fas fa-wifi';
                     userFriendlyMessage = 'Network connection issue. Please check your internet connection and try again.';
-                    logStep(`<i class="${errorIcon}" style="color: #EF4444;"></i> Network connectivity issue`);
+                    if (logList) {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<i class="${errorIcon}" style="color: #EF4444;"></i> Network connectivity issue`;
+                        logList.appendChild(li);
+                        logList.scrollTop = logList.scrollHeight; // Scroll to bottom
+                    }
                 } else if (errorMessage.includes('Mistral API error') || errorMessage.includes('Serper API error') || errorMessage.includes('Coingecko API error')) {
                     errorIcon = 'fas fa-server';
                     userFriendlyMessage = 'The AI service is currently experiencing issues. Please try again in a moment.';
-                    logStep(`<i class="${errorIcon}" style="color: #EF4444;"></i> AI service error`);
+                    if (logList) {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<i class="${errorIcon}" style="color: #EF4444;"></i> AI service error`;
+                        logList.appendChild(li);
+                        logList.scrollTop = logList.scrollHeight; // Scroll to bottom
+                    }
                 } else if (errorMessage.includes('Empty response') || errorMessage.includes('No content received')) {
                     errorIcon = 'fas fa-inbox';
                     userFriendlyMessage = 'The AI service returned an empty response. Please try rephrasing your query.';
-                    logStep(`<i class="${errorIcon}" style="color: #EF4444;"></i> Empty response from AI service`);
+                    if (logList) {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<i class="${errorIcon}" style="color: #EF4444;"></i> Empty response from AI service`;
+                        logList.appendChild(li);
+                        logList.scrollTop = logList.scrollHeight; // Scroll to bottom
+                    }
                 } else {
-                    logStep(`<i class="${errorIcon}" style="color: #EF4444;"></i> Error: ${errorMessage}`);
+                    if (logList) {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<i class="${errorIcon}" style="color: #EF4444;"></i> Error: ${errorMessage}`;
+                        logList.appendChild(li);
+                        logList.scrollTop = logList.scrollHeight; // Scroll to bottom
+                    }
                 }
 
                 setSendButtonState(false);
@@ -1385,13 +1485,23 @@ Generated on: ${currentDate}
 
             } catch (error) {
             if (error.name === 'AbortError') {
-                logStep('<i class="fas fa-pause-circle" style="color: #FBBF24;"></i> Response paused.');
+                if (logList) {
+                    const li = document.createElement('li');
+                    li.innerHTML = '<i class="fas fa-pause-circle" style="color: #FBBF24;"></i> Response paused.';
+                    logList.appendChild(li);
+                    logList.scrollTop = logList.scrollHeight; // Scroll to bottom
+                }
             } else {
                 // This catch block handles any other errors not caught by the orchestration try-catch
                 console.error('Search failed:', error);
                 if (!error.message.includes('JSON.parse') && !error.message.includes('Mistral API')) {
                     // Only log if it's not already handled above
-                    logStep(`<i class="fas fa-exclamation-triangle" style="color: #EF4444;"></i> Unexpected error: ${error.message}`);
+                    if (logList) {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<i class="fas fa-exclamation-triangle" style="color: #EF4444;"></i> Unexpected error: ${error.message}`;
+                        logList.appendChild(li);
+                        logList.scrollTop = logList.scrollHeight; // Scroll to bottom
+                    }
                 }
             }
 
@@ -1733,7 +1843,7 @@ Generated on: ${currentDate}
      let isScrolling = false;
      let startY = 0;
      let currentY = 0;
-     let queryHeadingTop = 0;
+     let scrollTopStart = 0;
      
      // Function to handle touch start for mobile devices
      const handleTouchStart = (e) => {
@@ -1742,12 +1852,7 @@ Generated on: ${currentDate}
          startY = e.touches[0].clientY;
          currentY = startY;
          isScrolling = true;
-         
-         // Get the position of the first query heading
-         const firstQueryHeading = document.querySelector('.query-heading');
-         if (firstQueryHeading) {
-             queryHeadingTop = firstQueryHeading.getBoundingClientRect().top + window.scrollY;
-         }
+         scrollTopStart = window.scrollY;
      };
      
      // Function to handle touch move for mobile devices
@@ -1757,11 +1862,11 @@ Generated on: ${currentDate}
          currentY = e.touches[0].clientY;
          const diffY = currentY - startY;
          
-         // Only apply elastic effect when scrolling up and near the top
-         if (diffY > 0 && window.scrollY <= 100) {
+         // Only apply elastic effect when at the top of the page
+         if (window.scrollY === 0 && diffY > 0) {
              e.preventDefault();
              // Apply elastic effect by moving the page slightly
-             window.scrollTo(0, Math.max(0, -diffY * 0.3));
+             window.scrollTo(0, Math.min(diffY * 0.3, 50));
          }
      };
      
@@ -1771,16 +1876,57 @@ Generated on: ${currentDate}
          
          isScrolling = false;
          // Return to normal position with animation
-         window.scrollTo({
-             top: 0,
-             behavior: 'smooth'
-         });
+         if (window.scrollY > 0) {
+             window.scrollTo({
+                 top: 0,
+                 behavior: 'smooth'
+             });
+         }
      };
      
      // Add event listeners for touch events (mobile)
      document.addEventListener('touchstart', handleTouchStart, { passive: false });
      document.addEventListener('touchmove', handleTouchMove, { passive: false });
      document.addEventListener('touchend', handleTouchEnd);
+     
+     // Add mouse events for desktop rubber band effect
+     let isMouseDown = false;
+     let mouseStartY = 0;
+     
+     document.addEventListener('mousedown', (e) => {
+         if (!body.classList.contains('search-active')) return;
+         // Only apply rubber band effect when at the top of the page
+         if (window.scrollY === 0) {
+             isMouseDown = true;
+             mouseStartY = e.clientY;
+         }
+     });
+     
+     document.addEventListener('mousemove', (e) => {
+         if (!isMouseDown || !body.classList.contains('search-active')) return;
+         
+         const diffY = e.clientY - mouseStartY;
+         
+         // Only apply rubber band effect when pulling down from the top
+         if (window.scrollY === 0 && diffY > 0) {
+             e.preventDefault();
+             // Apply rubber band effect
+             window.scrollTo(0, Math.min(diffY * 0.2, 50));
+         }
+     });
+     
+     document.addEventListener('mouseup', () => {
+         if (isMouseDown) {
+             isMouseDown = false;
+             // Return to normal position with animation
+             if (window.scrollY > 0) {
+                 window.scrollTo({
+                     top: 0,
+                     behavior: 'smooth'
+                 });
+             }
+         }
+     });
      
      // Add scroll event listener for sticky effect
      window.addEventListener('scroll', () => {

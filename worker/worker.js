@@ -460,6 +460,7 @@ async function handleQueryProxy(request, env) {
       userData.queries.push({
         timestamp: now,
         query: query,
+        response: null, // Initialize response as null
         user_name: user_name,
         user_email: user_email,
         user_local_time: user_local_time,
@@ -472,16 +473,50 @@ async function handleQueryProxy(request, env) {
       await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
       
       // Proceed directly to API proxying for whitelisted users
+      let proxyResponse;
       switch (api_target) {
         case 'serper':
-          return proxySerper(api_payload, env);
+          proxyResponse = await proxySerper(api_payload, env);
+          break;
         case 'mistral':
-          return proxyMistral(api_payload, env);
+          proxyResponse = await proxyMistral(api_payload, env);
+          break;
         case 'coingecko':
-          return proxyCoingecko(api_payload, env);
+          proxyResponse = await proxyCoingecko(api_payload, env);
+          break;
         default:
           return new Response(JSON.stringify({ error: 'Invalid API target.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
       }
+
+      // Update the query entry with the response
+      if (proxyResponse.ok) {
+        try {
+          // Get the latest user data to ensure we're working with the most recent version
+          userData = await env.YOUTOPIA_DATA.get(userKvKey, { type: 'json' }) || { queries: [], cooldown_end_timestamp: null };
+          
+          // Find the last query entry (the one we just added) and update its response
+          if (userData.queries && userData.queries.length > 0) {
+            const lastQuery = userData.queries[userData.queries.length - 1];
+            if (lastQuery.query === query) {
+              // Try to parse the response body to store as JSON
+              try {
+                const responseBody = await proxyResponse.clone().text();
+                lastQuery.response = responseBody;
+              } catch (parseError) {
+                // If parsing fails, store as string
+                lastQuery.response = "Response could not be parsed";
+              }
+              
+              // Update the KV store
+              await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
+            }
+          }
+        } catch (updateError) {
+          console.error('Error updating query with response:', updateError);
+        }
+      }
+
+      return proxyResponse;
     }
 
     // Rate limiting for non-whitelisted users only
@@ -539,6 +574,7 @@ Thank you for your support, it truly makes a difference to allow this project to
     userData.queries.push({
       timestamp: now,
       query: query,
+      response: null, // Initialize response as null
       user_name: user_name,
       user_email: user_email,
       user_local_time: user_local_time,
@@ -552,16 +588,50 @@ Thank you for your support, it truly makes a difference to allow this project to
     await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
 
     // --- Proxy the request to the target API ---
+    let proxyResponse;
     switch (api_target) {
       case 'serper':
-        return proxySerper(api_payload, env);
+        proxyResponse = await proxySerper(api_payload, env);
+        break;
       case 'mistral':
-        return proxyMistral(api_payload, env);
+        proxyResponse = await proxyMistral(api_payload, env);
+        break;
       case 'coingecko':
-        return proxyCoingecko(api_payload, env);
+        proxyResponse = await proxyCoingecko(api_payload, env);
+        break;
       default:
         return new Response(JSON.stringify({ error: 'Invalid API target.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
+
+    // Update the query entry with the response
+    if (proxyResponse.ok) {
+      try {
+        // Get the latest user data to ensure we're working with the most recent version
+        userData = await env.YOUTOPIA_DATA.get(userKvKey, { type: 'json' }) || { queries: [], cooldown_end_timestamp: null };
+        
+        // Find the last query entry (the one we just added) and update its response
+        if (userData.queries && userData.queries.length > 0) {
+          const lastQuery = userData.queries[userData.queries.length - 1];
+          if (lastQuery.query === query) {
+            // Try to parse the response body to store as JSON
+            try {
+              const responseBody = await proxyResponse.clone().text();
+              lastQuery.response = responseBody;
+            } catch (parseError) {
+              // If parsing fails, store as string
+              lastQuery.response = "Response could not be parsed";
+            }
+            
+            // Update the KV store
+            await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
+          }
+        }
+      } catch (updateError) {
+        console.error('Error updating query with response:', updateError);
+      }
+    }
+
+    return proxyResponse;
   } catch (error) {
     console.error('Error in handleQueryProxy:', error.stack);
     return new Response(JSON.stringify({ error: `Error processing proxy request: ${error.message}` }), {
