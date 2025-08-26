@@ -1141,36 +1141,6 @@ Generated on: ${currentDate}
     };
 
     // --- Main Search Handler ---
-    // Helper function to manage log container lifecycle
-    const cleanupLogContainer = (logContainer, state) => {
-        if (!logContainer) return;
-        
-        // Remove any existing state classes
-        logContainer.classList.remove('is-active', 'is-done', 'has-error', 'collapsed');
-        
-        // Add the appropriate state class
-        if (state === 'done') {
-            logContainer.classList.add('is-done');
-            setTimeout(() => {
-                if (logContainer) {
-                    logContainer.classList.add('collapsed');
-                }
-            }, 1200);
-        } else if (state === 'error') {
-            logContainer.classList.add('has-error');
-            setTimeout(() => {
-                if (logContainer) {
-                    logContainer.classList.add('collapsed');
-                    setTimeout(() => {
-                        if (logContainer) {
-                            logContainer.classList.remove('has-error');
-                        }
-                    }, 100);
-                }
-            }, 1200);
-        }
-    };
-
     const handleSearch = async (query, sourceElement = null) => {
         const userEmail = localStorage.getItem('user_email');
         const userName = localStorage.getItem('user_name');
@@ -1201,6 +1171,12 @@ Generated on: ${currentDate}
             // This is the first query.
             resultsContainer.innerHTML = '';
             sourcesContainer.innerHTML = '';
+        } else {
+            // For follow-up queries, scroll the previous content up
+            resultsContainer.scrollTo({
+                top: resultsContainer.scrollHeight,
+                behavior: 'smooth'
+            });
         }
         
         // For follow-up queries, always create a new log container
@@ -1262,31 +1238,78 @@ Generated on: ${currentDate}
             }
         }
 
-        // Display the query as a Markdown heading
-        // queryHeading.textContent = `Query: ${query}`; // Will be handled by truncateQueryText
-        
-        const originalQueryText = `${query.trim()}`;
-        queryTextContent.textContent = originalQueryText;
-        // Temporarily remove max-height to get true scrollHeight
-        queryHeading.style.maxHeight = 'none';
-        queryHeading.classList.remove('expanded'); // Ensure not in expanded state
-        // Use a small delay to ensure rendering before checking scrollHeight
-        setTimeout(() => {
-            const currentHeight = queryTextContent.scrollHeight;
-            const lineHeight = parseFloat(getComputedStyle(queryTextContent).lineHeight);
-            const targetMaxHeight = Math.min(120, Math.max(lineHeight * 1.5, currentHeight)); // At least 1.5 lines, up to 120px
-            if (currentHeight > targetMaxHeight) { // Check against desired initial height
-                queryHeading.style.maxHeight = `${targetMaxHeight}px`; // Apply initial max height
-                showMoreBtn.style.display = 'block';
-                showLessBtn.style.display = 'none';
-                queryButtons.classList.add('show-gradient'); // Show gradient
-            } else {
-                queryHeading.style.maxHeight = 'none'; // No max height for short content
-                showMoreBtn.style.display = 'none';
-                showLessBtn.style.display = 'none';
-                queryButtons.classList.remove('show-gradient'); // Hide gradient
-            }
-        }, 0); // Use setTimeout with 0 for next tick execution
+        // For follow-up queries, create a new query heading element instead of reusing the same one
+        if (body.classList.contains('search-active')) {
+            // Create a new query heading for follow-up queries
+            const newQueryHeading = document.createElement('div');
+            newQueryHeading.id = 'query-heading';
+            newQueryHeading.innerHTML = `
+                <div id="query-text-content"></div>
+                <div class="query-buttons">
+                    <button id="show-more-btn" class="query-btn">Show More</button>
+                    <button id="show-less-btn" class="query-btn">Show Less</button>
+                </div>
+            `;
+            
+            // Insert the new query heading at the top of results container
+            resultsContainer.insertBefore(newQueryHeading, resultsContainer.firstChild);
+            
+            // Update references to the new elements
+            const newQueryTextContent = newQueryHeading.querySelector('#query-text-content');
+            const newShowMoreBtn = newQueryHeading.querySelector('#show-more-btn');
+            const newShowLessBtn = newQueryHeading.querySelector('#show-less-btn');
+            const newQueryButtons = newQueryHeading.querySelector('.query-buttons');
+            
+            const originalQueryText = `${query.trim()}`;
+            newQueryTextContent.textContent = originalQueryText;
+            
+            // Apply the same styling logic as the original
+            newQueryHeading.style.maxHeight = 'none';
+            newQueryHeading.classList.remove('expanded');
+            setTimeout(() => {
+                const currentHeight = newQueryTextContent.scrollHeight;
+                const lineHeight = parseFloat(getComputedStyle(newQueryTextContent).lineHeight);
+                const targetMaxHeight = Math.min(120, Math.max(lineHeight * 1.5, currentHeight));
+                if (currentHeight > targetMaxHeight) {
+                    newQueryHeading.style.maxHeight = `${targetMaxHeight}px`;
+                    newShowMoreBtn.style.display = 'block';
+                    newShowLessBtn.style.display = 'none';
+                    newQueryButtons.classList.add('show-gradient');
+                } else {
+                    newQueryHeading.style.maxHeight = 'none';
+                    newShowMoreBtn.style.display = 'none';
+                    newShowLessBtn.style.display = 'none';
+                    newQueryButtons.classList.remove('show-gradient');
+                }
+            }, 0);
+            
+            // Set up listeners for the new query heading
+            setupQueryHeadingListeners(newQueryHeading);
+        } else {
+            // For the first query, use the existing logic
+            const originalQueryText = `${query.trim()}`;
+            queryTextContent.textContent = originalQueryText;
+            // Temporarily remove max-height to get true scrollHeight
+            queryHeading.style.maxHeight = 'none';
+            queryHeading.classList.remove('expanded'); // Ensure not in expanded state
+            // Use a small delay to ensure rendering before checking scrollHeight
+            setTimeout(() => {
+                const currentHeight = queryTextContent.scrollHeight;
+                const lineHeight = parseFloat(getComputedStyle(queryTextContent).lineHeight);
+                const targetMaxHeight = Math.min(120, Math.max(lineHeight * 1.5, currentHeight)); // At least 1.5 lines, up to 120px
+                if (currentHeight > targetMaxHeight) { // Check against desired initial height
+                    queryHeading.style.maxHeight = `${targetMaxHeight}px`; // Apply initial max height
+                    showMoreBtn.style.display = 'block';
+                    showLessBtn.style.display = 'none';
+                    queryButtons.classList.add('show-gradient'); // Show gradient
+                } else {
+                    queryHeading.style.maxHeight = 'none'; // No max height for short content
+                    showMoreBtn.style.display = 'none';
+                    showLessBtn.style.display = 'none';
+                    queryButtons.classList.remove('show-gradient'); // Hide gradient
+                }
+            }, 0); // Use setTimeout with 0 for next tick execution
+        }
         
         // Set button state to loading
         setSendButtonState(true);
@@ -1309,28 +1332,40 @@ Generated on: ${currentDate}
             const conversationPair = document.createElement('div');
             conversationPair.classList.add('conversation-pair');
 
-            // Create query element for the conversation pair
+            // Add query and response to the conversation pair
             const queryElement = document.createElement('div');
             queryElement.classList.add('query-heading');
             queryElement.innerHTML = `<h3>${query.trim()}</h3>`;
-
-            // Add query and response to the conversation pair
+            
             conversationPair.appendChild(queryElement);
             conversationPair.appendChild(aiResponseElement);
+            
+            // For follow-up queries, we've already created a temporary query heading, so we need to handle this differently
+            if (body.classList.contains('search-active')) {
+                // Find the newly created query heading
+                const newQueryHeading = resultsContainer.querySelector('#query-heading');
+                
+                // Replace the temporary query heading with the conversation pair
+                if (newQueryHeading) {
+                    resultsContainer.replaceChild(conversationPair, newQueryHeading);
+                } else {
+                    // Fallback: just append to the results container
+                    resultsContainer.appendChild(conversationPair);
+                }
+            } else {
+                // Add the complete conversation pair to the main results container
+                resultsContainer.appendChild(conversationPair);
+            }
 
-            // Add the complete conversation pair to the main results container
-            resultsContainer.appendChild(conversationPair);
+            // Scroll to the new conversation pair
+            conversationPair.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
             // For follow-up queries, smoothly scroll to the new content
             if (body.classList.contains('search-active')) {
-                // Add a small delay to ensure the DOM is updated before scrolling
-                setTimeout(() => {
-                    // Scroll to show the new conversation pair at the top of the viewport
-                    conversationPair.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }, 10);
-            } else {
-                // For the first query, scroll to the new conversation pair
-                conversationPair.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                resultsContainer.scrollTo({
+                    top: resultsContainer.scrollHeight,
+                    behavior: 'smooth'
+                });
             }
 
             const streamCallback = (chunk) => {
@@ -1345,15 +1380,10 @@ Generated on: ${currentDate}
                 // Auto-scroll if the user is near the bottom
                 const isScrolledToBottom = resultsContainer.scrollHeight - resultsContainer.clientHeight <= resultsContainer.scrollTop + 1;
                 if (isScrolledToBottom) {
-                    // For follow-up queries, scroll to show new content at top
-                    if (body.classList.contains('search-active')) {
-                        conversationPair.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    } else {
-                        resultsContainer.scrollTo({
-                            top: resultsContainer.scrollHeight,
-                            behavior: 'smooth'
-                        });
-                    }
+                    resultsContainer.scrollTo({
+                        top: resultsContainer.scrollHeight,
+                        behavior: 'smooth'
+                    });
                 }
                 
                 // For follow-up queries, ensure we scroll to the new content as it streams
@@ -1361,7 +1391,10 @@ Generated on: ${currentDate}
                     // Only scroll if we're near the bottom
                     const scrollThreshold = 50; // pixels from bottom
                     if (resultsContainer.scrollHeight - resultsContainer.scrollTop - resultsContainer.clientHeight < scrollThreshold) {
-                        conversationPair.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        resultsContainer.scrollTo({
+                            top: resultsContainer.scrollHeight,
+                            behavior: 'smooth'
+                        });
                     }
                 }
 
@@ -1391,11 +1424,14 @@ Generated on: ${currentDate}
                 // This code runs after the entire stream is finished.
                 processFinalResponse(aiResponseElement, aiResponseContent, sources);
                 
-                
                 // For follow-up queries, scroll to the new content when response is complete
                 if (body.classList.contains('search-active')) {
-                    conversationPair.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    resultsContainer.scrollTo({
+                        top: resultsContainer.scrollHeight,
+                        behavior: 'smooth'
+                    });
                 }
+
                 if (logList) {
                     const li = document.createElement('li');
                     li.innerHTML = '<i class="fas fa-check-circle" style="color: #10B981;"></i> Response completed successfully.';
@@ -1404,7 +1440,13 @@ Generated on: ${currentDate}
                 }
                 setSendButtonState(false);
                 const logContainer = document.getElementById('live-log-container');
-                cleanupLogContainer(logContainer, 'done');
+                if (logContainer) {
+                    logContainer.classList.remove('is-active');
+                    logContainer.classList.add('is-done');
+                    setTimeout(() => logContainer.classList.remove('is-done'), 1000);
+                    await new Promise(resolve => setTimeout(resolve, 1200));
+                    logContainer.classList.add('collapsed');
+                }
             } catch (error) {
                 console.error('Search failed:', error);
 
@@ -1420,7 +1462,15 @@ Generated on: ${currentDate}
                     }
                     setSendButtonState(false); // Ensure button is reset
                     const logContainer = document.getElementById('live-log-container');
-                    cleanupLogContainer(logContainer, 'error');
+                    if (logContainer) {
+                        logContainer.classList.remove('is-active');
+                        logContainer.classList.add('has-error'); // Indicate an error state
+                        await new Promise(resolve => setTimeout(resolve, 1200));
+                        logContainer.classList.add('collapsed');
+                        setTimeout(() => {
+                            logContainer.classList.remove('has-error');
+                        }, 1000);
+                    }
                     return; // Stop further processing
                 }
 
@@ -1476,7 +1526,13 @@ Generated on: ${currentDate}
 
                 setSendButtonState(false);
                 const logContainer = document.getElementById('live-log-container');
-                cleanupLogContainer(logContainer, 'error');
+                if (logContainer && !logContainer.classList.contains('has-error')) {
+                    logContainer.classList.remove('is-active');
+                    logContainer.classList.add('has-error');
+                    await new Promise(resolve => setTimeout(resolve, 1200));
+                    logContainer.classList.add('collapsed');
+                    setTimeout(() => logContainer.classList.remove('has-error'), 1000);
+                }
 
                 resultsContainer.insertAdjacentHTML('beforeend', `
                     <div class="ai-response">
@@ -1520,7 +1576,15 @@ Generated on: ${currentDate}
             // Always set button state back to enabled, even on error
             setSendButtonState(false);
             const logContainer = document.getElementById('live-log-container');
-            cleanupLogContainer(logContainer, 'error');
+            if (logContainer && !logContainer.classList.contains('has-error')) {
+                logContainer.classList.remove('is-active');
+                logContainer.classList.add('has-error');
+                await new Promise(resolve => setTimeout(resolve, 1200));
+                logContainer.classList.add('collapsed');
+                setTimeout(() => {
+                    logContainer.classList.remove('has-error');
+                }, 1000);
+            }
         }
     };
 
@@ -1695,104 +1759,42 @@ Generated on: ${currentDate}
        showLessBtn.style.display = 'none';
        queryButtons.classList.add('show-gradient'); // Show gradient when collapsed
    });
+   
+   // Function to handle show more/less for any query heading (including follow-ups)
+   const setupQueryHeadingListeners = (queryHeadingElement) => {
+       const showMoreBtn = queryHeadingElement.querySelector('#show-more-btn');
+       const showLessBtn = queryHeadingElement.querySelector('#show-less-btn');
+       const queryTextContent = queryHeadingElement.querySelector('#query-text-content');
+       const queryButtons = queryHeadingElement.querySelector('.query-buttons');
+       
+       if (showMoreBtn && showLessBtn && queryTextContent && queryButtons) {
+           showMoreBtn.addEventListener('click', () => {
+               queryHeadingElement.style.maxHeight = `${queryTextContent.scrollHeight}px`;
+               queryHeadingElement.classList.add('expanded');
+               showMoreBtn.style.display = 'none';
+               showLessBtn.style.display = 'block';
+               queryButtons.classList.remove('show-gradient');
+           });
+
+           showLessBtn.addEventListener('click', () => {
+               const lineHeight = parseFloat(getComputedStyle(queryTextContent).lineHeight);
+               const targetMaxHeight = Math.min(120, Math.max(lineHeight * 1.5, 0));
+               queryHeadingElement.style.maxHeight = `${targetMaxHeight}px`;
+               queryHeadingElement.classList.remove('expanded');
+               showMoreBtn.style.display = 'block';
+               showLessBtn.style.display = 'none';
+               queryButtons.classList.add('show-gradient');
+           });
+       }
+   };
+   
+   // Set up listeners for the initial query heading
+   setupQueryHeadingListeners(queryHeading);
 
    // --- Elastic Scroll ---
    let isScrolling = false;
    let scrollTimeout;
-   let startY = 0;
-   let currentY = 0;
-   let isRubberBanding = false;
 
-   // Track touch/mouse events for rubber band effect
-   resultsContainer.addEventListener('mousedown', (e) => {
-       startY = e.clientY;
-       currentY = startY;
-   });
-
-   resultsContainer.addEventListener('mousemove', (e) => {
-       if (startY !== 0) {
-           currentY = e.clientY;
-           const deltaY = currentY - startY;
-           
-           // Check if we're at the top of the scroll and pulling down
-           if (resultsContainer.scrollTop === 0 && deltaY > 0) {
-               isRubberBanding = true;
-               // Apply rubber band effect
-               const rubberBandEffect = Math.min(deltaY * 0.3, 100);
-               resultsContainer.style.transform = `translateY(${rubberBandEffect}px)`;
-           }
-       }
-   });
-
-   resultsContainer.addEventListener('mouseup', () => {
-       if (isRubberBanding) {
-           // Reset rubber band effect
-           resultsContainer.style.transform = '';
-           isRubberBanding = false;
-           
-           // If pulled enough, trigger the rubber band animation
-           const deltaY = currentY - startY;
-           if (deltaY > 50) { // Threshold for triggering effect
-               resultsContainer.classList.add('rubber-band-effect', 'active');
-               setTimeout(() => {
-                   resultsContainer.classList.remove('rubber-band-effect', 'active');
-               }, 600); // Match animation duration
-           }
-       }
-       startY = 0;
-       currentY = 0;
-   });
-
-   resultsContainer.addEventListener('mouseleave', () => {
-       if (isRubberBanding) {
-           resultsContainer.style.transform = '';
-           isRubberBanding = false;
-       }
-       startY = 0;
-       currentY = 0;
-   });
-
-   // Touch events for mobile
-   resultsContainer.addEventListener('touchstart', (e) => {
-       startY = e.touches[0].clientY;
-       currentY = startY;
-   });
-
-   resultsContainer.addEventListener('touchmove', (e) => {
-       if (startY !== 0) {
-           currentY = e.touches[0].clientY;
-           const deltaY = currentY - startY;
-           
-           // Check if we're at the top of the scroll and pulling down
-           if (resultsContainer.scrollTop === 0 && deltaY > 0) {
-               isRubberBanding = true;
-               // Apply rubber band effect
-               const rubberBandEffect = Math.min(deltaY * 0.3, 100);
-               resultsContainer.style.transform = `translateY(${rubberBandEffect}px)`;
-           }
-       }
-   });
-
-   resultsContainer.addEventListener('touchend', () => {
-       if (isRubberBanding) {
-           // Reset rubber band effect
-           resultsContainer.style.transform = '';
-           isRubberBanding = false;
-           
-           // If pulled enough, trigger the rubber band animation
-           const deltaY = currentY - startY;
-           if (deltaY > 50) { // Threshold for triggering effect
-               resultsContainer.classList.add('rubber-band-effect', 'active');
-               setTimeout(() => {
-                   resultsContainer.classList.remove('rubber-band-effect', 'active');
-               }, 600); // Match animation duration
-           }
-       }
-       startY = 0;
-       currentY = 0;
-   });
-
-   // Original elastic scroll for query headings
    resultsContainer.addEventListener('scroll', () => {
        if (!isScrolling) {
            window.requestAnimationFrame(() => {
