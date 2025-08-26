@@ -1706,7 +1706,8 @@ body.search-active .search-wrapper:first-of-type {
 
 /* Bottom Search Wrapper - Move to very bottom */
 body.search-active .search-wrapper:last-of-type {
-    position: fixed;
+    position: sticky;
+    background-color: var(--bg-color);
     bottom: 0; /* Changed from -8px to 0 to remove gap */
     left: 50%;
     transform: translateX(-50%);
