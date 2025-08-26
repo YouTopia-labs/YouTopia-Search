@@ -1962,6 +1962,7 @@ body.dark-mode .query-btn:hover {
 /* Add padding to the .ai-response container */
 .ai-response {
     padding: 0 15px; /* Reduced horizontal padding based on feedback */
+    overflow-y: auto; /* Enable vertical scrolling */
     transition: color 0.3s ease;
     max-width: 766px; /* Match the max-width of the search box and results area */
     margin: 0 auto; /* Center the response */
