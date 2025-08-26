@@ -1682,7 +1682,7 @@ body.dark-mode .send-btn:active {
 
 /* --- Search Active State (Floating Search Box) --- */
 body.search-active {
-    overflow-y: auto; /* Allow vertical scrolling on body */
+    overflow-y: hidden; /* Prevent body from scrolling */
 }
 
 body.search-active .app-container {
@@ -1697,6 +1697,7 @@ body.search-active .main-content {
     justify-content: flex-start;
     display: flex;
     flex-direction: column;
+    overflow-y: auto; /* Allow main content to scroll */
 }
 
 /* Hide initial search wrapper when search is active */
@@ -1717,6 +1718,16 @@ body.search-active .search-wrapper:last-of-type {
     padding: 8px;
     width: 100%; /* Changed from 96% to 100% for full width */
     max-width: 100%; /* Changed from 750px to 100% for full width */
+    display: flex;
+    justify-content: center; /* Center the search box */
+}
+
+/* Ensure compact search box is centered in search-active state */
+body.search-active .compact-search-box {
+    margin: 0 auto; /* Center the compact search box */
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Dropdown adjustments for floating search */
