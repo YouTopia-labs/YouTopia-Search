@@ -496,7 +496,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
    // Event listeners for history modal
    if (historyButton) {
-       historyButton.addEventListener('click', () => {
+       historyButton.addEventListener('click', (e) => {
+           e.stopPropagation(); // Prevent closing the dropdown
            showHistoryModal();
        });
    }
