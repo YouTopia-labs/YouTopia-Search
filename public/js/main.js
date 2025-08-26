@@ -6,16 +6,6 @@ import { parseChartConfig as safeParseChartConfig, parseTableConfig } from './js
 const WORKER_BASE_URL = 'https://youtopia-worker.youtopialabs.workers.dev/';
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Function to set the CSS variable for viewport height
-    const setAppHeight = () => {
-        const doc = document.documentElement;
-        doc.style.setProperty('--app-height', `${window.innerHeight}px`);
-    };
-
-    // Set height on load and resize
-    window.addEventListener('resize', setAppHeight);
-    window.addEventListener('orientationchange', setAppHeight);
-    setAppHeight(); // Initial set
 
     // Dynamic cursor alignment function
     const alignCursorWithPlaceholder = (textareaId) => {
