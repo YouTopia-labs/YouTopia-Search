@@ -393,7 +393,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
 
   const MAX_TOTAL_SEARCHES = 12; // Total individual search steps (web_search, coingecko, wheat)
   const MAX_TOTAL_SCRAPES = 16; // Total individual sites scraped
-  const MAX_PARALLEL_SCRAPES_PER_TURN = 8; // Max sites scraped in one 'scrape' action
+  const MAX_PARALLEL_SCRAPES_PER_TURN = 12; // Max sites scraped in one 'scrape' action
 
   // Loop for orchestration turns
   while (true) {
