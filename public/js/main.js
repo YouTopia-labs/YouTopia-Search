@@ -465,6 +465,9 @@ document.addEventListener('DOMContentLoaded', () => {
            bottomSearchWrapper.style.display = 'flex';
            body.classList.add('search-active');
        }
+       
+       // Update the conversation manager with this item
+       conversationManager.addInteraction(item.query, item.response, item.sources || []);
    };
 
    // Initial UI update on page load
@@ -1146,8 +1149,12 @@ Generated on: ${currentDate}
         // Get conversation history
         const conversationHistory = conversationManager.getConversationHistory();
 
-        resultsContainer.innerHTML = '';
-        sourcesContainer.innerHTML = '';
+        // Instead of clearing all results, we want to preserve previous conversations
+        // Only clear if this is not a follow-up (i.e., if we're not in search-active mode yet)
+        if (!body.classList.contains('search-active')) {
+            resultsContainer.innerHTML = '';
+            sourcesContainer.innerHTML = '';
+        }
 
         // Check if log container already exists from a previous search
         let logContainer = document.getElementById('live-log-container');
@@ -1238,7 +1245,22 @@ Generated on: ${currentDate}
             let aiResponseContent = ''; // Accumulate streamed content here
             const aiResponseElement = document.createElement('div');
             aiResponseElement.classList.add('ai-response');
-            resultsContainer.appendChild(aiResponseElement);
+            
+            // Create a container for this specific query-response pair
+            const conversationPair = document.createElement('div');
+            conversationPair.classList.add('conversation-pair');
+            
+            // Create query element
+            const queryElement = document.createElement('div');
+            queryElement.classList.add('query-heading');
+            queryElement.innerHTML = `<h3>${query.trim()}</h3>`;
+            
+            // Add query and response to conversation pair
+            conversationPair.appendChild(queryElement);
+            conversationPair.appendChild(aiResponseElement);
+            
+            // Add conversation pair to results container
+            resultsContainer.appendChild(conversationPair);
 
             const streamCallback = (chunk) => {
                 aiResponseContent += chunk;
@@ -1704,5 +1726,75 @@ Generated on: ${currentDate}
              queryButtons.classList.remove('show-gradient'); // Hide gradient if not truncated
          }
          showLessBtn.style.display = 'none';
+     });
+     
+     // Implement elastic scrolling effect for previous queries
+     let isScrolling = false;
+     let startY = 0;
+     let currentY = 0;
+     let queryHeadingTop = 0;
+     
+     // Function to handle touch start for mobile devices
+     const handleTouchStart = (e) => {
+         if (!body.classList.contains('search-active')) return;
+         
+         startY = e.touches[0].clientY;
+         currentY = startY;
+         isScrolling = true;
+         
+         // Get the position of the first query heading
+         const firstQueryHeading = document.querySelector('.query-heading');
+         if (firstQueryHeading) {
+             queryHeadingTop = firstQueryHeading.getBoundingClientRect().top + window.scrollY;
+         }
+     };
+     
+     // Function to handle touch move for mobile devices
+     const handleTouchMove = (e) => {
+         if (!isScrolling || !body.classList.contains('search-active')) return;
+         
+         currentY = e.touches[0].clientY;
+         const diffY = currentY - startY;
+         
+         // Only apply elastic effect when scrolling up and near the top
+         if (diffY > 0 && window.scrollY <= 100) {
+             e.preventDefault();
+             // Apply elastic effect by moving the page slightly
+             window.scrollTo(0, Math.max(0, -diffY * 0.3));
+         }
+     };
+     
+     // Function to handle touch end for mobile devices
+     const handleTouchEnd = () => {
+         if (!isScrolling) return;
+         
+         isScrolling = false;
+         // Return to normal position with animation
+         window.scrollTo({
+             top: 0,
+             behavior: 'smooth'
+         });
+     };
+     
+     // Add event listeners for touch events (mobile)
+     document.addEventListener('touchstart', handleTouchStart, { passive: false });
+     document.addEventListener('touchmove', handleTouchMove, { passive: false });
+     document.addEventListener('touchend', handleTouchEnd);
+     
+     // Add scroll event listener for sticky effect
+     window.addEventListener('scroll', () => {
+         const queryHeadings = document.querySelectorAll('.query-heading');
+         if (queryHeadings.length === 0) return;
+         
+         // Get the first query heading
+         const firstQueryHeading = queryHeadings[0];
+         const rect = firstQueryHeading.getBoundingClientRect();
+         
+         // If the first query heading is at the top of the viewport, add sticky effect
+         if (rect.top <= 0 && rect.bottom > 0) {
+             firstQueryHeading.classList.add('sticky');
+         } else {
+             firstQueryHeading.classList.remove('sticky');
+         }
      });
  });
