@@ -2,7 +2,8 @@
 
 class ConversationManager {
     constructor() {
-        this.conversationHistory = [];
+        this.userHistory = []; // All conversations for the user (shown in history panel)
+        this.chatContextHistory = []; // Only current session conversations (for AI context)
         this.maxHistoryLength = 10; // Limit history to prevent excessive memory usage
         this.WORKER_BASE_URL = 'https://youtopia-worker.youtopialabs.workers.dev/';
     }
@@ -20,7 +21,7 @@ class ConversationManager {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     id_token: id_token,
-                    history: this.conversationHistory,
+                    history: this.userHistory,
                 }),
             });
         } catch (error) {
@@ -28,34 +29,61 @@ class ConversationManager {
         }
     }
 
-    // Add a user query to the conversation history
+    // Add a user query to both histories
     addUserQuery(query) {
-        // Add the query without a response yet
-        this.conversationHistory.push({
+        const entry = {
             timestamp: Date.now(),
             query: query,
             response: null,
             sources: []
-        });
+        };
+        
+        // Add to chat context history (current session only)
+        this.chatContextHistory.push(entry);
+        
+        // Add to user history (all conversations)
+        this.userHistory.push(entry);
 
-        // Limit history length
-        if (this.conversationHistory.length > this.maxHistoryLength) {
-            this.conversationHistory.shift();
+        // Limit history length for chat context
+        if (this.chatContextHistory.length > this.maxHistoryLength) {
+            this.chatContextHistory.shift();
         }
+        
+        // Limit history length for user history
+        if (this.userHistory.length > this.maxHistoryLength) {
+            this.userHistory.shift();
+        }
+        
         this._saveHistory();
     }
 
-    // Add a complete interaction to the conversation history
+    // Add a complete interaction to both histories
     addInteraction(query, response, sources = []) {
-        // Check if the last entry is the same query without a response
-        const lastEntry = this.conversationHistory[this.conversationHistory.length - 1];
-        if (lastEntry && lastEntry.query === query && lastEntry.response === null) {
-            // Update the existing entry
-            lastEntry.response = response;
-            lastEntry.sources = sources;
+        // Check if the last entry in chat context is the same query without a response
+        const lastContextEntry = this.chatContextHistory[this.chatContextHistory.length - 1];
+        if (lastContextEntry && lastContextEntry.query === query && lastContextEntry.response === null) {
+            // Update the existing entry in chat context
+            lastContextEntry.response = response;
+            lastContextEntry.sources = sources;
         } else {
-            // Add a new entry
-            this.conversationHistory.push({
+            // Add a new entry to chat context
+            this.chatContextHistory.push({
+                timestamp: Date.now(),
+                query: query,
+                response: response,
+                sources: sources
+            });
+        }
+        
+        // Check if the last entry in user history is the same query without a response
+        const lastUserEntry = this.userHistory[this.userHistory.length - 1];
+        if (lastUserEntry && lastUserEntry.query === query && lastUserEntry.response === null) {
+            // Update the existing entry in user history
+            lastUserEntry.response = response;
+            lastUserEntry.sources = sources;
+        } else {
+            // Add a new entry to user history
+            this.userHistory.push({
                 timestamp: Date.now(),
                 query: query,
                 response: response,
@@ -63,30 +91,38 @@ class ConversationManager {
             });
         }
 
-        // Limit history length
-        if (this.conversationHistory.length > this.maxHistoryLength) {
-            this.conversationHistory.shift();
+        // Limit history length for chat context
+        if (this.chatContextHistory.length > this.maxHistoryLength) {
+            this.chatContextHistory.shift();
         }
+        
+        // Limit history length for user history
+        if (this.userHistory.length > this.maxHistoryLength) {
+            this.userHistory.shift();
+        }
+        
         this._saveHistory();
     }
 
     // Load history from an external source (e.g., after fetching from backend)
     loadHistory(history) {
         if (Array.isArray(history)) {
-            this.conversationHistory = history;
+            this.userHistory = history;
+            // When loading user history, we start with a fresh chat context
+            this.chatContextHistory = [];
         } else {
             console.error('Failed to load history: not an array.', history);
         }
     }
 
-    // Get the full conversation history
-    getHistory() {
-        return [...this.conversationHistory];
+    // Get the full user history (for history panel)
+    getUserHistory() {
+        return [...this.userHistory];
     }
 
-    // Get conversation history in the format expected by the orchestrator
-    getConversationHistory() {
-        return this.conversationHistory
+    // Get the current chat context history (for AI agents)
+    getChatContextHistory() {
+        return this.chatContextHistory
             .filter(item => item.response !== null) // Only include completed interactions
             .map(item => ({
                 query: item.query,
@@ -94,16 +130,27 @@ class ConversationManager {
             }));
     }
 
-    // Get recent detailed context (last N interactions)
+    // Get conversation history in the format expected by the orchestrator (deprecated, use getChatContextHistory)
+    getConversationHistory() {
+        return this.getChatContextHistory();
+    }
+
+    // Get recent detailed context (last N interactions from current chat)
     getRecentContext(count = 2) {
-        return this.conversationHistory
+        return this.chatContextHistory
             .filter(item => item.response !== null) // Only include completed interactions
             .slice(-count);
     }
 
-    // Clear conversation history
-    clearHistory() {
-        this.conversationHistory = [];
+    // Clear chat context history (for new conversations) but keep user history
+    clearChatContext() {
+        this.chatContextHistory = [];
+    }
+    
+    // Clear all history including user history
+    clearAllHistory() {
+        this.chatContextHistory = [];
+        this.userHistory = [];
     }
 }
 

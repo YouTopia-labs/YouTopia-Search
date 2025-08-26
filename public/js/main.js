@@ -383,7 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
    // --- History Modal Functions ---
    const showHistoryModal = () => {
        // Get conversation history from the conversation manager
-       const history = conversationManager.getHistory();
+       const history = conversationManager.getUserHistory();
        
        // Clear the history list
        historyList.innerHTML = '';
@@ -1146,8 +1146,8 @@ Generated on: ${currentDate}
         // Add query to conversation history
         conversationManager.addUserQuery(query);
         
-        // Get conversation history
-        const conversationHistory = conversationManager.getConversationHistory();
+        // Get conversation history (chat context only)
+        const conversationHistory = conversationManager.getChatContextHistory();
 
         // Instead of clearing all results, we want to preserve previous conversations
         // Only clear if this is not a follow-up (i.e., if we're not in search-active mode yet)
@@ -1648,8 +1648,8 @@ Generated on: ${currentDate}
                       }
                   }
                   
-                  // Clear conversation history when navigating home
-                  conversationManager.clearHistory();
+                  // Clear chat context history when navigating home (but keep user history)
+                  conversationManager.clearChatContext();
               }
             });
  
