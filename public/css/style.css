@@ -4366,3 +4366,7 @@ body.dark-mode .google-signin-btn:hover {
   opacity: 0;
   transform: translateY(-20px);
 }
+
+.rubber-band-effect {
+    transition: transform 0.2s ease-out;
+}

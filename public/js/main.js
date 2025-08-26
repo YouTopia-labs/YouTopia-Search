@@ -1167,20 +1167,19 @@ Generated on: ${currentDate}
         // Get conversation history (chat context only)
         const conversationHistory = conversationManager.getChatContextHistory();
 
-        // Instead of clearing all results, we want to preserve previous conversations
-        // Only clear if this is not a follow-up (i.e., if we're not in search-active mode yet)
         if (!body.classList.contains('search-active')) {
+            // This is the first query.
             resultsContainer.innerHTML = '';
             sourcesContainer.innerHTML = '';
         }
-
+        
         // For follow-up queries, always create a new log container
         // Remove any existing log container first
         let existingLogContainer = document.getElementById('live-log-container');
         if (existingLogContainer) {
             existingLogContainer.remove();
         }
-        
+
         // Create a new log container for each query
         const logHTML = `
             <div id="live-log-container" class="is-active">
@@ -1279,18 +1278,21 @@ Generated on: ${currentDate}
             // Create a container for this specific query-response pair
             const conversationPair = document.createElement('div');
             conversationPair.classList.add('conversation-pair');
-            
-            // Create query element
+
+            // Create query element for the conversation pair
             const queryElement = document.createElement('div');
             queryElement.classList.add('query-heading');
             queryElement.innerHTML = `<h3>${query.trim()}</h3>`;
-            
-            // Add query and response to conversation pair
+
+            // Add query and response to the conversation pair
             conversationPair.appendChild(queryElement);
             conversationPair.appendChild(aiResponseElement);
-            
-            // Add conversation pair to results container
+
+            // Add the complete conversation pair to the main results container
             resultsContainer.appendChild(conversationPair);
+
+            // Scroll to the new conversation pair
+            conversationPair.scrollIntoView({ behavior: 'smooth', block: 'start' });
             
             // For follow-up queries, smoothly scroll to the new content
             if (body.classList.contains('search-active')) {
@@ -1610,338 +1612,115 @@ Generated on: ${currentDate}
      };
 
      const triggerSearchOrPause = (sourceElement) => {
-         const query = sourceElement.value.trim();
-         console.log('triggerSearchOrPause called with query:', query, 'from element:', sourceElement.id);
+       const query = sourceElement.value.trim();
+       if (sendBtnTop.classList.contains('loading') || sendBtnBottom.classList.contains('loading')) {
+           // If loading, the button click should pause
+           // Note: Implement pause functionality in orchestrateAgents if desired
+           console.log('Request to pause search');
+           // For now, we can just log it. To fully implement, you'd need an abort controller.
+       } else if (query) {
+           handleSearch(query, sourceElement);
+           sourceElement.value = ''; // Clear input after sending
+           autoResizeTextarea(sourceElement); // Resize to default
+           updatePlaceholderForInput(sourceElement); // Update placeholder
+       }
+   };
 
-         if (!query) {
-             console.log('Query is empty, search not triggered.');
-             return;
-         }
+   sendBtnTop.addEventListener('click', () => triggerSearchOrPause(queryInputTop));
+   sendBtnBottom.addEventListener('click', () => triggerSearchOrPause(queryInputBottom));
 
-         // Determine which model selection element to use based on the source
-         const isBottomSearch = sourceElement && sourceElement.id === 'query-input-bottom';
-         let selectedModel;
+   queryInputTop.addEventListener('keydown', (e) => {
+       if (e.key === 'Enter' && !e.shiftKey) {
+           e.preventDefault();
+           triggerSearchOrPause(queryInputTop);
+       }
+   });
 
-         if (isBottomSearch) {
-             selectedModel = 'Amaya'; // Bottom search box defaults to Amaya
-         } else {
-             const modelElement = document.getElementById('selected-model');
-             selectedModel = modelElement ? modelElement.textContent : 'Amaya';
-         }
+   queryInputBottom.addEventListener('keydown', (e) => {
+       if (e.key === 'Enter' && !e.shiftKey) {
+           e.preventDefault();
+           triggerSearchOrPause(queryInputBottom);
+       }
+   });
 
-         console.log('Calling handleSearch with query:', query, 'and selectedModel:', selectedModel);
-         handleSearch(query, sourceElement);
+   // Log container toggle
+   document.addEventListener('click', (e) => {
+       const logHeader = e.target.closest('#log-header-toggle');
+       if (logHeader) {
+           const logContainer = logHeader.closest('#live-log-container');
+           if (logContainer) {
+               logContainer.classList.toggle('collapsed');
+           }
+       }
+   });
 
-         // Clear the input after search is triggered
-         sourceElement.value = '';
-         sourceElement.blur();
+   // Tab functionality
+   const tabs = document.querySelectorAll('.tab');
+   const tabContents = document.querySelectorAll('.tab-content');
 
-         // Update placeholder visibility after clearing
-         updatePlaceholderForInput(sourceElement);
+   tabs.forEach(tab => {
+       tab.addEventListener('click', () => {
+           const tabName = tab.dataset.tab;
 
-         // Hide the pre-release tag
-         const preReleaseTag = document.querySelector('.pre-release-tag');
-         if (preReleaseTag) {
-             preReleaseTag.style.display = 'none';
-         }
-     };
+           tabs.forEach(t => t.classList.remove('active'));
+           tab.classList.add('active');
 
-     document.querySelector('.search-wrapper .send-btn').addEventListener('click', () => {
-         console.log('Top send button clicked.');
-         triggerSearchOrPause(queryInputTop);
-     });
-     queryInputTop.addEventListener('keydown', (e) => {
-         if (e.key === 'Enter' && !e.shiftKey) {
-             e.preventDefault();
-             console.log('Enter key pressed on top input.');
-             triggerSearchOrPause(e.target);
-         }
-     });
+           tabContents.forEach(content => {
+               if (content.id === `${tabName}-content`) {
+                   content.classList.add('active');
+               } else {
+                   content.classList.remove('active');
+               }
+           });
+       });
+   });
+   
+   // Query heading expand/collapse functionality
+   showMoreBtn.addEventListener('click', () => {
+       queryHeading.style.maxHeight = `${queryTextContent.scrollHeight}px`;
+       queryHeading.classList.add('expanded');
+       showMoreBtn.style.display = 'none';
+       showLessBtn.style.display = 'block';
+       queryButtons.classList.remove('show-gradient'); // Hide gradient when expanded
+   });
 
-     // Fix follow-up search box functionality
-     document.getElementById('send-btn-bottom').addEventListener('click', () => {
-         console.log('Bottom send button clicked.');
-         triggerSearchOrPause(queryInputBottom);
-     });
-     queryInputBottom.addEventListener('keydown', (e) => {
-         if (e.key === 'Enter' && !e.shiftKey) {
-             e.preventDefault();
-             console.log('Enter key pressed on bottom input.');
-             triggerSearchOrPause(e.target);
-         }
-     });
- 
-     
-     // Code block actions
-     window.copyCode = function(button) {
-         const pre = button.closest('.code-toolbar').querySelector('pre');
-         const code = pre.querySelector('code').innerText;
-         navigator.clipboard.writeText(code).then(() => {
-             button.innerHTML = '<i class="fas fa-check"></i>';
-             button.title = 'Copied!';
-             setTimeout(() => {
-                 button.innerHTML = '<i class="fas fa-copy"></i>';
-                 button.title = 'Copy code';
-             }, 2000);
-         });
-     }
- 
-     window.downloadCode = function(button, language) {
-         const pre = button.closest('.code-toolbar').querySelector('pre');
-         const code = pre.querySelector('code').innerText;
-         const blob = new Blob([code], { type: 'text/plain' });
-         const url = URL.createObjectURL(blob);
-         const a = document.createElement('a');
-         a.href = url;
-         a.download = `code.${language || 'txt'}`;
-         document.body.appendChild(a);
-         a.click();
-         document.body.removeChild(a);
-         URL.revokeObjectURL(url);
-     }
- 
-     mainContent.addEventListener('click', (e) => {
-         const logHeaderToggle = e.target.closest('#log-header-toggle');
-         if (logHeaderToggle) {
-             e.preventDefault();
-             e.stopPropagation();
-             
-             const currentLogContainer = document.getElementById('live-log-container');
-             
-             if (currentLogContainer) {
-                 currentLogContainer.classList.toggle('collapsed');
-                 // CSS handles rotation automatically, no need to change icon class
-             }
-         }
-     });
-     
-     document.querySelector('.logo a').addEventListener('click', (e) => {
-              e.preventDefault();
-              if (body.classList.contains('search-active')) {
-                  body.classList.remove('search-active');
-                  // Clear all results and log messages when navigating home
-                  document.getElementById('results-container').innerHTML = '';
-                  document.getElementById('query-heading').classList.remove('expanded');
-                  document.getElementById('query-text-content').innerHTML = '';
-                  document.getElementById('show-more-btn').style.display = 'none';
-                  document.getElementById('show-less-btn').style.display = 'none';
-                  
-                  // Remove the live log container when navigating home
-                  const logContainer = document.getElementById('live-log-container');
-                  if (logContainer) {
-                      logContainer.remove(); // Remove the entire container since it's positioned after tabs
-                  }
-     
-                  queryInputTop.value = '';
-                  queryInputBottom.value = '';
-     
-                  // Reset textarea heights to default
-                  queryInputTop.style.height = '';
-                  queryInputTop.style.overflowY = 'hidden';
-                  queryInputBottom.style.height = '';
-                  queryInputBottom.style.overflowY = 'hidden';
-     
-                  mainContent.insertBefore(initialViewContent, mainContent.firstChild);
-                  bottomSearchWrapper.style.display = 'none';
-      
-                  // Reset the placeholder text
-                  const bottomPlaceholderSpan = document.querySelector('#bottom-search-wrapper .placeholder-text-span');
-                  if (bottomPlaceholderSpan) {
-                      bottomPlaceholderSpan.textContent = 'type your query';
-                  }
-                  
-                  // Reset placeholder visibility for top search box
-                  const topWrapper = queryInputTop.closest('.textarea-wrapper');
-                  if (topWrapper) {
-                      const topPlaceholderText = topWrapper.querySelector('.placeholder-text-span');
-                      if (topPlaceholderText) {
-                          topPlaceholderText.classList.remove('hidden');
-                      }
-                  }
-                  
-                  // Clear chat context history when navigating home (but keep user history)
-                  conversationManager.clearChatContext();
-              }
-            });
- 
- 
-     // --- Custom Placeholder Logic and Cat Icon Rotation ---
-     const setupPlaceholder = (inputId) => {
-         const input = document.getElementById(inputId);
-         if (!input) return;
-         
-         const wrapper = input.closest('.textarea-wrapper');
-         if (!wrapper) return;
-         
-         const placeholderText = wrapper.querySelector('.placeholder-text-span');
-         const catIcon = wrapper.querySelector('.placeholder-cat-icon');
-         
-         const updatePlaceholderVisibility = () => {
-             const hasText = input.value.trim() !== '';
-             if (placeholderText) {
-                 placeholderText.classList.toggle('hidden', hasText);
-                 // Also update the wrapper class for CSS-based hiding
-                 wrapper.classList.toggle('has-content', hasText);
-             }
-         };
- 
-         // Handle cat icon rotation on focus/blur
-         input.addEventListener('focus', () => {
-             if (catIcon) {
-                 catIcon.src = 'svg/cat2.svg'; // Change to cat2.svg on focus
-             }
-             updatePlaceholderVisibility(); // Call visibility update on focus
-         });
-         
-         input.addEventListener('blur', () => {
-             if (catIcon) {
-                 catIcon.src = 'svg/cat.svg'; // Change back to cat.svg on blur
-             }
-             updatePlaceholderVisibility(); // Call visibility update on blur
-         });
-         
-         // Initial check in case of pre-filled values
-         updatePlaceholderVisibility();
-     };
- 
-     setupPlaceholder('query-input');
-     setupPlaceholder('query-input-bottom');
- 
-     const shortResponseToggle = document.getElementById('short-response-toggle');
-     shortResponseToggle.addEventListener('click', () => {
-         shortResponseToggle.classList.toggle('active');
-     });
- 
-     // Add event listeners for show more/less buttons
-     showMoreBtn.addEventListener('click', () => {
-         queryHeading.classList.add('expanded');
-         queryHeading.style.maxHeight = '500px'; // Set to expanded max height
-         showMoreBtn.style.display = 'none';
-         showLessBtn.style.display = 'block';
-         queryButtons.classList.remove('show-gradient'); // Hide gradient when expanded
-     });
- 
-     showLessBtn.addEventListener('click', () => {
-         queryHeading.classList.remove('expanded');
-         const currentHeight = queryTextContent.scrollHeight;
-         const lineHeight = parseFloat(getComputedStyle(queryTextContent).lineHeight);
-         const targetMaxHeight = Math.min(120, Math.max(lineHeight * 1.5, currentHeight)); // At least 1.5 lines, up to 120px
-         queryHeading.style.maxHeight = `${targetMaxHeight}px`; // Revert to initial max height
-         
-         // Re-check if "show more" should be visible after collapsing
-         if (currentHeight > targetMaxHeight) {
-             showMoreBtn.style.display = 'block';
-             queryButtons.classList.add('show-gradient'); // Show gradient if still truncated
-         } else {
-             showMoreBtn.style.display = 'none';
-             queryButtons.classList.remove('show-gradient'); // Hide gradient if not truncated
-         }
-         showLessBtn.style.display = 'none';
-     });
-     
-     // Implement elastic scrolling effect for previous queries
-     let isScrolling = false;
-     let startY = 0;
-     let currentY = 0;
-     let scrollTopStart = 0;
-     
-     // Function to handle touch start for mobile devices
-     const handleTouchStart = (e) => {
-         if (!body.classList.contains('search-active')) return;
-         
-         startY = e.touches[0].clientY;
-         currentY = startY;
-         isScrolling = true;
-         scrollTopStart = window.scrollY;
-     };
-     
-     // Function to handle touch move for mobile devices
-     const handleTouchMove = (e) => {
-         if (!isScrolling || !body.classList.contains('search-active')) return;
-         
-         currentY = e.touches[0].clientY;
-         const diffY = currentY - startY;
-         
-         // Only apply elastic effect when at the top of the page
-         if (window.scrollY === 0 && diffY > 0) {
-             e.preventDefault();
-             // Apply elastic effect by moving the page slightly
-             window.scrollTo(0, Math.min(diffY * 0.3, 50));
-         }
-     };
-     
-     // Function to handle touch end for mobile devices
-     const handleTouchEnd = () => {
-         if (!isScrolling) return;
-         
-         isScrolling = false;
-         // Return to normal position with animation
-         if (window.scrollY > 0) {
-             window.scrollTo({
-                 top: 0,
-                 behavior: 'smooth'
-             });
-         }
-     };
-     
-     // Add event listeners for touch events (mobile)
-     document.addEventListener('touchstart', handleTouchStart, { passive: false });
-     document.addEventListener('touchmove', handleTouchMove, { passive: false });
-     document.addEventListener('touchend', handleTouchEnd);
-     
-     // Add mouse events for desktop rubber band effect
-     let isMouseDown = false;
-     let mouseStartY = 0;
-     
-     document.addEventListener('mousedown', (e) => {
-         if (!body.classList.contains('search-active')) return;
-         // Only apply rubber band effect when at the top of the page
-         if (window.scrollY === 0) {
-             isMouseDown = true;
-             mouseStartY = e.clientY;
-         }
-     });
-     
-     document.addEventListener('mousemove', (e) => {
-         if (!isMouseDown || !body.classList.contains('search-active')) return;
-         
-         const diffY = e.clientY - mouseStartY;
-         
-         // Only apply rubber band effect when pulling down from the top
-         if (window.scrollY === 0 && diffY > 0) {
-             e.preventDefault();
-             // Apply rubber band effect
-             window.scrollTo(0, Math.min(diffY * 0.2, 50));
-         }
-     });
-     
-     document.addEventListener('mouseup', () => {
-         if (isMouseDown) {
-             isMouseDown = false;
-             // Return to normal position with animation
-             if (window.scrollY > 0) {
-                 window.scrollTo({
-                     top: 0,
-                     behavior: 'smooth'
-                 });
-             }
-         }
-     });
-     
-     // Add scroll event listener for sticky effect
-     window.addEventListener('scroll', () => {
-         const queryHeadings = document.querySelectorAll('.query-heading');
-         if (queryHeadings.length === 0) return;
-         
-         // Get the first query heading
-         const firstQueryHeading = queryHeadings[0];
-         const rect = firstQueryHeading.getBoundingClientRect();
-         
-         // If the first query heading is at the top of the viewport, add sticky effect
-         if (rect.top <= 0 && rect.bottom > 0) {
-             firstQueryHeading.classList.add('sticky');
-         } else {
-             firstQueryHeading.classList.remove('sticky');
-         }
-     });
- });
+   showLessBtn.addEventListener('click', () => {
+       const lineHeight = parseFloat(getComputedStyle(queryTextContent).lineHeight);
+       const targetMaxHeight = Math.min(120, Math.max(lineHeight * 1.5, 0));
+       queryHeading.style.maxHeight = `${targetMaxHeight}px`;
+       queryHeading.classList.remove('expanded');
+       showMoreBtn.style.display = 'block';
+       showLessBtn.style.display = 'none';
+       queryButtons.classList.add('show-gradient'); // Show gradient when collapsed
+   });
+
+   // --- Elastic Scroll ---
+   let isScrolling = false;
+   let scrollTimeout;
+
+   resultsContainer.addEventListener('scroll', () => {
+       if (!isScrolling) {
+           window.requestAnimationFrame(() => {
+               const queryHeadings = resultsContainer.querySelectorAll('.query-heading');
+               queryHeadings.forEach(heading => {
+                   const rect = heading.getBoundingClientRect();
+                   if (rect.top < 10 && rect.top > -10) {
+                       heading.classList.add('rubber-band-effect');
+                   } else {
+                       heading.classList.remove('rubber-band-effect');
+                   }
+               });
+               isScrolling = false;
+           });
+       }
+       isScrolling = true;
+
+       clearTimeout(scrollTimeout);
+       scrollTimeout = setTimeout(() => {
+           const queryHeadings = resultsContainer.querySelectorAll('.query-heading');
+           queryHeadings.forEach(heading => {
+               heading.classList.remove('rubber-band-effect');
+           });
+       }, 150);
+   });
+});
