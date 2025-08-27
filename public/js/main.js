@@ -1282,13 +1282,23 @@ Generated on: ${currentDate}
             // Scroll to the top of the results container
             resultsContainer.scrollTo({ top: 0, behavior: 'smooth' });
 
-            const streamCallback = (chunk) => {
-                aiResponseContent += chunk;
+            // --- Enhanced Stream Rendering ---
+            let buffer = '';
+            let isRendering = false;
+
+            const renderStream = () => {
+                if (!buffer) {
+                    isRendering = false;
+                    return;
+                }
+
+                aiResponseContent += buffer;
+                buffer = ''; // Clear buffer
                 
                 // Store the current response content for export functions
                 currentResponseContent = aiResponseContent;
-
-                // Render the raw markdown content as it streams
+                
+                // Render the raw markdown content
                 aiResponseElement.innerHTML = marked.parse(aiResponseContent);
 
                 // Auto-scroll if the user is near the bottom
@@ -1298,6 +1308,16 @@ Generated on: ${currentDate}
                         top: resultsContainer.scrollHeight,
                         behavior: 'auto'
                     });
+                }
+                
+                isRendering = false;
+            };
+
+            const streamCallback = (chunk) => {
+                buffer += chunk;
+                if (!isRendering) {
+                    isRendering = true;
+                    requestAnimationFrame(renderStream);
                 }
             };
 
