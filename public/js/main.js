@@ -1165,79 +1165,75 @@ Generated on: ${currentDate}
         // Get conversation history (chat context only)
         const conversationHistory = conversationManager.getChatContextHistory();
 
-        // Don't clear results, append new ones for a threaded view.
-        // resultsContainer.innerHTML = '';
-        // sourcesContainer.innerHTML = '';
+        // Clear previous results for every query to treat it as a new one
+        resultsContainer.innerHTML = '';
+        sourcesContainer.innerHTML = '';
 
         if (!body.classList.contains('search-active')) {
             initialViewContent.style.display = 'none';
             bottomSearchWrapper.style.display = 'flex';
             body.classList.add('search-active');
+
+            // Change placeholder for follow-up questions
             const bottomPlaceholderSpan = document.querySelector('#bottom-search-wrapper .placeholder-text-span');
             if (bottomPlaceholderSpan) {
                 bottomPlaceholderSpan.textContent = 'Ask a follow up question';
             }
         }
+
+        // For every query (initial or follow-up), create a new log container
+        let existingLogContainer = document.getElementById('live-log-container');
+        if (existingLogContainer) {
+            existingLogContainer.remove();
+        }
         
-        // Create a new container for this conversation pair
-        const conversationPair = document.createElement('div');
-        conversationPair.classList.add('conversation-pair');
-        resultsContainer.appendChild(conversationPair);
-
-        // Create and display the query heading within the pair
-        const queryHeadingItem = document.createElement('div');
-        queryHeadingItem.classList.add('query-heading-item');
-        queryHeadingItem.innerHTML = `<h3>${query.trim()}</h3>`;
-        conversationPair.appendChild(queryHeadingItem);
-
-        // Create a container for the response and sources for this pair
-        const responseWrapper = document.createElement('div');
-        responseWrapper.classList.add('response-wrapper');
-        conversationPair.appendChild(responseWrapper);
-
-        const aiResponseElement = document.createElement('div');
-        aiResponseElement.classList.add('ai-response');
-        responseWrapper.appendChild(aiResponseElement);
-
-        const sourcesContainerForPair = document.createElement('div');
-        sourcesContainerForPair.classList.add('sources-container-pair');
-        responseWrapper.appendChild(sourcesContainerForPair);
-
-        // Create a new log container for this query
         const logHTML = `
-            <div class="live-log-container is-active">
+            <div id="live-log-container" class="is-active">
                 <div class="log-header" id="log-header-toggle">
                     <h4>Live Execution Log</h4>
-                    <button class="log-toggle-btn" title="Toggle Log"><i class="fas fa-chevron-up"></i></button>
+                    <button id="log-toggle-btn" title="Toggle Log"><i class="fas fa-chevron-up"></i></button>
                 </div>
-                <ul class="log-list"></ul>
+                <ul id="log-list"></ul>
             </div>`;
-        conversationPair.insertAdjacentHTML('beforeend', logHTML);
-        const logList = conversationPair.querySelector('.log-list');
 
+        const tabsDiv = document.querySelector('.tabs');
+        let logList;
+        if (tabsDiv) {
+            tabsDiv.insertAdjacentHTML('afterend', logHTML);
+            logList = document.getElementById('log-list');
+        }
+
+        // Initialize the log for the current query
         if (logList) {
             const li = document.createElement('li');
             li.innerHTML = '<i class="fas fa-search"></i> Orchestrating a search...';
             logList.appendChild(li);
         }
-
-        // Hide the main, single query heading
-        queryHeading.style.display = 'none';
-
+        
+        // Display the query as a Markdown heading
+        queryTextContent.textContent = query.trim();
+        queryHeading.style.display = 'flex';
+        
+        // Set button state to loading
         setSendButtonState(true);
-
         try {
             if (logList) {
                 const li = document.createElement('li');
                 li.innerHTML = `<i class="fas fa-brain"></i> Generating response for: "<b>${query.trim()}</b>"`;
                 logList.appendChild(li);
-                logList.parentElement.scrollTop = logList.parentElement.scrollHeight;
+                logList.scrollTo({
+                    top: logList.scrollHeight,
+                    behavior: 'smooth'
+                });
             }
 
-            let aiResponseContent = '';
+            let aiResponseContent = ''; // Accumulate streamed content here
+            const aiResponseElement = document.createElement('div');
+            aiResponseElement.classList.add('ai-response');
+            resultsContainer.appendChild(aiResponseElement);
 
-            // Scroll the new conversation pair into view
-            conversationPair.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            // Scroll to the top of the results container
+            resultsContainer.scrollTo({ top: 0, behavior: 'smooth' });
 
             const streamCallback = (chunk) => {
                 aiResponseContent += chunk;
@@ -1275,10 +1271,15 @@ Generated on: ${currentDate}
 
                 // --- Final Processing Step ---
                 // This code runs after the entire stream is finished.
-                processFinalResponse(aiResponseElement, aiResponseContent, sources, sourcesContainerForPair);
-
-                // Scroll to the bottom of the new content as it completes
-                conversationPair.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                processFinalResponse(aiResponseElement, aiResponseContent, sources);
+                
+                // For follow-up queries, scroll to the new content when response is complete
+                if (body.classList.contains('search-active')) {
+                    resultsContainer.scrollTo({
+                        top: resultsContainer.scrollHeight,
+                        behavior: 'smooth'
+                    });
+                }
 
                 if (logList) {
                     const li = document.createElement('li');
@@ -1438,18 +1439,23 @@ Generated on: ${currentDate}
 
 
     // This new function processes the complete response after streaming is done.
-    const processFinalResponse = (aiResponseElement, fullContent, sources, sourcesContainerForPair) => {
+    const processFinalResponse = (aiResponseElement, fullContent, sources) => {
         let mainAnswer = fullContent;
+        
+        // Update the global content for export functions
         currentResponseContent = mainAnswer;
 
+        // Render the final main answer content
         aiResponseElement.innerHTML = marked.parse(mainAnswer);
 
+        // Now, find and render all charts and tables from the final content
         aiResponseElement.querySelectorAll('pre code.language-chart').forEach((codeBlock, index) => {
             const chartContainerId = `chart-container-${Date.now()}-${index}`;
             const chartDiv = document.createElement('div');
             chartDiv.id = chartContainerId;
             chartDiv.classList.add('chart-display');
             codeBlock.parentNode.parentNode.replaceChild(chartDiv, codeBlock.parentNode);
+
             try {
                 const chartConfig = safeParseChartConfig(codeBlock.textContent.trim());
                 renderChart(chartContainerId, chartConfig);
@@ -1465,6 +1471,7 @@ Generated on: ${currentDate}
             tableDiv.id = tableContainerId;
             tableDiv.classList.add('table-display');
             codeBlock.parentNode.parentNode.replaceChild(tableDiv, codeBlock.parentNode);
+
             try {
                 const tableConfig = parseTableConfig(codeBlock.textContent.trim());
                 renderTable(tableConfig, tableContainerId);
@@ -1474,25 +1481,22 @@ Generated on: ${currentDate}
             }
         });
 
+        // Highlight all code blocks
         renderCodeHighlighting(aiResponseElement);
 
-        if (sources && sources.length > 0) {
-            renderSourceCards(sources, sourcesContainerForPair);
-             // Show the sources tab and update count
-            const sourcesTab = document.querySelector('.tab-link[data-tab="sources-tab"]');
-            sourcesTab.style.display = 'inline-flex';
-            const counter = sourcesTab.querySelector('.source-count') || document.createElement('span');
-            counter.className = 'source-count';
-            counter.textContent = sources.length;
-            if (!sourcesTab.querySelector('.source-count')) {
+        // Process and render the sources from the parsed JSON data
+        if (sources) {
+            renderSourceCards(sources, sourcesContainer);
+            const sourcesTab = document.querySelector('.tab[data-tab="sources"]');
+            if (sourcesTab) {
+                const counter = sourcesTab.querySelector('.source-count') || document.createElement('span');
+                counter.className = 'source-count';
+                counter.textContent = sources.length;
                 sourcesTab.appendChild(counter);
             }
-        } else {
-            // Hide the sources tab if there are no sources
-            document.querySelector('.tab-link[data-tab="sources-tab"]').style.display = 'none';
         }
-
-
+        
+        // Add the export panel at the very end
         addExportPanel(aiResponseElement, mainAnswer);
     };
  

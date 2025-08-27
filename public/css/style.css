@@ -1830,27 +1830,26 @@ body.search-active #main-results-area {
 }
 
 #query-heading {
-    background-color: var(--content-bg-color);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 12px 15px;
-    margin-bottom: 15px;
-    font-weight: 500;
-    color: var(--text-primary);
-    box-shadow: var(--shadow-light);
-    display: none; /* Hidden by default, shown via JS */
+    display: none; /* Hidden by default */
     align-items: center;
     justify-content: space-between;
+    padding: 10px 15px; /* Adjusted padding */
+    background: linear-gradient(180deg, var(--content-bg-color), transparent); /* Gradient background */
+    border-bottom: 1px solid var(--border-color);
     position: sticky;
-    top: 10px; /* Stick to the top with a small margin */
+    top: 0;
     z-index: 100;
+    backdrop-filter: blur(5px); /* Added blur effect */
+    -webkit-backdrop-filter: blur(5px); /* Safari support */
 }
 
 #query-text-content {
-    font-size: 1.1rem;
+    font-weight: 500;
     color: var(--text-primary);
-    white-space: pre-wrap;
-    word-wrap: break-word;
+    font-size: 1.1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 
@@ -1917,7 +1916,6 @@ body.search-active #main-results-area {
 .conversation-pair {
     margin-bottom: 20px;
     padding-bottom: 20px;
-    border-bottom: 1px solid var(--border-color);
 }
 
 .conversation-pair:last-child {
@@ -1925,26 +1923,12 @@ body.search-active #main-results-area {
     margin-bottom: 0;
 }
 
-.query-heading-item {
-    background-color: var(--content-bg-color);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 12px 15px;
-    margin-bottom: 15px;
-    font-weight: 500;
-    color: var(--text-primary);
-    box-shadow: var(--shadow-light);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
 
-.query-heading-item h3 {
+.query-heading h3 {
     margin: 0;
     font-size: 1.1rem;
-    color: var(--text-primary);
-    white-space: pre-wrap;
-    word-wrap: break-word;
+    color: var(--text-primary); /* Changed to primary text color */
+    font-weight: 500; /* Added font-weight */
 }
 
 /* Sticky effect for query headings */
