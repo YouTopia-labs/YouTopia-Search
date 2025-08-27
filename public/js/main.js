@@ -116,9 +116,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const sendBtnBottom = document.getElementById('send-btn-bottom');
     
     // Query heading elements
+    const queryHeading = document.getElementById('query-heading');
     const queryTextContent = document.getElementById('query-text-content');
-    const showMoreBtn = document.getElementById('show-more-btn');
-    const showLessBtn = document.getElementById('show-less-btn');
     const queryButtons = document.querySelector('.query-buttons');
 
 
@@ -1166,12 +1165,11 @@ Generated on: ${currentDate}
         // Get conversation history (chat context only)
         const conversationHistory = conversationManager.getChatContextHistory();
 
+        // Clear previous results for every query to treat it as a new one
+        resultsContainer.innerHTML = '';
+        sourcesContainer.innerHTML = '';
+
         if (!body.classList.contains('search-active')) {
-            // This is the first query, so clear any previous results.
-            resultsContainer.innerHTML = '';
-            sourcesContainer.innerHTML = '';
-            
-            // Hide initial view and show the results view
             initialViewContent.style.display = 'none';
             bottomSearchWrapper.style.display = 'flex';
             body.classList.add('search-active');
@@ -1212,6 +1210,10 @@ Generated on: ${currentDate}
             logList.appendChild(li);
         }
         
+        // Display the query as a Markdown heading
+        queryTextContent.textContent = query.trim();
+        queryHeading.style.display = 'flex';
+        
         // Set button state to loading
         setSendButtonState(true);
         try {
@@ -1228,33 +1230,10 @@ Generated on: ${currentDate}
             let aiResponseContent = ''; // Accumulate streamed content here
             const aiResponseElement = document.createElement('div');
             aiResponseElement.classList.add('ai-response');
-            
-            // Create a container for this specific query-response pair.
-            const conversationPair = document.createElement('div');
-            conversationPair.classList.add('conversation-pair');
+            resultsContainer.appendChild(aiResponseElement);
 
-            // Create and append the user's query heading to the pair.
-            const queryElement = document.createElement('div');
-            queryElement.classList.add('query-heading-item'); // New class for styling individual queries
-            queryElement.innerHTML = `<div class="query-text-content"><h3>${query.trim()}</h3></div>`;
-            conversationPair.appendChild(queryElement);
-
-            // Append the AI response element to the pair.
-            conversationPair.appendChild(aiResponseElement);
-
-            // Add the complete conversation pair to the main results container.
-            resultsContainer.appendChild(conversationPair);
-
-            // Scroll the entire page to the new conversation pair.
-            conversationPair.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            
-            // For follow-up queries, smoothly scroll to the new content
-            if (body.classList.contains('search-active')) {
-                resultsContainer.scrollTo({
-                    top: resultsContainer.scrollHeight,
-                    behavior: 'smooth'
-                });
-            }
+            // Scroll to the top of the results container
+            resultsContainer.scrollTo({ top: 0, behavior: 'smooth' });
 
             const streamCallback = (chunk) => {
                 aiResponseContent += chunk;
@@ -1270,26 +1249,8 @@ Generated on: ${currentDate}
                 if (isScrolledToBottom) {
                     resultsContainer.scrollTo({
                         top: resultsContainer.scrollHeight,
-                        behavior: 'smooth'
+                        behavior: 'auto'
                     });
-                }
-                
-                // For follow-up queries, ensure we scroll to the new content as it streams
-                if (body.classList.contains('search-active')) {
-                    // Only scroll if we're near the bottom
-                    const scrollThreshold = 50; // pixels from bottom
-                    if (resultsContainer.scrollHeight - resultsContainer.scrollTop - resultsContainer.clientHeight < scrollThreshold) {
-                        resultsContainer.scrollTo({
-                            top: resultsContainer.scrollHeight,
-                            behavior: 'smooth'
-                        });
-                    }
-                }
-
-                // Check for the end-of-answer delimiter
-                if (aiResponseContent.includes('---END_OF_ANSWER---')) {
-                    // Stop the main "Answer" tab loading indicator here if needed
-                    // This part is handled by the final processing step now
                 }
             };
 
@@ -1629,24 +1590,6 @@ Generated on: ${currentDate}
        });
    });
    
-   // Query heading expand/collapse functionality
-   showMoreBtn.addEventListener('click', () => {
-       queryHeading.style.maxHeight = `${queryTextContent.scrollHeight}px`;
-       queryHeading.classList.add('expanded');
-       showMoreBtn.style.display = 'none';
-       showLessBtn.style.display = 'block';
-       queryButtons.classList.remove('show-gradient'); // Hide gradient when expanded
-   });
-
-   showLessBtn.addEventListener('click', () => {
-       const lineHeight = parseFloat(getComputedStyle(queryTextContent).lineHeight);
-       const targetMaxHeight = Math.min(120, Math.max(lineHeight * 1.5, 0));
-       queryHeading.style.maxHeight = `${targetMaxHeight}px`;
-       queryHeading.classList.remove('expanded');
-       showMoreBtn.style.display = 'block';
-       showLessBtn.style.display = 'none';
-       queryButtons.classList.add('show-gradient'); // Show gradient when collapsed
-   });
 
    // --- Elastic Scroll ---
    let isScrolling = false;

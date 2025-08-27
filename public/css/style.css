@@ -1829,87 +1829,25 @@ body.search-active #main-results-area {
     padding: 0 12px 220px 12px; /* Adjusted bottom padding to account for export panel and fixed search box */
 }
 
-/* === REDESIGNED QUERY HEADING === */
-.query-heading-item {
-    background-color: var(--content-bg-color);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
+#query-heading {
+    display: none; /* Hidden by default */
+    align-items: center;
+    justify-content: space-between;
     padding: 12px 15px;
-    margin-bottom: 15px;
-    font-weight: 500;
-    color: var(--text-primary);
-    box-shadow: var(--shadow-light);
-}
-
-.query-heading-item h3 {
-    margin: 0;
-    font-size: 1.1rem;
-    color: var(--send-button-grad-start);
-}
-
-#query-heading.expanded {
-    max-height: 500px; /* Max height when expanded */
-    overflow-y: hidden; /* Prevent scrolling on the main container */
-    padding-bottom: 40px; /* Space for the fixed "show less" button */
-    position: relative; /* Ensure position context for absolute button */
+    background-color: var(--content-bg-color);
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
 
 #query-text-content {
-    white-space: pre-wrap; /* Allow text to wrap */
-    word-wrap: break-word; /* Break long words */
-    overflow-y: auto; /* Allow scrolling only on the text content */
-    flex-grow: 1; /* Allow content to grow */
-    padding-top: 2px; /* Fine-tune vertical alignment of text */
-    padding-bottom: 2px; /* Fine-tune vertical alignment of text */
-    mask-image: linear-gradient(to bottom, black 95%, transparent 100%); /* Adjusted fade out effect to be shorter */
-    line-height: 1.4; /* Ensure consistent line height */
-}
-
-#query-heading.expanded #query-text-content {
-    overflow-y: auto; /* Ensure scrolling is enabled when expanded */
-}
-
-.query-buttons {
-    position: absolute; /* Position relative to #query-heading */
-    bottom: 0px; /* Stick to the bottom */
-    right: 0px; /* Stick to the right */
-    left: 0px; /* Span full width */
-    display: flex;
-    justify-content: flex-end; /* Align buttons to the right */
-    gap: 8px;
-    z-index: 2; /* Ensure buttons are above content */
-    /* background handled by .show-gradient class */
-    padding: 8px 20px; /* Padding for the buttons area */
-    box-sizing: border-box; /* Include padding in width/height */
-}
-
-.query-buttons.show-gradient {
-    background: linear-gradient(to top, var(--content-bg-color) 85%, transparent); /* Adjusted fade effect to be shorter */
-}
-
-.query-btn {
-    background-color: var(--send-button-grad-start);
-    color: var(--send-button-text);
-    border: none;
-    border-radius: 8px;
-    padding: 4px 10px;
-    font-size: 0.8rem;
-    cursor: pointer;
+    font-weight: 500;
+    color: var(--text-primary);
+    font-size: 1.1rem;
     white-space: nowrap;
-}
-
-.query-btn:hover {
-    background-color: var(--send-button-grad-end);
-}
-
-/* Ensure buttons are visible in dark mode */
-body.dark-mode .query-btn {
-    background-color: var(--send-button-grad-start);
-    color: var(--send-button-text);
-}
-
-body.dark-mode .query-btn:hover {
-    background-color: var(--send-button-grad-end);
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 
