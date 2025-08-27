@@ -157,40 +157,49 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
       throw new Error('Empty response body from Mistral API');
     }
 
-    let content = '';
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let content = ''; // To accumulate the full response for non-streaming returns
 
+    const processLine = (line) => {
+        if (line.startsWith('data: ')) {
+            const jsonStr = line.substring(6);
+            if (jsonStr.trim() === '[DONE]') {
+                return;
+            }
+            try {
+                const parsed = JSON.parse(jsonStr);
+                if (parsed.choices && parsed.choices[0].delta && parsed.choices[0].delta.content) {
+                    const chunk = parsed.choices[0].delta.content;
+                    content += chunk;
+                    if (streamCallback) {
+                        streamCallback(chunk);
+                    }
+                }
+            } catch (e) {
+                console.error('Error parsing stream chunk:', e, 'Line:', line);
+            }
+        }
+    };
+    
+    // Read the stream
     while (true) {
         const { value, done } = await reader.read();
         if (done) {
+            if (buffer) { // Process any remaining data in the buffer
+                processLine(buffer);
+            }
             break;
         }
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-        buffer = lines.pop(); // Keep the last partial line in the buffer
-
-        for (const line of lines) {
-            if (line.startsWith('data: ')) {
-                const jsonStr = line.substring(6);
-                if (jsonStr === '[DONE]') {
-                    break;
-                }
-                try {
-                    const parsed = JSON.parse(jsonStr);
-                    if (parsed.choices && parsed.choices[0].delta && parsed.choices[0].delta.content) {
-                        const chunk = parsed.choices[0].delta.content;
-                        content += chunk;
-                        if (streamCallback) {
-                            streamCallback(chunk);
-                        }
-                    }
-                } catch (e) {
-                    console.error('Error parsing stream chunk:', e);
-                }
-            }
+        
+        // Process all complete lines, keep the last partial line in the buffer
+        for (let i = 0; i < lines.length - 1; i++) {
+            processLine(lines[i]);
         }
+        buffer = lines[lines.length - 1];
     }
 
     // Check if we got any content
