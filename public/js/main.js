@@ -1180,28 +1180,36 @@ Generated on: ${currentDate}
         }
         
         // For follow-up queries, always create a new log container
-        // Remove any existing log container first
-        let existingLogContainer = document.getElementById('live-log-container');
-        if (existingLogContainer) {
-            existingLogContainer.remove();
-        }
-
-        // Create a new log container for each query
+        // Instead of removing existing log containers, we'll keep them and create new ones
+        // This ensures previous answers/logs stay as is
+        
+        // Create a new log container for each query with a unique ID
+        const timestamp = Date.now();
         const logHTML = `
-            <div id="live-log-container" class="is-active">
-                <div class="log-header" id="log-header-toggle">
+            <div id="live-log-container-${timestamp}" class="is-active">
+                <div class="log-header" id="log-header-toggle-${timestamp}">
                     <h4>Live Execution Log</h4>
-                    <button id="log-toggle-btn" title="Toggle Log"><i class="fas fa-chevron-up"></i></button>
+                    <button id="log-toggle-btn-${timestamp}" title="Toggle Log"><i class="fas fa-chevron-up"></i></button>
                 </div>
-                <ul id="log-list"></ul>
+                <ul id="log-list-${timestamp}"></ul>
             </div>`;
         
         const tabsDiv = document.querySelector('.tabs');
         let logContainer, logList;
         if (tabsDiv) { // Ensure tabsDiv exists before inserting
             tabsDiv.insertAdjacentHTML('afterend', logHTML);
-            logContainer = document.getElementById('live-log-container'); // Get reference to the newly created container
-            logList = document.getElementById('log-list'); // Get reference to the new log list
+            logContainer = document.getElementById(`live-log-container-${timestamp}`); // Get reference to the newly created container
+            logList = document.getElementById(`log-list-${timestamp}`); // Get reference to the new log list
+        }
+        
+        // Set up event listener for the new log container toggle
+        if (logContainer) {
+            logContainer.addEventListener('click', (e) => {
+                const logHeader = e.target.closest(`#log-header-toggle-${timestamp}`);
+                if (logHeader) {
+                    logContainer.classList.toggle('collapsed');
+                }
+            });
         }
         
         renderCodeHighlighting(resultsContainer);
@@ -1439,7 +1447,6 @@ Generated on: ${currentDate}
                     logList.scrollTop = logList.scrollHeight; // Scroll to bottom
                 }
                 setSendButtonState(false);
-                const logContainer = document.getElementById('live-log-container');
                 if (logContainer) {
                     logContainer.classList.remove('is-active');
                     logContainer.classList.add('is-done');
@@ -1461,7 +1468,6 @@ Generated on: ${currentDate}
                         logList.scrollTop = logList.scrollHeight; // Scroll to bottom
                     }
                     setSendButtonState(false); // Ensure button is reset
-                    const logContainer = document.getElementById('live-log-container');
                     if (logContainer) {
                         logContainer.classList.remove('is-active');
                         logContainer.classList.add('has-error'); // Indicate an error state
@@ -1525,7 +1531,6 @@ Generated on: ${currentDate}
                 }
 
                 setSendButtonState(false);
-                const logContainer = document.getElementById('live-log-container');
                 if (logContainer && !logContainer.classList.contains('has-error')) {
                     logContainer.classList.remove('is-active');
                     logContainer.classList.add('has-error');
@@ -1575,7 +1580,6 @@ Generated on: ${currentDate}
 
             // Always set button state back to enabled, even on error
             setSendButtonState(false);
-            const logContainer = document.getElementById('live-log-container');
             if (logContainer && !logContainer.classList.contains('has-error')) {
                 logContainer.classList.remove('is-active');
                 logContainer.classList.add('has-error');
@@ -1711,9 +1715,10 @@ Generated on: ${currentDate}
 
    // Log container toggle
    document.addEventListener('click', (e) => {
-       const logHeader = e.target.closest('#log-header-toggle');
+       const logHeader = e.target.closest('[id^="log-header-toggle-"]');
        if (logHeader) {
-           const logContainer = logHeader.closest('#live-log-container');
+           const timestamp = logHeader.id.split('-').pop();
+           const logContainer = document.getElementById(`live-log-container-${timestamp}`);
            if (logContainer) {
                logContainer.classList.toggle('collapsed');
            }
