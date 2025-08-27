@@ -1833,7 +1833,7 @@ body.search-active #main-results-area {
     display: none; /* Hidden by default */
     align-items: center;
     justify-content: space-between;
-    padding: 12px 20px;
+    padding: 6px 20px; /* Reduced vertical padding */
     background-color: var(--content-bg-color);
     border: 1px solid var(--border-color);
     border-radius: 12px; /* Rounded corners */
@@ -1841,7 +1841,7 @@ body.search-active #main-results-area {
     top: auto; /* Reset top positioning */
     z-index: 100;
     box-shadow: var(--shadow-light);
-    margin: 20px auto 10px auto; /* Centered with margin */
+    margin: 5px auto 10px auto; /* Reduced top margin to pull it up */
     max-width: 766px; /* Match other content widths */
 }
 
@@ -1849,9 +1849,50 @@ body.search-active #main-results-area {
     font-weight: 500;
     color: var(--text-primary);
     font-size: 1.1rem;
-    white-space: nowrap;
+    line-height: 1.2; /* Explicitly set line-height for consistent 4-line calculation */
+    white-space: pre-wrap; /* Allow text to wrap */
+    word-wrap: break-word; /* Ensure long words break */
+    overflow: hidden; /* Hide overflow initially */
+    text-overflow: ellipsis; /* Fallback for single line ellipsis if needed, though not strictly necessary with pre-wrap */
+}
+
+/* Show more/less button styles */
+.show-more-btn {
+    background: none;
+    border: none;
+    color: var(--send-button-grad-start);
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin-left: 10px;
+    padding: 0;
+    text-decoration: underline;
+    display: block; /* Change to block to appear below the text */
+    margin-top: 5px; /* Add some space above the button */
+    text-align: right; /* Align button to the right */
+}
+
+.show-more-btn:hover {
+    color: var(--text-primary);
+}
+
+
+/* Collapsed state for query text */
+.query-text-collapsed {
+    max-height: calc(1.1rem * 1.2 * 4); /* Max height for 4 lines (font-size * line-height * 4) */
     overflow: hidden;
-    text-overflow: ellipsis;
+    position: relative;
+}
+/* Gradient overlay for collapsed state */
+.query-text-collapsed::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2rem;
+    background: linear-gradient(to bottom, transparent, var(--content-bg-color));
+    pointer-events: none; /* Allow clicks to pass through to the text */
 }
 
 

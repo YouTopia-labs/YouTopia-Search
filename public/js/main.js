@@ -180,6 +180,51 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
 
+    // Function to add show more/less functionality to query text
+    const addShowMoreFunctionality = (element) => {
+        // Remove any existing show more button
+        const existingButton = element.parentNode.querySelector('.show-more-btn');
+        if (existingButton) {
+            existingButton.remove();
+        }
+
+        // Check if text content exceeds 4 lines (approximately 6rem)
+        const lineHeight = parseFloat(getComputedStyle(element).lineHeight);
+        const maxHeight = lineHeight * 4; // 4 lines
+        const actualHeight = element.scrollHeight;
+
+        if (actualHeight > maxHeight) {
+            // Add collapsed class and set max height
+            element.classList.add('query-text-collapsed');
+            element.style.maxHeight = `${lineHeight * 4}px`;
+            
+            // Create show more button
+            const showMoreBtn = document.createElement('button');
+            showMoreBtn.className = 'show-more-btn';
+            showMoreBtn.textContent = 'Show more';
+            showMoreBtn.setAttribute('aria-expanded', 'false');
+            
+            // Add click event
+            showMoreBtn.addEventListener('click', function() {
+                const isExpanded = element.classList.contains('query-text-collapsed');
+                if (isExpanded) {
+                    element.classList.remove('query-text-collapsed');
+                    element.style.maxHeight = 'none';
+                    showMoreBtn.textContent = 'Show less';
+                    showMoreBtn.setAttribute('aria-expanded', 'true');
+                } else {
+                    element.classList.add('query-text-collapsed');
+                    element.style.maxHeight = `${lineHeight * 4}px`;
+                    showMoreBtn.textContent = 'Show more';
+                    showMoreBtn.setAttribute('aria-expanded', 'false');
+                }
+            });
+            
+            // Insert button after the text content
+            element.parentNode.appendChild(showMoreBtn);
+        }
+    };
+
     const applyTheme = (theme) => {
         const isDark = theme === 'dark';
         body.classList.toggle('dark-mode', isDark);
@@ -468,6 +513,7 @@ document.addEventListener('DOMContentLoaded', () => {
        
        // Set the query in the heading
        queryTextContent.textContent = item.query;
+       addShowMoreFunctionality(queryTextContent);
        
        // Process and display the response
        if (item.response) {
@@ -1212,6 +1258,7 @@ Generated on: ${currentDate}
         
         // Display the query as a Markdown heading
         queryTextContent.textContent = query.trim();
+        addShowMoreFunctionality(queryTextContent);
         queryHeading.style.display = 'flex';
         
         // Set button state to loading
