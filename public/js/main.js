@@ -116,7 +116,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const sendBtnBottom = document.getElementById('send-btn-bottom');
     
     // Query heading elements
-    const queryHeading = document.getElementById('query-heading');
     const queryTextContent = document.getElementById('query-text-content');
     const showMoreBtn = document.getElementById('show-more-btn');
     const showLessBtn = document.getElementById('show-less-btn');
@@ -1168,76 +1167,14 @@ Generated on: ${currentDate}
         const conversationHistory = conversationManager.getChatContextHistory();
 
         if (!body.classList.contains('search-active')) {
-            // This is the first query.
+            // This is the first query, so clear any previous results.
             resultsContainer.innerHTML = '';
             sourcesContainer.innerHTML = '';
-        } else {
-            // For follow-up queries, scroll the previous content up
-            resultsContainer.scrollTo({
-                top: resultsContainer.scrollHeight,
-                behavior: 'smooth'
-            });
-        }
-        
-        // For follow-up queries, always create a new log container
-        // Instead of removing existing log containers, we'll keep them and create new ones
-        // This ensures previous answers/logs stay as is
-        
-        // Create a new log container for each query with a unique ID
-        const timestamp = Date.now();
-        const logHTML = `
-            <div id="live-log-container-${timestamp}" class="is-active">
-                <div class="log-header" id="log-header-toggle-${timestamp}">
-                    <h4>Live Execution Log</h4>
-                    <button id="log-toggle-btn-${timestamp}" title="Toggle Log"><i class="fas fa-chevron-up"></i></button>
-                </div>
-                <ul id="log-list-${timestamp}"></ul>
-            </div>`;
-        
-        const tabsDiv = document.querySelector('.tabs');
-        let logContainer, logList;
-        if (tabsDiv) { // Ensure tabsDiv exists before inserting
-            tabsDiv.insertAdjacentHTML('afterend', logHTML);
-            logContainer = document.getElementById(`live-log-container-${timestamp}`); // Get reference to the newly created container
-            logList = document.getElementById(`log-list-${timestamp}`); // Get reference to the new log list
-        }
-        
-        // Set up event listener for the new log container toggle
-        if (logContainer) {
-            logContainer.addEventListener('click', (e) => {
-                const logHeader = e.target.closest(`#log-header-toggle-${timestamp}`);
-                if (logHeader) {
-                    logContainer.classList.toggle('collapsed');
-                }
-            });
-        }
-        
-        renderCodeHighlighting(resultsContainer);
-        
-        // Initialize the log
-        if (logList) {
-            const li = document.createElement('li');
-            li.innerHTML = '<i class="fas fa-search"></i> Orchestrating a search...';
-            logList.appendChild(li);
-            logList.scrollTo({
-                top: logList.scrollHeight,
-                behavior: 'smooth'
-            });
-        }
-        
-        if (!body.classList.contains('search-active')) {
+            
+            // Hide initial view and show the results view
             initialViewContent.style.display = 'none';
             bottomSearchWrapper.style.display = 'flex';
             body.classList.add('search-active');
-
-            // Trigger placeholder visibility update for bottom search box
-            const bottomWrapper = queryInputBottom.closest('.textarea-wrapper');
-            if (bottomWrapper) {
-                const bottomPlaceholderText = bottomWrapper.querySelector('.placeholder-text-span');
-                if (bottomPlaceholderText) {
-                    bottomPlaceholderText.classList.remove('hidden');
-                }
-            }
 
             // Change placeholder for follow-up questions
             const bottomPlaceholderSpan = document.querySelector('#bottom-search-wrapper .placeholder-text-span');
@@ -1246,77 +1183,33 @@ Generated on: ${currentDate}
             }
         }
 
-        // For follow-up queries, create a new query heading element instead of reusing the same one
-        if (body.classList.contains('search-active')) {
-            // Create a new query heading for follow-up queries
-            const newQueryHeading = document.createElement('div');
-            newQueryHeading.id = 'query-heading';
-            newQueryHeading.innerHTML = `
-                <div id="query-text-content"></div>
-                <div class="query-buttons">
-                    <button id="show-more-btn" class="query-btn">Show More</button>
-                    <button id="show-less-btn" class="query-btn">Show Less</button>
+        // For every query (initial or follow-up), create a new log container
+        let existingLogContainer = document.getElementById('live-log-container');
+        if (existingLogContainer) {
+            existingLogContainer.remove();
+        }
+        
+        const logHTML = `
+            <div id="live-log-container" class="is-active">
+                <div class="log-header" id="log-header-toggle">
+                    <h4>Live Execution Log</h4>
+                    <button id="log-toggle-btn" title="Toggle Log"><i class="fas fa-chevron-up"></i></button>
                 </div>
-            `;
-            
-            // Insert the new query heading at the top of results container
-            resultsContainer.insertBefore(newQueryHeading, resultsContainer.firstChild);
-            
-            // Update references to the new elements
-            const newQueryTextContent = newQueryHeading.querySelector('#query-text-content');
-            const newShowMoreBtn = newQueryHeading.querySelector('#show-more-btn');
-            const newShowLessBtn = newQueryHeading.querySelector('#show-less-btn');
-            const newQueryButtons = newQueryHeading.querySelector('.query-buttons');
-            
-            const originalQueryText = `${query.trim()}`;
-            newQueryTextContent.textContent = originalQueryText;
-            
-            // Apply the same styling logic as the original
-            newQueryHeading.style.maxHeight = 'none';
-            newQueryHeading.classList.remove('expanded');
-            setTimeout(() => {
-                const currentHeight = newQueryTextContent.scrollHeight;
-                const lineHeight = parseFloat(getComputedStyle(newQueryTextContent).lineHeight);
-                const targetMaxHeight = Math.min(120, Math.max(lineHeight * 1.5, currentHeight));
-                if (currentHeight > targetMaxHeight) {
-                    newQueryHeading.style.maxHeight = `${targetMaxHeight}px`;
-                    newShowMoreBtn.style.display = 'block';
-                    newShowLessBtn.style.display = 'none';
-                    newQueryButtons.classList.add('show-gradient');
-                } else {
-                    newQueryHeading.style.maxHeight = 'none';
-                    newShowMoreBtn.style.display = 'none';
-                    newShowLessBtn.style.display = 'none';
-                    newQueryButtons.classList.remove('show-gradient');
-                }
-            }, 0);
-            
-            // Set up listeners for the new query heading
-            setupQueryHeadingListeners(newQueryHeading);
-        } else {
-            // For the first query, use the existing logic
-            const originalQueryText = `${query.trim()}`;
-            queryTextContent.textContent = originalQueryText;
-            // Temporarily remove max-height to get true scrollHeight
-            queryHeading.style.maxHeight = 'none';
-            queryHeading.classList.remove('expanded'); // Ensure not in expanded state
-            // Use a small delay to ensure rendering before checking scrollHeight
-            setTimeout(() => {
-                const currentHeight = queryTextContent.scrollHeight;
-                const lineHeight = parseFloat(getComputedStyle(queryTextContent).lineHeight);
-                const targetMaxHeight = Math.min(120, Math.max(lineHeight * 1.5, currentHeight)); // At least 1.5 lines, up to 120px
-                if (currentHeight > targetMaxHeight) { // Check against desired initial height
-                    queryHeading.style.maxHeight = `${targetMaxHeight}px`; // Apply initial max height
-                    showMoreBtn.style.display = 'block';
-                    showLessBtn.style.display = 'none';
-                    queryButtons.classList.add('show-gradient'); // Show gradient
-                } else {
-                    queryHeading.style.maxHeight = 'none'; // No max height for short content
-                    showMoreBtn.style.display = 'none';
-                    showLessBtn.style.display = 'none';
-                    queryButtons.classList.remove('show-gradient'); // Hide gradient
-                }
-            }, 0); // Use setTimeout with 0 for next tick execution
+                <ul id="log-list"></ul>
+            </div>`;
+
+        const tabsDiv = document.querySelector('.tabs');
+        let logList;
+        if (tabsDiv) {
+            tabsDiv.insertAdjacentHTML('afterend', logHTML);
+            logList = document.getElementById('log-list');
+        }
+
+        // Initialize the log for the current query
+        if (logList) {
+            const li = document.createElement('li');
+            li.innerHTML = '<i class="fas fa-search"></i> Orchestrating a search...';
+            logList.appendChild(li);
         }
         
         // Set button state to loading
@@ -1336,38 +1229,25 @@ Generated on: ${currentDate}
             const aiResponseElement = document.createElement('div');
             aiResponseElement.classList.add('ai-response');
             
-            // Create a container for this specific query-response pair
+            // Create a container for this specific query-response pair.
             const conversationPair = document.createElement('div');
             conversationPair.classList.add('conversation-pair');
 
-            // Add query and response to the conversation pair
+            // Create and append the user's query heading to the pair.
             const queryElement = document.createElement('div');
-            queryElement.classList.add('query-heading');
-            queryElement.innerHTML = `<h3>${query.trim()}</h3>`;
-            
+            queryElement.classList.add('query-heading-item'); // New class for styling individual queries
+            queryElement.innerHTML = `<div class="query-text-content"><h3>${query.trim()}</h3></div>`;
             conversationPair.appendChild(queryElement);
+
+            // Append the AI response element to the pair.
             conversationPair.appendChild(aiResponseElement);
+
+            // Add the complete conversation pair to the main results container.
+            resultsContainer.appendChild(conversationPair);
+
+            // Scroll the entire page to the new conversation pair.
+            conversationPair.scrollIntoView({ behavior: 'smooth', block: 'end' });
             
-            // For follow-up queries, we've already created a temporary query heading, so we need to handle this differently
-            if (body.classList.contains('search-active')) {
-                // Find the newly created query heading
-                const newQueryHeading = resultsContainer.querySelector('#query-heading');
-                
-                // Replace the temporary query heading with the conversation pair
-                if (newQueryHeading) {
-                    resultsContainer.replaceChild(conversationPair, newQueryHeading);
-                } else {
-                    // Fallback: just append to the results container
-                    resultsContainer.appendChild(conversationPair);
-                }
-            } else {
-                // Add the complete conversation pair to the main results container
-                resultsContainer.appendChild(conversationPair);
-            }
-
-            // Scroll to the new conversation pair
-            conversationPair.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
             // For follow-up queries, smoothly scroll to the new content
             if (body.classList.contains('search-active')) {
                 resultsContainer.scrollTo({
@@ -1447,6 +1327,7 @@ Generated on: ${currentDate}
                     logList.scrollTop = logList.scrollHeight; // Scroll to bottom
                 }
                 setSendButtonState(false);
+                const logContainer = document.getElementById('live-log-container');
                 if (logContainer) {
                     logContainer.classList.remove('is-active');
                     logContainer.classList.add('is-done');
@@ -1468,6 +1349,7 @@ Generated on: ${currentDate}
                         logList.scrollTop = logList.scrollHeight; // Scroll to bottom
                     }
                     setSendButtonState(false); // Ensure button is reset
+                    const logContainer = document.getElementById('live-log-container');
                     if (logContainer) {
                         logContainer.classList.remove('is-active');
                         logContainer.classList.add('has-error'); // Indicate an error state
@@ -1531,6 +1413,7 @@ Generated on: ${currentDate}
                 }
 
                 setSendButtonState(false);
+                const logContainer = document.getElementById('live-log-container');
                 if (logContainer && !logContainer.classList.contains('has-error')) {
                     logContainer.classList.remove('is-active');
                     logContainer.classList.add('has-error');
@@ -1580,6 +1463,7 @@ Generated on: ${currentDate}
 
             // Always set button state back to enabled, even on error
             setSendButtonState(false);
+            const logContainer = document.getElementById('live-log-container');
             if (logContainer && !logContainer.classList.contains('has-error')) {
                 logContainer.classList.remove('is-active');
                 logContainer.classList.add('has-error');
@@ -1715,10 +1599,9 @@ Generated on: ${currentDate}
 
    // Log container toggle
    document.addEventListener('click', (e) => {
-       const logHeader = e.target.closest('[id^="log-header-toggle-"]');
+       const logHeader = e.target.closest('#log-header-toggle');
        if (logHeader) {
-           const timestamp = logHeader.id.split('-').pop();
-           const logContainer = document.getElementById(`live-log-container-${timestamp}`);
+           const logContainer = logHeader.closest('#live-log-container');
            if (logContainer) {
                logContainer.classList.toggle('collapsed');
            }
@@ -1764,37 +1647,6 @@ Generated on: ${currentDate}
        showLessBtn.style.display = 'none';
        queryButtons.classList.add('show-gradient'); // Show gradient when collapsed
    });
-   
-   // Function to handle show more/less for any query heading (including follow-ups)
-   const setupQueryHeadingListeners = (queryHeadingElement) => {
-       const showMoreBtn = queryHeadingElement.querySelector('#show-more-btn');
-       const showLessBtn = queryHeadingElement.querySelector('#show-less-btn');
-       const queryTextContent = queryHeadingElement.querySelector('#query-text-content');
-       const queryButtons = queryHeadingElement.querySelector('.query-buttons');
-       
-       if (showMoreBtn && showLessBtn && queryTextContent && queryButtons) {
-           showMoreBtn.addEventListener('click', () => {
-               queryHeadingElement.style.maxHeight = `${queryTextContent.scrollHeight}px`;
-               queryHeadingElement.classList.add('expanded');
-               showMoreBtn.style.display = 'none';
-               showLessBtn.style.display = 'block';
-               queryButtons.classList.remove('show-gradient');
-           });
-
-           showLessBtn.addEventListener('click', () => {
-               const lineHeight = parseFloat(getComputedStyle(queryTextContent).lineHeight);
-               const targetMaxHeight = Math.min(120, Math.max(lineHeight * 1.5, 0));
-               queryHeadingElement.style.maxHeight = `${targetMaxHeight}px`;
-               queryHeadingElement.classList.remove('expanded');
-               showMoreBtn.style.display = 'block';
-               showLessBtn.style.display = 'none';
-               queryButtons.classList.add('show-gradient');
-           });
-       }
-   };
-   
-   // Set up listeners for the initial query heading
-   setupQueryHeadingListeners(queryHeading);
 
    // --- Elastic Scroll ---
    let isScrolling = false;

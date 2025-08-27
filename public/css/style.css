@@ -1830,25 +1830,21 @@ body.search-active #main-results-area {
 }
 
 /* === REDESIGNED QUERY HEADING === */
-#query-heading {
+.query-heading-item {
     background-color: var(--content-bg-color);
-    border: 2px solid var(--border-color);
-    border-radius: 18px; /* Squircle effect */
-    padding: 8px 12px; /* Uniform horizontal padding */
-    margin: 6px auto; /* Current margin */
-    max-width: 766px; /* Keep max-width for desktop, adjust for mobile in media query */
-    text-align: left;
-    font-size: 1rem; /* Slightly smaller font for slimmer look */
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 12px 15px;
+    margin-bottom: 15px;
     font-weight: 500;
     color: var(--text-primary);
     box-shadow: var(--shadow-light);
-    display: flex; /* Use flexbox for layout */
-    flex-direction: column; /* Stack content and buttons */
-    /* min-height removed, height will be determined by content */
-    position: relative; /* For positioning the "show more" button */
-    overflow: hidden; /* Hide overflow content */
-    z-index: 11; /* Ensure query heading appears above the header */
-    /* max-height handled by JS */
+}
+
+.query-heading-item h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--send-button-grad-start);
 }
 
 #query-heading.expanded {
@@ -1978,8 +1974,7 @@ body.dark-mode .query-btn:hover {
 
 /* Conversation pair styling */
 .conversation-pair {
-    margin-bottom: 30px;
-    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 20px;
     padding-bottom: 20px;
 }
 
@@ -1988,16 +1983,6 @@ body.dark-mode .query-btn:hover {
     margin-bottom: 0;
 }
 
-.query-heading {
-    background-color: var(--content-bg-color);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 12px 15px;
-    margin: 15px 0;
-    font-weight: 500;
-    color: var(--text-primary);
-    box-shadow: var(--shadow-light);
-}
 
 .query-heading h3 {
     margin: 0;
