@@ -1285,62 +1285,19 @@ Generated on: ${currentDate}
             // --- Enhanced Stream Rendering ---
             let buffer = '';
             let isRendering = false;
-            let renderTimeout = null;
-            let lastRenderTime = 0;
 
-            // More efficient render function that only processes new content
             const renderStream = () => {
-                if (!buffer) {
-                    isRendering = false;
-                    return;
-                }
+                if (!buffer && !isRendering) return;
 
-                // Add new content to the accumulated content
-                aiResponseContent += buffer;
-                const newBuffer = buffer;
-                buffer = ''; // Clear buffer
+                isRendering = true;
                 
-                // Store the current response content for export functions
+                aiResponseContent += buffer;
+                buffer = '';
+                
                 currentResponseContent = aiResponseContent;
                 
-                // Only re-render if enough time has passed or if we have substantial new content
-                const now = Date.now();
-                const timeSinceLastRender = now - lastRenderTime;
+                aiResponseElement.innerHTML = marked.parse(aiResponseContent);
                 
-                // Render immediately for the first content or if we have a substantial amount of new content
-                if (lastRenderTime === 0 || timeSinceLastRender > 50 || newBuffer.length > 200) {
-                    // Parse and render only the new content to improve performance
-                    // We'll try to be smart about when to re-parse the entire content vs just append
-                    if (lastRenderTime === 0) {
-                        // For the first render, parse the entire content
-                        aiResponseElement.innerHTML = marked.parse(aiResponseContent);
-                    } else {
-                        // For subsequent renders, try to append new content efficiently
-                        // Look for complete blocks that can be safely parsed
-                        // We'll check if the new content ends with a double newline (indicating a block end)
-                        if (newBuffer.endsWith('\n\n') || newBuffer.length > 500) {
-                            // If we have a complete block or a large amount of content, re-parse and replace
-                            aiResponseElement.innerHTML = marked.parse(aiResponseContent);
-                        } else {
-                            // Otherwise, try to parse just the new content and append it
-                            try {
-                                const newContent = marked.parse(newBuffer);
-                                // Create a temporary element to check if the new content is valid HTML
-                                const tempElement = document.createElement('div');
-                                tempElement.innerHTML = newContent;
-                                
-                                // If it's valid, append it to the existing content
-                                aiResponseElement.insertAdjacentHTML('beforeend', newContent);
-                            } catch (e) {
-                                // If there's an issue with parsing just the new content, fall back to parsing everything
-                                aiResponseElement.innerHTML = marked.parse(aiResponseContent);
-                            }
-                        }
-                    }
-                    lastRenderTime = now;
-                }
-
-                // Auto-scroll if the user is near the bottom
                 const isScrolledToBottom = resultsContainer.scrollHeight - resultsContainer.clientHeight <= resultsContainer.scrollTop + 10;
                 if (isScrolledToBottom) {
                     resultsContainer.scrollTo({
@@ -1352,28 +1309,10 @@ Generated on: ${currentDate}
                 isRendering = false;
             };
 
-            // Optimized stream callback with adaptive throttling
             const streamCallback = (chunk) => {
                 buffer += chunk;
-                
-                // Clear any existing timeout to debounce the rendering
-                if (renderTimeout) {
-                    clearTimeout(renderTimeout);
-                }
-                
-                // If not currently rendering, start immediately for better responsiveness
                 if (!isRendering) {
-                    isRendering = true;
-                    renderStream();
-                } else {
-                    // Otherwise, schedule rendering with adaptive delay based on content size
-                    const delay = Math.max(16, Math.min(100, 50 - buffer.length)); // Adaptive delay
-                    renderTimeout = setTimeout(() => {
-                        if (!isRendering) {
-                            isRendering = true;
-                            renderStream();
-                        }
-                    }, delay);
+                    requestAnimationFrame(renderStream);
                 }
             };
 
