@@ -1282,38 +1282,19 @@ Generated on: ${currentDate}
             // Scroll to the top of the results container
             resultsContainer.scrollTo({ top: 0, behavior: 'smooth' });
 
-            // --- Enhanced Stream Rendering ---
-            let buffer = '';
-            let isRendering = false;
-
-            const renderStream = () => {
-                if (!buffer && !isRendering) return;
-
-                isRendering = true;
-                
-                aiResponseContent += buffer;
-                buffer = '';
-                
-                currentResponseContent = aiResponseContent;
-                
-                aiResponseElement.innerHTML = marked.parse(aiResponseContent);
-                
-                const isScrolledToBottom = resultsContainer.scrollHeight - resultsContainer.clientHeight <= resultsContainer.scrollTop + 10;
-                if (isScrolledToBottom) {
-                    resultsContainer.scrollTo({
-                        top: resultsContainer.scrollHeight,
-                        behavior: 'smooth'
-                    });
-                }
-                
-                isRendering = false;
-            };
-
+            // --- Direct-to-DOM Stream Rendering ---
             const streamCallback = (chunk) => {
-                buffer += chunk;
-                if (!isRendering) {
-                    requestAnimationFrame(renderStream);
-                }
+                // Append the chunk directly and re-parse. This is a trade-off for simplicity.
+                // For high-frequency streams, a more complex solution might be needed.
+                aiResponseContent += chunk;
+                currentResponseContent = aiResponseContent;
+                aiResponseElement.innerHTML = marked.parse(aiResponseContent);
+
+                // Auto-scroll to keep the latest content in view
+                resultsContainer.scrollTo({
+                    top: resultsContainer.scrollHeight,
+                    behavior: 'smooth'
+                });
             };
 
             const logCallback = (message) => {

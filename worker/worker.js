@@ -175,15 +175,16 @@ async function proxyMistral(api_payload, env) {
       });
     }
 
+    // Create a new response with the streaming body and new headers
+    const responseHeaders = new Headers(mistralResponse.headers);
+    responseHeaders.set('Access-Control-Allow-Origin', '*');
+    responseHeaders.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+    responseHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
     return new Response(mistralResponse.body, {
       status: mistralResponse.status,
       statusText: mistralResponse.statusText,
-      headers: {
-        'Content-Type': mistralResponse.headers.get('Content-Type') || 'text/plain',
-        'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive'
-      }
+      headers: responseHeaders
     });
 
   } catch (error) {
