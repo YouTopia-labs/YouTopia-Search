@@ -128,7 +128,7 @@ async function proxySerper(api_payload, env) {
 }
 
 async function proxyMistral(api_payload, env) {
-  const mistralApiKey = env.MISTRAL_API_KEY;
+  const mistralApiKey = "oYOiUoNbtUF4eIOlEPV9yAMTAjXVkUrn";
   if (!mistralApiKey) {
     return new Response(JSON.stringify({ error: 'MISTRAL_API_KEY not set in environment variables' }), {
       status: 500,
@@ -142,6 +142,14 @@ async function proxyMistral(api_payload, env) {
   try {
     const mistralApiUrl = 'https://api.mistral.ai/v1/chat/completions';
     console.log('Proxying to Mistral with payload:', JSON.stringify(api_payload, null, 2));
+     const responseHeaders = new Headers({
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Origin': '*',
+    });
     
     const mistralResponse = await fetch(mistralApiUrl, {
       method: 'POST',
@@ -169,14 +177,6 @@ async function proxyMistral(api_payload, env) {
     const { readable, writable } = new TransformStream();
     mistralResponse.body.pipeTo(writable);
 
-    const responseHeaders = new Headers({
-      'Content-Type': 'text/event-stream; charset=utf-8',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    });
 
     return new Response(readable, {
       status: mistralResponse.status,
@@ -416,6 +416,14 @@ async function isUserWhitelisted(user_email, env) {
 // --- Main Handler for this specific endpoint ---
 async function handleQueryProxy(request, env) {
   try {
+    const origin = request.headers.get('Origin');
+    const headers = new Headers({
+      'Content-Type': 'application/json',
+    });
+    if (origin && allowedOrigins.includes(origin)) {
+      headers.set('Access-Control-Allow-Origin', origin);
+    }
+
 
     const { query, user_name, user_email, user_local_time, api_target, api_payload, id_token } = await request.json();
 
@@ -423,11 +431,11 @@ async function handleQueryProxy(request, env) {
       const tokenInfo = await verifyGoogleToken(id_token, env);
       if (tokenInfo.email !== user_email) {
         console.error('Security Alert: Email mismatch between ID token and request body. Token email:', tokenInfo.email, 'Request email:', user_email);
-        return new Response(JSON.stringify({ error: 'Security alert: Token-email mismatch.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ error: 'Security alert: Token-email mismatch.' }), { status: 403, headers: headers });
       }
     } catch (error) {
       console.error('Authentication error in handleQueryProxy:', error.message);
-      return new Response(JSON.stringify({ error: `Authentication failed: ${error.message}` }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: `Authentication failed: ${error.message}` }), { status: 401, headers: headers });
     }
 
     // Check if user is whitelisted
@@ -437,7 +445,7 @@ async function handleQueryProxy(request, env) {
     if (api_target === 'status_check') {
         return new Response(JSON.stringify({ success: true, is_whitelisted_20x_plan }), {
           status: 200,
-          headers: { 'Content-Type': 'application/json' }
+          headers: headers
         });
     }
 
@@ -546,7 +554,7 @@ Thank you for your support, it truly makes a difference to allow this project to
         error: 'Query limit exceeded.',
         cooldown_end_timestamp: userData.cooldown_end_timestamp,
         message_from_developer: messageFromDeveloper
-      }), { status: 429, headers: { 'Content-Type': 'application/json' } });
+      }), { status: 429, headers: headers });
     }
 
     if (queryCount >= FREE_RATE_LIMIT) {
@@ -559,7 +567,7 @@ Thank you for your support, it truly makes a difference to allow this project to
         error: 'Query limit exceeded.',
         cooldown_end_timestamp: userData.cooldown_end_timestamp,
         message_from_developer: messageFromDeveloper
-      }), { status: 429, headers: { 'Content-Type': 'application/json' } });
+      }), { status: 429, headers: headers });
     }
 
     // Increment query count and save user data for free users
@@ -598,7 +606,7 @@ Thank you for your support, it truly makes a difference to allow this project to
         proxyResponse = await proxyCoingecko(api_payload, env);
         break;
       default:
-        return new Response(JSON.stringify({ error: 'Invalid API target.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ error: 'Invalid API target.' }), { status: 400, headers: headers });
     }
 
     // Update the query entry with the response
@@ -635,9 +643,8 @@ Thank you for your support, it truly makes a difference to allow this project to
     return new Response(JSON.stringify({ error: `Error processing proxy request: ${error.message}` }), {
       status: 400, // Bad Request for parsing errors
       headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
+        'Content-Type': 'application/json'
+      }
     });
   }
 }
@@ -681,6 +688,13 @@ async function handleKvData(request, env) {
 
 async function handleConversationHistory(request, env) {
   try {
+    const origin = request.headers.get('Origin');
+    const headers = new Headers({
+      'Content-Type': 'application/json',
+    });
+    if (origin && allowedOrigins.includes(origin)) {
+      headers.set('Access-Control-Allow-Origin', origin);
+    }
     let id_token, history;
 
     if (request.method === 'GET') {
@@ -695,14 +709,14 @@ async function handleConversationHistory(request, env) {
     }
 
     if (!id_token) {
-      return new Response(JSON.stringify({ error: 'Bad Request: Missing id_token.' }), { status: 400 });
+      return new Response(JSON.stringify({ error: 'Bad Request: Missing id_token.' }), { status: 400, headers });
     }
 
     const tokenInfo = await verifyGoogleToken(id_token, env);
     const user_email = tokenInfo.email;
 
     if (!user_email) {
-      return new Response(JSON.stringify({ error: 'Unauthorized: Invalid user email.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: 'Unauthorized: Invalid user email.' }), { status: 403, headers });
     }
 
     const historyKey = `history:${user_email}`;
@@ -711,28 +725,28 @@ async function handleConversationHistory(request, env) {
       const storedHistory = await env.YOUTOPIA_DATA.get(historyKey, { type: 'json' });
       return new Response(JSON.stringify({ success: true, history: storedHistory || [] }), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: headers,
       });
     }
 
     if (request.method === 'POST') {
       if (!history) {
-        return new Response(JSON.stringify({ error: 'Bad Request: Missing history data.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ error: 'Bad Request: Missing history data.' }), { status: 400, headers });
       }
       await env.YOUTOPIA_DATA.put(historyKey, JSON.stringify(history));
       return new Response(JSON.stringify({ success: true }), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: headers,
       });
     }
     
-    return new Response('Invalid request method.', { status: 400 });
+    return new Response('Invalid request method.', { status: 400, headers });
 
   } catch (error) {
     console.error('Error in handleConversationHistory:', error.stack);
     return new Response(JSON.stringify({ error: `Error handling conversation history: ${error.message}` }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     });
   }
 }
