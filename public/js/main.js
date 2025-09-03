@@ -1219,7 +1219,8 @@ Generated on: ${currentDate}
         conversationManager.addUserQuery(query);
         
         // Get conversation history (chat context only)
-        const conversationHistory = conversationManager.getChatContextHistory();
+        // Get a condensed summary and the last 2 interactions for context
+        const condensedHistory = conversationManager.getCondensedHistory();
 
         // Clear previous results for every query to treat it as a new one
         resultsContainer.innerHTML = '';
@@ -1319,7 +1320,7 @@ Generated on: ${currentDate}
             };
 
             try {
-                const { finalResponse, sources } = await orchestrateAgents(query, userName, userLocalTime, selectedModel, streamCallback, logCallback, isShortResponseEnabled, conversationHistory);
+                const { finalResponse, sources } = await orchestrateAgents(query, userName, userLocalTime, selectedModel, streamCallback, logCallback, isShortResponseEnabled, condensedHistory);
 
                 // Add interaction to conversation history
                 conversationManager.addInteraction(query, finalResponse, sources);

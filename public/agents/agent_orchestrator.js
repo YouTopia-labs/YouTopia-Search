@@ -415,15 +415,9 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
     };
 
     // If we have conversation history, add condensed context
-    if (conversationHistory && conversationHistory.length > 0) {
-      const condensedContext = condenseContext(conversationHistory);
-      agent1Input.context = {
-        summary: condensedContext.summary,
-        key_entities: condensedContext.keyEntities,
-        recent_focus: condensedContext.recentFocus
-      };
-      // Add recent detailed context (last 2 interactions)
-      agent1Input.recent_context = conversationHistory.slice(-2);
+    if (conversationHistory && conversationHistory.summary) {
+      agent1Input.context = conversationHistory.summary;
+      agent1Input.recent_context = conversationHistory.recent_interactions;
     }
 
     // console.log("Agent 1: Deciding next action...");

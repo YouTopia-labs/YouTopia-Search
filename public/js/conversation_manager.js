@@ -152,6 +152,19 @@ class ConversationManager {
         this.chatContextHistory = [];
         this.userHistory = [];
     }
+
+    // New function to get both condensed and recent history for the orchestrator
+    getCondensedHistory() {
+        const fullHistory = this.getChatContextHistory();
+        if (fullHistory.length === 0) {
+            return null; // Return null if there's no history
+        }
+
+        return {
+            summary: condenseContext(fullHistory), // Call the exported function
+            recent_interactions: this.getRecentContext(2)
+        };
+    }
 }
 
 // Context condensing function
