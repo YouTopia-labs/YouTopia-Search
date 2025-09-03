@@ -1184,6 +1184,16 @@ Generated on: ${currentDate}
         showPopup(rateLimitPopupOverlay);
     };
 
+    // --- Debounce Function ---
+    const debounce = (func, delay) => {
+        let timeout;
+        return function(...args) {
+            const context = this;
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(context, args), delay);
+        };
+    };
+
     // --- Main Search Handler ---
     const handleSearch = async (query, sourceElement = null) => {
         const userEmail = localStorage.getItem('user_email');
@@ -1282,13 +1292,19 @@ Generated on: ${currentDate}
             // Scroll to the top of the results container
             resultsContainer.scrollTo({ top: 0, behavior: 'smooth' });
 
+            // --- Live Processing with Debounce ---
+            const debouncedProcess = debounce((content, sources) => {
+                processFinalResponse(aiResponseElement, content, sources);
+            }, 300); // 300ms debounce delay
+
             // --- Direct-to-DOM Stream Rendering ---
             const streamCallback = (chunk) => {
-                // Append the chunk directly and re-parse. This is a trade-off for simplicity.
-                // For high-frequency streams, a more complex solution might be needed.
                 aiResponseContent += chunk;
                 currentResponseContent = aiResponseContent;
                 aiResponseElement.innerHTML = marked.parse(aiResponseContent);
+
+                // Live-process charts, tables, etc.
+                debouncedProcess(aiResponseContent, null); // Sources are not available during stream
 
                 // Auto-scroll to keep the latest content in view
                 resultsContainer.scrollTo({
@@ -1310,10 +1326,10 @@ Generated on: ${currentDate}
                 const { finalResponse, sources } = await orchestrateAgents(query, userName, userLocalTime, selectedModel, streamCallback, logCallback, isShortResponseEnabled, conversationHistory);
 
                 // Add interaction to conversation history
-                conversationManager.addInteraction(query, finalResponse);
+                conversationManager.addInteraction(query, finalResponse, sources);
 
                 // --- Final Processing Step ---
-                // This code runs after the entire stream is finished.
+                // This code runs after the entire stream is finished to ensure everything is perfect.
                 processFinalResponse(aiResponseElement, aiResponseContent, sources);
                 
                 // For follow-up queries, scroll to the new content when response is complete

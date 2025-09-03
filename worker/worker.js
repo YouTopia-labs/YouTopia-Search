@@ -7,19 +7,7 @@ const allowedOrigins = [
   'http://127.0.0.1:8788'
 ];
 
-const corsify = (response, request) => {
-  const origin = request.headers.get('Origin');
-  if (origin && allowedOrigins.includes(origin)) {
-    response.headers.set('Access-Control-Allow-Origin', origin);
-  } else {
-    // For requests from other origins, you might want to handle them differently
-    // For now, let's keep it permissive for simplicity, but you can restrict it
-    response.headers.set('Access-Control-Allow-Origin', '*');
-  }
-  response.headers.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  return response;
-};
+// CORS handling is now done directly in the proxy function for streaming
 
 // A new router function to handle all API requests.
 async function handleApiRequest(request, env) {
@@ -56,8 +44,7 @@ export default {
 
       // Check if the request is for an API endpoint
       if (url.pathname.startsWith('/api/')) {
-        const response = await handleApiRequest(request, env);
-        return corsify(response, request);
+        return await handleApiRequest(request, env);
       }
 
       // For all other requests, serve from Cloudflare Pages assets
@@ -67,9 +54,12 @@ export default {
       console.error('Unhandled fatal error in fetch handler:', error.stack);
       const errorResponse = new Response(JSON.stringify({ error: `A fatal and unhandled error occurred: ${error.message}` }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        }
       });
-      return corsify(errorResponse, request);
+      return errorResponse;
     }
   }
 };
@@ -175,16 +165,23 @@ async function proxyMistral(api_payload, env) {
       });
     }
 
-    // Create a new response with the streaming body and new headers
-    const responseHeaders = new Headers(mistralResponse.headers);
-    responseHeaders.set('Access-Control-Allow-Origin', '*');
-    responseHeaders.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-    responseHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    // Use a TransformStream to ensure true streaming pass-through.
+    const { readable, writable } = new TransformStream();
+    mistralResponse.body.pipeTo(writable);
 
-    return new Response(mistralResponse.body, {
+    const responseHeaders = new Headers({
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    });
+
+    return new Response(readable, {
       status: mistralResponse.status,
       statusText: mistralResponse.statusText,
-      headers: responseHeaders
+      headers: responseHeaders,
     });
 
   } catch (error) {
