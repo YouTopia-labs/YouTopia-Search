@@ -85,8 +85,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const userName = document.getElementById('user-name');
     const userInfo = document.getElementById('user-info');
     const signoutButton = document.getElementById('signout-button');
-    const googleSignInButton = document.getElementById('google-signin-button');
-    const googleSignInPopup = document.getElementById('google-signin-button-popup');
+    const firebaseSignInButton = document.getElementById('firebase-sign-in-button'); // Firebase Sign-In button
+    const firebasePopupSignInButton = document.getElementById('firebase-popup-sign-in-button'); // Firebase Sign-In button in popup
     const historyButton = document.getElementById('history-button'); // History button
     const historyModal = document.getElementById('history-modal'); // History modal
     const closeHistoryModal = document.getElementById('close-history-modal'); // Close history modal button
@@ -285,74 +285,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 100);
     // --- Firebase Sign-In handling ---
 
-    // Firebase configuration (replace with your actual Firebase project config)
-    const firebaseConfig = {
-        apiKey: "YOUR_API_KEY", // Replace with your Firebase API Key
-        authDomain: "YOUR_AUTH_DOMAIN", // Replace with your Firebase Auth Domain
-        projectId: "YOUR_PROJECT_ID", // Replace with your Firebase Project ID
-    };
-
-    // Initialize Firebase
-    if (firebase.apps.length === 0) {
-        firebase.initializeApp(firebaseConfig);
-    }
-
-    // Google Auth Provider
-    const provider = new firebase.auth.GoogleAuthProvider();
-
-    // Sign in function
-    window.firebaseSignIn = async () => {
-        try {
-            await firebase.auth().signInWithPopup(provider);
-        } catch (error) {
-            console.error("Firebase Sign-in Error:", error);
-            alert(`Firebase Sign-in Error: ${error.message}`);
-        }
-    };
-
-    // Sign out function
-    window.firebaseSignOut = async () => {
-        try {
-            await firebase.auth().signOut();
-        } catch (error) {
-            console.error("Firebase Sign-out Error:", error);
-            alert(`Firebase Sign-out Error: ${error.message}`);
-        }
-    };
-
-    // Update UI based on auth state
     const updateUserUI = async (user) => {
         if (user) {
             // User is signed in.
             userName.textContent = user.displayName;
             userProfilePic.src = user.photoURL;
             userInfo.style.display = 'flex';
-            if (googleSignInButton) googleSignInButton.style.display = 'none';
-            if (googleSignInPopup) googleSignInPopup.style.display = 'none';
+            firebaseSignInButton.style.display = 'none';
             signoutButton.style.display = 'block';
-            historyButton.style.display = 'block';
+            historyButton.style.display = 'block'; // Show history button when signed in
             userDropdown.classList.add('signed-in');
 
-            // Store user info in localStorage
-            localStorage.setItem('user_name', user.displayName);
-            localStorage.setItem('user_email', user.email);
-            localStorage.setItem('user_profile_pic', user.photoURL);
-            
-            // Get ID token for backend authentication
-            const idToken = await user.getIdToken();
-            localStorage.setItem('id_token', idToken);
-
-            // Fetch user status and history
             try {
-                 const userStatusResponse = await fetch(`${WORKER_BASE_URL}api/query-proxy`, {
+                const idToken = await user.getIdToken(true); // Force refresh the token
+                console.log('Firebase ID Token obtained and stored.');
+                localStorage.setItem('id_token', idToken);
+                localStorage.setItem('user_name', user.displayName);
+                localStorage.setItem('user_email', user.email);
+                localStorage.setItem('user_profile_pic', user.photoURL);
+
+                // Fetch user status from the worker to check for 20x plan
+                const userStatusResponse = await fetch(`${WORKER_BASE_URL}api/query-proxy`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        query: "check_user_status",
+                        query: "check_user_status", // A dummy query type for status check
                         user_name: user.displayName,
                         user_email: user.email,
                         id_token: idToken,
-                        api_target: "status_check",
+                        api_target: "status_check", // A new API target for status
                         api_payload: {}
                     })
                 });
@@ -366,54 +327,92 @@ document.addEventListener('DOMContentLoaded', () => {
                             userStatusElement.title = '20x Plus Plan User';
                         }
                     }
+                } else {
+                    console.error('Failed to fetch user status:', await userStatusResponse.text());
                 }
 
-                const historyResponse = await fetch(`${WORKER_BASE_URL}api/conversation-history?id_token=${idToken}`);
-                if (historyResponse.ok) {
-                    const historyData = await historyResponse.json();
-                    if (historyData.success && historyData.history) {
-                        conversationManager.loadHistory(historyData.history);
+                // Fetch and load conversation history
+                try {
+                    const historyResponse = await fetch(`${WORKER_BASE_URL}api/conversation-history?id_token=${idToken}`);
+                    if (historyResponse.ok) {
+                        const historyData = await historyResponse.json();
+                        if (historyData.success && historyData.history) {
+                            conversationManager.loadHistory(historyData.history);
+                            console.log('Conversation history loaded.');
+                        }
+                    } else {
+                        console.error('Failed to fetch conversation history:', await historyResponse.text());
                     }
+                } catch (error) {
+                    console.error('Error fetching conversation history:', error);
                 }
-            } catch (error) {
-                console.error('Error fetching user data:', error);
-            }
 
+            } catch (error) {
+                console.error('Error getting ID token or user status:', error);
+                // Handle error, maybe sign the user out
+                window.firebaseSignOut();
+            }
         } else {
             // User is signed out.
             userName.textContent = '';
             userProfilePic.src = '';
             userInfo.style.display = 'none';
-            if (googleSignInButton) googleSignInButton.style.display = 'block';
-            if (googleSignInPopup) googleSignInPopup.style.display = 'block';
+            firebaseSignInButton.style.display = 'block';
             signoutButton.style.display = 'none';
-            historyButton.style.display = 'none';
+            historyButton.style.display = 'none'; // Hide history button when signed out
             userDropdown.classList.remove('signed-in');
 
-            // Clear user info from localStorage
+            // Clear all user-related data from localStorage
             localStorage.removeItem('user_name');
             localStorage.removeItem('user_email');
             localStorage.removeItem('user_profile_pic');
-            localStorage.removeItem('id_token');
-            
+            localStorage.removeItem('id_token'); // Remove the Firebase token
+
             const userStatusElement = document.getElementById('user-status');
             if (userStatusElement) {
-                userStatusElement.textContent = '';
+                userStatusElement.textContent = ''; // Clear status indicator
                 userStatusElement.title = '';
             }
         }
     };
 
-    // Listen for auth state changes
-    firebase.auth().onAuthStateChanged(updateUserUI);
+    // Firebase Auth state change listener
+    window.firebaseAuth.onAuthStateChanged(async (user) => {
+        await updateUserUI(user);
+        if (user) {
+            hidePopup(signinRequiredPopupOverlay); // Hide sign-in popup if it was open
+        }
+    });
 
-    // Attach click listeners to sign-in buttons
-    if (googleSignInButton) {
-        googleSignInButton.addEventListener('click', window.firebaseSignIn);
-    }
-    if (googleSignInPopup) {
-        googleSignInPopup.addEventListener('click', window.firebaseSignIn);
-    }
+    // Event listener for Firebase Sign-In button
+    firebaseSignInButton.addEventListener('click', async () => {
+        try {
+            await window.firebaseSignIn();
+        } catch (error) {
+            console.error('Error during Firebase Sign-In:', error);
+            alert('Firebase Sign-In failed. Please try again.');
+        }
+    });
+
+    // Event listener for Firebase Sign-In button in popup
+    firebasePopupSignInButton.addEventListener('click', async () => {
+        try {
+            await window.firebaseSignIn();
+        } catch (error) {
+            console.error('Error during Firebase Sign-In from popup:', error);
+            alert('Firebase Sign-In failed. Please try again.');
+        }
+    });
+
+    // Event listener for Sign Out button
+    signoutButton.addEventListener('click', async () => {
+        try {
+            await window.firebaseSignOut();
+        } catch (error) {
+            console.error('Error during Firebase Sign-Out:', error);
+            alert('Firebase Sign-Out failed. Please try again.');
+        }
+    });
 
    // --- Popup Functions ---
    const showPopup = (popupElement) => {

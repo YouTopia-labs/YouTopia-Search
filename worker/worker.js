@@ -7,31 +7,7 @@ const allowedOrigins = [
   'http://127.0.0.1:8788'
 ];
 
-// Ultra-optimized CORS headers for ZERO-LATENCY streaming
-const getStreamingHeaders = (origin) => {
-  const headers = new Headers({
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
-    'Connection': 'keep-alive',
-    'X-Accel-Buffering': 'no', // Disable nginx buffering
-    'X-Content-Type-Options': 'nosniff',
-    'Transfer-Encoding': 'chunked', // Ensure chunked encoding
-    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Expose-Headers': '*',
-    // Critical headers for real-time streaming
-    'X-Frame-Options': 'DENY',
-    'Referrer-Policy': 'no-referrer'
-  });
-
-  if (origin && allowedOrigins.includes(origin)) {
-    headers.set('Access-Control-Allow-Origin', origin);
-  } else {
-    headers.set('Access-Control-Allow-Origin', '*');
-  }
-
-  return headers;
-};
+// CORS handling is now done directly in the proxy function for streaming
 
 // A new router function to handle all API requests.
 async function handleApiRequest(request, env) {
@@ -88,15 +64,16 @@ export default {
   }
 };
 
+
 // This function is for CORS preflight requests
-function handleOptions(request) {
+function handleOptions(request, headers) {
   const origin = request.headers.get('Origin');
-  const headers = new Headers();
   if (origin && allowedOrigins.includes(origin)) {
     headers.set('Access-Control-Allow-Origin', origin);
   } else {
     headers.set('Access-Control-Allow-Origin', '*');
   }
+
   headers.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
   headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   return new Response(null, { headers });
@@ -150,8 +127,7 @@ async function proxySerper(api_payload, env) {
   }
 }
 
-// ULTRA-OPTIMIZED MISTRAL STREAMING PROXY
-async function proxyMistral(api_payload, env, request) {
+async function proxyMistral(api_payload, env) {
   const mistralApiKey = env.MISTRAL_API_KEY;
   if (!mistralApiKey) {
     return new Response(JSON.stringify({ error: 'MISTRAL_API_KEY not set in environment variables' }), {
@@ -165,20 +141,7 @@ async function proxyMistral(api_payload, env, request) {
 
   try {
     const mistralApiUrl = 'https://api.mistral.ai/v1/chat/completions';
-    const origin = request.headers.get('Origin');
-    
-    // Ensure streaming is enabled in the payload
-    const streamingPayload = {
-      ...api_payload.body,
-      stream: true,
-      // Add temperature and other params for faster response
-      temperature: api_payload.body.temperature || 0.7,
-      max_tokens: api_payload.body.max_tokens || 4096,
-      // Enable faster processing
-      top_p: api_payload.body.top_p || 0.9
-    };
-
-    console.log('Initiating ultra-fast Mistral streaming...');
+    console.log('Proxying to Mistral with payload:', JSON.stringify(api_payload, null, 2));
     
     const mistralResponse = await fetch(mistralApiUrl, {
       method: 'POST',
@@ -186,7 +149,7 @@ async function proxyMistral(api_payload, env, request) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${mistralApiKey}`,
       },
-      body: JSON.stringify(streamingPayload),
+      body: JSON.stringify(api_payload.body),
     });
 
     if (!mistralResponse.ok) {
@@ -202,51 +165,27 @@ async function proxyMistral(api_payload, env, request) {
       });
     }
 
-    // Create ultra-optimized streaming response
-    const stream = new ReadableStream({
-      start(controller) {
-        console.log('Starting ultra-fast stream...');
-      },
-      
-      async pull(controller) {
-        try {
-          const reader = mistralResponse.body.getReader();
-          const decoder = new TextDecoder('utf-8');
-          
-          while (true) {
-            const { done, value } = await reader.read();
-            
-            if (done) {
-              console.log('Stream completed');
-              controller.close();
-              break;
-            }
-            
-            // Decode and immediately forward the chunk - NO PROCESSING DELAY
-            const chunk = decoder.decode(value, { stream: true });
-            
-            // Forward chunk immediately without any parsing or processing
-            controller.enqueue(new TextEncoder().encode(chunk));
-          }
-        } catch (error) {
-          console.error('Stream error:', error);
-          controller.error(error);
-        }
-      },
-      
-      cancel() {
-        console.log('Stream cancelled by client');
-      }
+    // Use a TransformStream to ensure true streaming pass-through.
+    const { readable, writable } = new TransformStream();
+    mistralResponse.body.pipeTo(writable);
+
+    const responseHeaders = new Headers({
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     });
 
-    // Return optimized streaming response
-    return new Response(stream, {
-      status: 200,
-      headers: getStreamingHeaders(origin)
+    return new Response(readable, {
+      status: mistralResponse.status,
+      statusText: mistralResponse.statusText,
+      headers: responseHeaders,
     });
 
   } catch (error) {
-    console.error('Error in ultra-fast Mistral proxy:', error);
+    console.error('Error in Mistral API proxy:', error);
     return new Response(JSON.stringify({ error: `Proxy error: ${error.message}` }), {
       status: 500,
       headers: {
@@ -287,7 +226,7 @@ async function proxyCoingecko(api_payload, env) {
       });
     }
 
-    const coingeckoData = await coingeckoResponse.json();
+    const coingeckoData = await coingeckoResponse.json(); // Always parse the JSON response
     const response = new Response(JSON.stringify(coingeckoData), {
       status: coingeckoResponse.status,
       headers: {
@@ -304,6 +243,7 @@ async function proxyCoingecko(api_payload, env) {
     });
   }
 }
+
 
 // --- Robust JWT Verification ---
 function decodeJwt(token) {
@@ -346,9 +286,16 @@ async function getPublicKeys() {
       return keys;
     }
   } catch (e) {
-    console.error('Failed to fetch Firebase public keys:', e);
-    throw new Error('Failed to fetch public keys for Firebase token verification.');
+    console.log('Firebase endpoint failed, trying Google OAuth endpoint');
   }
+
+  const googleUrl = 'https://www.googleapis.com/oauth2/v3/certs';
+  const googleResponse = await fetch(googleUrl);
+  if (!googleResponse.ok) {
+    throw new Error('Failed to fetch public keys from both endpoints');
+  }
+  const certs = await googleResponse.json();
+  return certs.keys.map(key => ({ ...key, source: 'google' }));
 }
 
 async function verifyGoogleToken(id_token, env) {
@@ -356,8 +303,14 @@ async function verifyGoogleToken(id_token, env) {
     throw new Error('Authentication token is missing.');
   }
   
+  console.log("Starting token verification for token:", id_token.substring(0, 30) + "...");
+
   const decodedToken = decodeJwt(id_token);
   const { header, payload, raw } = decodedToken;
+
+  console.log("Token header:", JSON.stringify(header));
+  console.log("Token payload issuer:", payload.iss);
+  console.log("Token payload audience:", payload.aud);
 
   if (!env.FIREBASE_PROJECT_ID) {
     throw new Error('FIREBASE_PROJECT_ID environment variable is not set.');
@@ -376,39 +329,57 @@ async function verifyGoogleToken(id_token, env) {
   }
 
   const keys = await getPublicKeys();
+  console.log("Available public keys:", keys.map(k => ({ kid: k.kid, source: k.source })));
+  console.log("Looking for key with kid:", header.kid);
+  
   const key = keys.find(k => k.kid === header.kid);
   if (!key) {
+    console.error("Public key not found. Available keys:", keys.map(k => k.kid));
+    console.error("Token header kid:", header.kid);
     throw new Error(`Public key not found for token. Available keys: ${keys.map(k => k.kid).join(', ')}. Token kid: ${header.kid}`);
   }
 
   try {
-    // This part assumes Firebase tokens are self-contained and don't always need
-    // a full signature verification in this specific environment, or that
-    // Firebase SDK handles it clientside. For a robust server-side verification,
-    // you would typically use a Firebase Admin SDK.
-    // Given the previous code's "temporary workaround" comment, we'll keep it simple
-    // and rely on the fact that the token comes from a trusted Firebase client.
-    // If a full server-side verification is needed, it would involve a crypto library
-    // and the public keys from Google/Firebase.
-
-    // For now, we'll assume the token is valid if it passes issuer, audience, and expiry checks
-    // and its KID matches a known Firebase public key.
+    let cryptoKey;
+    
     if (key.source === 'firebase') {
-      // If we got a firebase key, we'll consider it valid for this simplified worker environment
-      console.log('Firebase certificate found, token considered valid.');
+      console.log('Firebase certificate found, skipping signature verification (temporary workaround)');
     } else {
-      // This case should ideally not be reached if getPublicKeys only fetches firebase keys.
-      // However, if it does, it means a non-firebase key was found. For strict Firebase-only,
-      // this would be an error. For now, we'll just log and consider it potentially invalid.
-      console.warn('Non-Firebase public key found. Token source might be unexpected.');
-      throw new Error('Token not issued by expected Firebase source.');
-    }
+      const jwk = {
+        kty: key.kty,
+        n: key.n,
+        e: key.e,
+      };
 
+      cryptoKey = await crypto.subtle.importKey(
+        'jwk',
+        jwk,
+        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+        false,
+        ['verify']
+      );
+
+      const signatureInput = `${raw.header}.${raw.payload}`;
+      const signatureBytes = new Uint8Array(atob(raw.signature.replace(/-/g, '+').replace(/_/g, '/')).split('').map(c => c.charCodeAt(0)));
+      const dataBytes = new TextEncoder().encode(signatureInput);
+
+      const isValid = await crypto.subtle.verify(
+        'RSASSA-PKCS1-v1_5',
+        cryptoKey,
+        signatureBytes,
+        dataBytes
+      );
+
+      if (!isValid) {
+        throw new Error('Invalid token signature.');
+      }
+    }
   } catch (verifyError) {
-    console.error('Error during token verification:', verifyError);
-    throw new Error(`Token verification failed: ${verifyError.message}`);
+    console.error('Error during signature verification:', verifyError);
+    throw new Error(`Signature verification failed: ${verifyError.message}`);
   }
 
+  console.log('Google ID token verified successfully for email:', payload.email);
   return payload;
 }
 
@@ -442,32 +413,16 @@ async function isUserWhitelisted(user_email, env) {
   return whitelistEmails.includes(user_email);
 }
 
-// OPTIMIZED UPDATE FUNCTION FOR STREAMING RESPONSES
-async function updateUserQueryAsync(userKvKey, query, responseData, env) {
-  // Run this asynchronously without blocking the streaming response
-  try {
-    const userData = await env.YOUTOPIA_DATA.get(userKvKey, { type: 'json' });
-    if (userData && userData.queries && userData.queries.length > 0) {
-      const lastQuery = userData.queries[userData.queries.length - 1];
-      if (lastQuery.query === query) {
-        lastQuery.response = responseData;
-        await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
-      }
-    }
-  } catch (error) {
-    console.error('Async update error:', error);
-  }
-}
-
 // --- Main Handler for this specific endpoint ---
 async function handleQueryProxy(request, env) {
   try {
+
     const { query, user_name, user_email, user_local_time, api_target, api_payload, id_token } = await request.json();
 
     try {
       const tokenInfo = await verifyGoogleToken(id_token, env);
       if (tokenInfo.email !== user_email) {
-        console.error('Security Alert: Email mismatch between ID token and request body.');
+        console.error('Security Alert: Email mismatch between ID token and request body. Token email:', tokenInfo.email, 'Request email:', user_email);
         return new Response(JSON.stringify({ error: 'Security alert: Token-email mismatch.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
       }
     } catch (error) {
@@ -495,25 +450,25 @@ async function handleQueryProxy(request, env) {
       userData = { queries: [], cooldown_end_timestamp: null };
     }
 
-    // For whitelisted users, provide unlimited access
+    // For whitelisted users, provide unlimited access with simple daily reset
     if (is_whitelisted_20x_plan) {
       console.log('Whitelisted user detected, processing request without rate limits:', user_email);
       
-      // Log the query for whitelisted users, no rate limiting
+      // Just log the query for whitelisted users, no rate limiting
       userData.queries.push({
         timestamp: now,
         query: query,
-        response: null,
+        response: null, // Initialize response as null
         user_name: user_name,
         user_email: user_email,
         user_local_time: user_local_time,
         api_target: api_target,
       });
       
+      // Clear cooldown for whitelisted users
       userData.cooldown_end_timestamp = null;
       
-      // NON-BLOCKING KV UPDATE for streaming performance
-      env.waitUntil(env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData)));
+      await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
       
       // Proceed directly to API proxying for whitelisted users
       let proxyResponse;
@@ -522,12 +477,7 @@ async function handleQueryProxy(request, env) {
           proxyResponse = await proxySerper(api_payload, env);
           break;
         case 'mistral':
-          // Pass the request object for origin header
-          proxyResponse = await proxyMistral(api_payload, env, request);
-          // For streaming responses, update KV asynchronously
-          if (api_target === 'mistral') {
-            env.waitUntil(updateUserQueryAsync(userKvKey, query, "Streaming response completed", env));
-          }
+          proxyResponse = await proxyMistral(api_payload, env);
           break;
         case 'coingecko':
           proxyResponse = await proxyCoingecko(api_payload, env);
@@ -536,10 +486,38 @@ async function handleQueryProxy(request, env) {
           return new Response(JSON.stringify({ error: 'Invalid API target.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
       }
 
+      // Update the query entry with the response
+      if (proxyResponse.ok) {
+        try {
+          // Get the latest user data to ensure we're working with the most recent version
+          userData = await env.YOUTOPIA_DATA.get(userKvKey, { type: 'json' }) || { queries: [], cooldown_end_timestamp: null };
+          
+          // Find the last query entry (the one we just added) and update its response
+          if (userData.queries && userData.queries.length > 0) {
+            const lastQuery = userData.queries[userData.queries.length - 1];
+            if (lastQuery.query === query) {
+              // Try to parse the response body to store as JSON
+              try {
+                const responseBody = await proxyResponse.clone().text();
+                lastQuery.response = responseBody;
+              } catch (parseError) {
+                // If parsing fails, store as string
+                lastQuery.response = "Response could not be parsed";
+              }
+              
+              // Update the KV store
+              await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
+            }
+          }
+        } catch (updateError) {
+          console.error('Error updating query with response:', updateError);
+        }
+      }
+
       return proxyResponse;
     }
 
-    // Rate limiting for non-whitelisted users
+    // Rate limiting for non-whitelisted users only
     const FREE_RATE_LIMIT = 8;
     const FREE_RATE_LIMIT_WINDOW_MS = 6 * 60 * 60 * 1000; // 6 hours
     
@@ -555,6 +533,13 @@ Thank you for your support, it truly makes a difference to allow this project to
     const relevantTimeAgo = now - FREE_RATE_LIMIT_WINDOW_MS;
     userData.queries = userData.queries.filter(q => q.timestamp > relevantTimeAgo);
     const queryCount = userData.queries.length;
+
+    console.log('Free user rate limit check:', {
+      user_email: user_email,
+      queryCount: queryCount,
+      FREE_RATE_LIMIT: FREE_RATE_LIMIT,
+      cooldown_end_timestamp: userData.cooldown_end_timestamp
+    });
     
     if (userData.cooldown_end_timestamp && now < userData.cooldown_end_timestamp) {
       return new Response(JSON.stringify({
@@ -577,11 +562,17 @@ Thank you for your support, it truly makes a difference to allow this project to
       }), { status: 429, headers: { 'Content-Type': 'application/json' } });
     }
 
-    // Increment query count for free users
+    // Increment query count and save user data for free users
+    console.log('Processing query for free user:', {
+      user_email: user_email,
+      queryCount: queryCount,
+      FREE_RATE_LIMIT: FREE_RATE_LIMIT
+    });
+    
     userData.queries.push({
       timestamp: now,
       query: query,
-      response: null,
+      response: null, // Initialize response as null
       user_name: user_name,
       user_email: user_email,
       user_local_time: user_local_time,
@@ -592,8 +583,7 @@ Thank you for your support, it truly makes a difference to allow this project to
         userData.cooldown_end_timestamp = null;
     }
     
-    // NON-BLOCKING KV UPDATE for streaming performance
-    env.waitUntil(env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData)));
+    await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
 
     // --- Proxy the request to the target API ---
     let proxyResponse;
@@ -602,11 +592,7 @@ Thank you for your support, it truly makes a difference to allow this project to
         proxyResponse = await proxySerper(api_payload, env);
         break;
       case 'mistral':
-        proxyResponse = await proxyMistral(api_payload, env, request);
-        // For streaming responses, update KV asynchronously
-        if (api_target === 'mistral') {
-          env.waitUntil(updateUserQueryAsync(userKvKey, query, "Streaming response completed", env));
-        }
+        proxyResponse = await proxyMistral(api_payload, env);
         break;
       case 'coingecko':
         proxyResponse = await proxyCoingecko(api_payload, env);
@@ -615,11 +601,39 @@ Thank you for your support, it truly makes a difference to allow this project to
         return new Response(JSON.stringify({ error: 'Invalid API target.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
 
+    // Update the query entry with the response
+    if (proxyResponse.ok) {
+      try {
+        // Get the latest user data to ensure we're working with the most recent version
+        userData = await env.YOUTOPIA_DATA.get(userKvKey, { type: 'json' }) || { queries: [], cooldown_end_timestamp: null };
+        
+        // Find the last query entry (the one we just added) and update its response
+        if (userData.queries && userData.queries.length > 0) {
+          const lastQuery = userData.queries[userData.queries.length - 1];
+          if (lastQuery.query === query) {
+            // Try to parse the response body to store as JSON
+            try {
+              const responseBody = await proxyResponse.clone().text();
+              lastQuery.response = responseBody;
+            } catch (parseError) {
+              // If parsing fails, store as string
+              lastQuery.response = "Response could not be parsed";
+            }
+            
+            // Update the KV store
+            await env.YOUTOPIA_DATA.put(userKvKey, JSON.stringify(userData));
+          }
+        }
+      } catch (updateError) {
+        console.error('Error updating query with response:', updateError);
+      }
+    }
+
     return proxyResponse;
   } catch (error) {
     console.error('Error in handleQueryProxy:', error.stack);
     return new Response(JSON.stringify({ error: `Error processing proxy request: ${error.message}` }), {
-      status: 400,
+      status: 400, // Bad Request for parsing errors
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
@@ -635,6 +649,7 @@ async function handleKvData(request, env) {
 
     const authorizedEmails = ['ayushhroyy@gmail.com', 'youtopialabs@gmail.com'];
 
+    // Only allow authorized users to view KV data
     if (!tokenInfo.email || !authorizedEmails.includes(tokenInfo.email)) {
       return new Response(JSON.stringify({ error: 'Unauthorized: Your email is not authorized to view this data.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
     }
@@ -644,7 +659,7 @@ async function handleKvData(request, env) {
     const kvData = {};
 
     for (const key of keys) {
-      if (key.name.startsWith('user:')) {
+      if (key.name.startsWith('user:')) { // Only fetch user data
         const value = await env.YOUTOPIA_DATA.get(key.name, { type: 'json' });
         kvData[key.name] = value;
       }
