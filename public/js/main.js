@@ -85,8 +85,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const userName = document.getElementById('user-name');
     const userInfo = document.getElementById('user-info');
     const signoutButton = document.getElementById('signout-button');
-    const firebaseSignInButton = document.getElementById('firebase-sign-in-button'); // Firebase Sign-In button
-    const firebasePopupSignInButton = document.getElementById('firebase-popup-sign-in-button'); // Firebase Sign-In button in popup
+    const googleSignInButton = document.getElementById('g_id_signin');
+    const googleSignInPopup = document.getElementById('g_id_signin_popup');
     const historyButton = document.getElementById('history-button'); // History button
     const historyModal = document.getElementById('history-modal'); // History modal
     const closeHistoryModal = document.getElementById('close-history-modal'); // Close history modal button
@@ -285,35 +285,46 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 100);
     // --- Firebase Sign-In handling ---
 
-    const updateUserUI = async (user) => {
-        if (user) {
+    const handleCredentialResponse = async (response) => {
+        const idToken = response.credential;
+        // Decode the JWT to get user info without verifying (verification happens server-side)
+        const decodedToken = JSON.parse(atob(idToken.split('.')[1]));
+        
+        console.log('GIS ID Token obtained and stored.');
+        localStorage.setItem('id_token', idToken);
+        localStorage.setItem('user_name', decodedToken.name);
+        localStorage.setItem('user_email', decodedToken.email);
+        localStorage.setItem('user_profile_pic', decodedToken.picture);
+
+        await updateUserUI(decodedToken);
+        hidePopup(signinRequiredPopupOverlay);
+    };
+
+    const updateUserUI = async (decodedToken) => {
+        if (decodedToken) {
             // User is signed in.
-            userName.textContent = user.displayName;
-            userProfilePic.src = user.photoURL;
+            userName.textContent = decodedToken.name;
+            userProfilePic.src = decodedToken.picture;
             userInfo.style.display = 'flex';
-            firebaseSignInButton.style.display = 'none';
+            if (googleSignInButton) googleSignInButton.style.display = 'none';
+            if (googleSignInPopup) googleSignInPopup.style.display = 'none';
             signoutButton.style.display = 'block';
-            historyButton.style.display = 'block'; // Show history button when signed in
+            historyButton.style.display = 'block';
             userDropdown.classList.add('signed-in');
 
-            try {
-                const idToken = await user.getIdToken(true); // Force refresh the token
-                console.log('Firebase ID Token obtained and stored.');
-                localStorage.setItem('id_token', idToken);
-                localStorage.setItem('user_name', user.displayName);
-                localStorage.setItem('user_email', user.email);
-                localStorage.setItem('user_profile_pic', user.photoURL);
+            const idToken = localStorage.getItem('id_token');
 
-                // Fetch user status from the worker to check for 20x plan
-                const userStatusResponse = await fetch(`${WORKER_BASE_URL}api/query-proxy`, {
+            // Fetch user status and history
+            try {
+                 const userStatusResponse = await fetch(`${WORKER_BASE_URL}api/query-proxy`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        query: "check_user_status", // A dummy query type for status check
-                        user_name: user.displayName,
-                        user_email: user.email,
+                        query: "check_user_status",
+                        user_name: decodedToken.name,
+                        user_email: decodedToken.email,
                         id_token: idToken,
-                        api_target: "status_check", // A new API target for status
+                        api_target: "status_check",
                         api_payload: {}
                     })
                 });
@@ -327,91 +338,92 @@ document.addEventListener('DOMContentLoaded', () => {
                             userStatusElement.title = '20x Plus Plan User';
                         }
                     }
-                } else {
-                    console.error('Failed to fetch user status:', await userStatusResponse.text());
                 }
 
-                // Fetch and load conversation history
-                try {
-                    const historyResponse = await fetch(`${WORKER_BASE_URL}api/conversation-history?id_token=${idToken}`);
-                    if (historyResponse.ok) {
-                        const historyData = await historyResponse.json();
-                        if (historyData.success && historyData.history) {
-                            conversationManager.loadHistory(historyData.history);
-                            console.log('Conversation history loaded.');
-                        }
-                    } else {
-                        console.error('Failed to fetch conversation history:', await historyResponse.text());
+                const historyResponse = await fetch(`${WORKER_BASE_URL}api/conversation-history?id_token=${idToken}`);
+                if (historyResponse.ok) {
+                    const historyData = await historyResponse.json();
+                    if (historyData.success && historyData.history) {
+                        conversationManager.loadHistory(historyData.history);
                     }
-                } catch (error) {
-                    console.error('Error fetching conversation history:', error);
                 }
-
             } catch (error) {
-                console.error('Error getting ID token or user status:', error);
-                // Handle error, maybe sign the user out
-                window.firebaseSignOut();
+                console.error('Error fetching user data:', error);
             }
+
         } else {
             // User is signed out.
             userName.textContent = '';
             userProfilePic.src = '';
             userInfo.style.display = 'none';
-            firebaseSignInButton.style.display = 'block';
+            if (googleSignInButton) googleSignInButton.style.display = 'block';
+            if (googleSignInPopup) googleSignInPopup.style.display = 'block';
             signoutButton.style.display = 'none';
-            historyButton.style.display = 'none'; // Hide history button when signed out
+            historyButton.style.display = 'none';
             userDropdown.classList.remove('signed-in');
 
-            // Clear all user-related data from localStorage
             localStorage.removeItem('user_name');
             localStorage.removeItem('user_email');
             localStorage.removeItem('user_profile_pic');
-            localStorage.removeItem('id_token'); // Remove the Firebase token
-
+            localStorage.removeItem('id_token');
+            
             const userStatusElement = document.getElementById('user-status');
             if (userStatusElement) {
-                userStatusElement.textContent = ''; // Clear status indicator
+                userStatusElement.textContent = '';
                 userStatusElement.title = '';
             }
         }
     };
-
-    // Firebase Auth state change listener
-    window.firebaseAuth.onAuthStateChanged(async (user) => {
-        await updateUserUI(user);
-        if (user) {
-            hidePopup(signinRequiredPopupOverlay); // Hide sign-in popup if it was open
+    
+    // Initialize Google Identity Services
+    window.onload = function () {
+        if (typeof google === 'undefined') {
+            console.error("Google Identity Services library not loaded.");
+            return;
         }
-    });
+        
+        google.accounts.id.initialize({
+            client_id: '834501863463-o2s52b572l3p5n1ifd9l3e1s8qj7h8s6.apps.googleusercontent.com',
+            callback: handleCredentialResponse,
+            auto_select: true
+        });
 
-    // Event listener for Firebase Sign-In button
-    firebaseSignInButton.addEventListener('click', async () => {
-        try {
-            await window.firebaseSignIn();
-        } catch (error) {
-            console.error('Error during Firebase Sign-In:', error);
-            alert('Firebase Sign-In failed. Please try again.');
+        // Render the sign-in button in the main dropdown
+        if (googleSignInButton) {
+            google.accounts.id.renderButton(
+                googleSignInButton,
+                { theme: "outline", size: "large", type: "standard", text: "signin_with" }
+            );
         }
-    });
 
-    // Event listener for Firebase Sign-In button in popup
-    firebasePopupSignInButton.addEventListener('click', async () => {
-        try {
-            await window.firebaseSignIn();
-        } catch (error) {
-            console.error('Error during Firebase Sign-In from popup:', error);
-            alert('Firebase Sign-In failed. Please try again.');
+        // Render the sign-in button in the popup
+        if (googleSignInPopup) {
+             google.accounts.id.renderButton(
+                googleSignInPopup,
+                { theme: "outline", size: "large", type: "standard", text: "signin_with" }
+            );
         }
-    });
 
-    // Event listener for Sign Out button
-    signoutButton.addEventListener('click', async () => {
-        try {
-            await window.firebaseSignOut();
-        } catch (error) {
-            console.error('Error during Firebase Sign-Out:', error);
-            alert('Firebase Sign-Out failed. Please try again.');
+        // Prompt for One Tap
+        google.accounts.id.prompt();
+
+        // Check for existing session on load
+        const idToken = localStorage.getItem('id_token');
+        if (idToken) {
+            const decodedToken = JSON.parse(atob(idToken.split('.')[1]));
+            updateUserUI(decodedToken);
+        } else {
+            updateUserUI(null);
         }
+    };
+
+    // Sign out logic
+    signoutButton.addEventListener('click', () => {
+        google.accounts.id.disableAutoSelect();
+        updateUserUI(null);
+        // Optional: Revoke the token on Google's side
+        // const idToken = localStorage.getItem('id_token');
+        // if(idToken) google.accounts.id.revoke(idToken, done => {});
     });
 
    // --- Popup Functions ---

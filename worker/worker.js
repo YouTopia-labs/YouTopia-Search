@@ -316,12 +316,20 @@ async function verifyGoogleToken(id_token, env) {
     throw new Error('FIREBASE_PROJECT_ID environment variable is not set.');
   }
 
-  const expectedIssuer = `https://securetoken.google.com/${env.FIREBASE_PROJECT_ID}`;
-  if (payload.iss !== expectedIssuer) {
-    throw new Error(`Invalid issuer: ${payload.iss}. Expected: ${expectedIssuer}`);
+  const validIssuers = [
+    `https://securetoken.google.com/${env.FIREBASE_PROJECT_ID}`, // Old Firebase issuer
+    'https://accounts.google.com' // New GIS issuer
+  ];
+  if (!validIssuers.includes(payload.iss)) {
+    throw new Error(`Invalid issuer: ${payload.iss}. Expected one of: ${validIssuers.join(', ')}`);
   }
-  if (payload.aud !== env.FIREBASE_PROJECT_ID) {
-    throw new Error(`Invalid token audience: ${payload.aud}. Expected: ${env.FIREBASE_PROJECT_ID}`);
+
+  const validAudiences = [
+      env.FIREBASE_PROJECT_ID, // Old Firebase audience
+      '834501863463-o2s52b572l3p5n1ifd9l3e1s8qj7h8s6.apps.googleusercontent.com' // New GIS Client ID
+  ];
+  if (!validAudiences.includes(payload.aud)) {
+      throw new Error(`Invalid token audience: ${payload.aud}. Expected one of: ${validAudiences.join(', ')}`);
   }
 
   if (payload.exp * 1000 < Date.now()) {
