@@ -541,7 +541,6 @@ document.addEventListener('DOMContentLoaded', () => {
    };
 
    // Initial UI update on page load
-   updateUserUI();
    
    // Initially hide the history button
    if (historyButton) {
