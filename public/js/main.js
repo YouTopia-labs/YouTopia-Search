@@ -378,7 +378,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Failed to fetch user status:', await userStatusResponse.text());
             }
 
-            // --- Fetch conversation history ---
+            // --- Fetch conversation history (Temporarily Disabled) ---
+            // console.log("Conversation history fetching is temporarily disabled for debugging.");
+            /*
             const historyResponse = await fetch(`${WORKER_BASE_URL}api/conversation-history?id_token=${idToken}`);
             if (historyResponse.ok) {
                 const historyData = await historyResponse.json();
@@ -389,6 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 console.error('Failed to fetch conversation history:', await historyResponse.text());
             }
+            */
 
         } catch (error) {
             console.error('Error fetching user data:', error);

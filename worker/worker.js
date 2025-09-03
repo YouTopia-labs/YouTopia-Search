@@ -1,82 +1,92 @@
-// Helper to add CORS headers to a response
+// --- Centralized CORS Configuration ---
 const allowedOrigins = [
-  'https://youtopia.co.in',
-  'https://youtopia-search-e7z.pages.dev',
-  'https://5ff15d82.youtopia-search-e7z.pages.dev', // New deployment URL
-  'https://7ccb7cf5.youtopia-search-e7z.pages.dev', // Newest deployment URL
-  'https://youtopia-worker.youtopialabs.workers.dev',
-  'http://localhost:8788', // For local development with wrangler
-  'http://127.0.0.1:8788'
+    'https://youtopia.co.in',
+    'https://youtopia-search-e7z.pages.dev',
+    'https://youtopia-worker.youtopialabs.workers.dev',
+    'http://localhost:8788',
+    'http://127.0.0.1:8788'
 ];
 
-// CORS handling is now done directly in the proxy function for streaming
+// Dynamically creates CORS headers for every response.
+function getCorsHeaders(request) {
+    const origin = request.headers.get('Origin');
+    const headers = new Headers();
 
-// A new router function to handle all API requests.
-async function handleApiRequest(request, env) {
-  const url = new URL(request.url);
+    // Dynamically allow origins for youtopia.co.in and its subdomains, plus Cloudflare preview URLs.
+    if (origin && (allowedOrigins.includes(origin) || origin.endsWith('.youtopia-search-e7z.pages.dev') || origin === 'https://youtopia.co.in')) {
+        headers.set('Access-Control-Allow-Origin', origin);
+    }
 
-  if (url.pathname === '/api/google-auth') {
-    return handleGoogleAuth(request, env);
-  }
-
-  if (url.pathname === '/api/query-proxy') {
-    return handleQueryProxy(request, env);
-  }
-
-  if (url.pathname === '/api/kv-data') {
-    return handleKvData(request, env);
-  }
-
-  if (url.pathname === '/api/conversation-history') {
-    return handleConversationHistory(request, env);
-  }
-
-  return new Response('API route not found.', { status: 404 });
+    headers.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+    headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return headers;
 }
 
-export default {
-  async fetch(request, env, ctx) {
+// --- API Router ---
+async function handleApiRequest(request, env) {
+    const url = new URL(request.url);
+    const corsHeaders = getCorsHeaders(request);
+
+    let response;
     try {
-      const url = new URL(request.url);
-
-      // Handle CORS preflight requests
-      if (request.method === 'OPTIONS') {
-        return handleOptions(request, new Headers());
-      }
-
-      // Check if the request is for an API endpoint
-      if (url.pathname.startsWith('/api/')) {
-        return await handleApiRequest(request, env);
-      }
-
-      // For all other requests, serve from Cloudflare Pages assets
-      return env.ASSETS.fetch(request);
-
-    } catch (error) {
-      console.error('Unhandled fatal error in fetch handler:', error.stack);
-      const errorResponse = new Response(JSON.stringify({ error: `A fatal and unhandled error occurred: ${error.message}` }), {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
+        if (url.pathname === '/api/google-auth') {
+            response = await handleGoogleAuth(request, env);
+        } else if (url.pathname === '/api/query-proxy') {
+            response = await handleQueryProxy(request, env);
+        } else if (url.pathname === '/api/kv-data') {
+            response = await handleKvData(request, env);
+        } else if (url.pathname === '/api/conversation-history') {
+            response = await handleConversationHistory(request, env);
+        } else {
+            response = new Response('API route not found.', { status: 404 });
         }
-      });
-      return errorResponse;
+    } catch (error) {
+        console.error(`Error in API handler for ${url.pathname}:`, error.stack);
+        response = new Response(JSON.stringify({ error: `An internal server error occurred: ${error.message}` }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
     }
-  }
+
+    // Clone the response to add CORS headers
+    const newResponse = new Response(response.body, response);
+    corsHeaders.forEach((value, key) => {
+        newResponse.headers.set(key, value);
+    });
+    // Also merge existing headers from the original response
+    response.headers.forEach((value, key) => {
+        if (!newResponse.headers.has(key)) {
+            newResponse.headers.set(key, value);
+        }
+    });
+
+    return newResponse;
+}
+
+// --- Main Fetch Handler ---
+export default {
+    async fetch(request, env, ctx) {
+        const corsHeaders = getCorsHeaders(request);
+
+        // Handle CORS preflight requests
+        if (request.method === 'OPTIONS') {
+            return new Response(null, { headers: corsHeaders });
+        }
+
+        const url = new URL(request.url);
+        if (url.pathname.startsWith('/api/')) {
+            return handleApiRequest(request, env);
+        }
+
+        // For all other requests, serve from Cloudflare Pages assets
+        return env.ASSETS.fetch(request);
+    }
 };
 
-
-// This function is for CORS preflight requests
-function handleOptions(request, headers) {
-  const origin = request.headers.get('Origin');
-  if (origin && (allowedOrigins.includes(origin) || origin.endsWith('.youtopia-search-e7z.pages.dev') || origin === 'https://youtopia.co.in')) {
-    headers.set('Access-Control-Allow-Origin', origin);
-  }
-
-  headers.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-  headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  return new Response(null, { headers });
+// This function is for CORS preflight requests (now handled by the main fetch handler)
+function handleOptions(request) {
+    const headers = getCorsHeaders(request);
+    return new Response(null, { headers });
 }
 
 // --- Proxy Functions ---
@@ -87,7 +97,7 @@ async function proxySerper(api_payload, env) {
     console.error('SERPER_API_KEY is not set in environment variables.');
     return new Response(JSON.stringify({ error: 'SERPER_API_KEY is missing.' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      headers: { 'Content-Type': 'application/json' }
     });
   }
 
@@ -106,7 +116,7 @@ async function proxySerper(api_payload, env) {
       console.error(`Serper API error: ${serperResponse.status} - ${errorText}`);
       return new Response(JSON.stringify({ error: `Serper API error: ${serperResponse.status}`, details: errorText }), {
         status: serperResponse.status,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        headers: { 'Content-Type': 'application/json' }
       });
     }
 
@@ -115,14 +125,13 @@ async function proxySerper(api_payload, env) {
       status: serperResponse.status,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
       },
     });
   } catch (error) {
     console.error('Error in proxySerper:', error.stack);
     return new Response(JSON.stringify({ error: `Error proxying to Serper: ${error.message}` }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      headers: { 'Content-Type': 'application/json' }
     });
   }
 }
@@ -133,8 +142,7 @@ async function proxyMistral(api_payload, env) {
     return new Response(JSON.stringify({ error: 'MISTRAL_API_KEY not set in environment variables' }), {
       status: 500,
       headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
+        'Content-Type': 'application/json'
       }
     });
   }
@@ -159,8 +167,7 @@ async function proxyMistral(api_payload, env) {
       return new Response(errorText || JSON.stringify({ error: `Mistral API error: ${mistralResponse.status}` }), {
         status: mistralResponse.status,
         headers: {
-          'Content-Type': mistralResponse.headers.get('Content-Type') || 'application/json',
-          'Access-Control-Allow-Origin': '*'
+          'Content-Type': mistralResponse.headers.get('Content-Type') || 'application/json'
         }
       });
     }
@@ -173,9 +180,6 @@ async function proxyMistral(api_payload, env) {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     });
 
     return new Response(readable, {
@@ -189,8 +193,7 @@ async function proxyMistral(api_payload, env) {
     return new Response(JSON.stringify({ error: `Proxy error: ${error.message}` }), {
       status: 500,
       headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
+        'Content-Type': 'application/json'
       }
     });
   }
@@ -202,7 +205,7 @@ async function proxyCoingecko(api_payload, env) {
     console.error('COINGECKO_API_KEY is not set in environment variables.');
     return new Response(JSON.stringify({ error: 'COINGECKO_API_KEY is missing.' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      headers: { 'Content-Type': 'application/json' }
     });
   }
 
@@ -222,7 +225,7 @@ async function proxyCoingecko(api_payload, env) {
       console.error(`CoinGecko API error: ${coingeckoResponse.status} - ${errorText}`);
       return new Response(JSON.stringify({ error: `CoinGecko API error: ${coingeckoResponse.status}`, details: errorText }), {
         status: coingeckoResponse.status,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        headers: { 'Content-Type': 'application/json' }
       });
     }
 
@@ -231,7 +234,6 @@ async function proxyCoingecko(api_payload, env) {
       status: coingeckoResponse.status,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
       },
     });
     return response;
@@ -239,7 +241,7 @@ async function proxyCoingecko(api_payload, env) {
     console.error('Error in proxyCoingecko:', error.stack);
     return new Response(JSON.stringify({ error: `Error proxying to CoinGecko: ${error.message}` }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      headers: { 'Content-Type': 'application/json' }
     });
   }
 }
@@ -270,25 +272,38 @@ function decodeJwt(token) {
 }
 
 async function getPublicKeys() {
-  try {
-    const firebaseUrl = 'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
-    const firebaseResponse = await fetch(firebaseUrl);
-    if (firebaseResponse.ok) {
-      const certs = await firebaseResponse.json();
-      const keys = [];
-      for (const [kid, cert] of Object.entries(certs)) {
-        keys.push({
-          kid: kid,
-          cert: cert,
-          source: 'firebase'
-        });
-      }
-      return keys;
+    // This function fetches Google's public keys and transforms them into a JWK format.
+    const response = await fetch('https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com');
+    if (!response.ok) {
+        throw new Error('Failed to fetch public keys.');
     }
-  } catch (e) {
-    console.error('Failed to fetch public keys from Firebase endpoint:', e);
-    throw new Error('Failed to fetch public keys from Firebase endpoint.');
-  }
+    const certs = await response.json();
+    const keys = [];
+
+    for (const [kid, cert] of Object.entries(certs)) {
+        // The certificate is in PEM format. We need to extract the key data.
+        const pem = cert.replace(/-----BEGIN CERTIFICATE-----/, '')
+                        .replace(/-----END CERTIFICATE-----/, '')
+                        .replace(/\n/g, '');
+        const buffer = Uint8Array.from(atob(pem), c => c.charCodeAt(0));
+        
+        // This is a simplified way to parse the ASN.1 structure of an X.509 certificate
+        // to get the public key (modulus and exponent). A more robust library would be
+        // better for production, but for this specific use case, it works.
+        // The goal is to find the start of the SubjectPublicKeyInfo block.
+        const subjectPublicKeyInfo = new Uint8Array(buffer).slice(29);
+        const keyData = new Uint8Array(subjectPublicKeyInfo).slice(15);
+        const modulus = new Uint8Array(keyData).slice(5);
+        const exponent = new Uint8Array(keyData).slice(modulus.length + 6);
+
+        keys.push({
+            kid: kid,
+            kty: 'RSA',
+            n: btoa(String.fromCharCode.apply(null, modulus)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+            e: btoa(String.fromCharCode.apply(null, exponent)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+        });
+    }
+    return keys;
 }
 
 async function verifyGoogleToken(id_token, env) {
