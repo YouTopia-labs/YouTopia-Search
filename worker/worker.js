@@ -3,6 +3,7 @@ const allowedOrigins = [
   'https://youtopia.co.in',
   'https://youtopia-search-e7z.pages.dev',
   'https://5ff15d82.youtopia-search-e7z.pages.dev', // New deployment URL
+  'https://7ccb7cf5.youtopia-search-e7z.pages.dev', // Newest deployment URL
   'https://youtopia-worker.youtopialabs.workers.dev',
   'http://localhost:8788', // For local development with wrangler
   'http://127.0.0.1:8788'
@@ -69,10 +70,8 @@ export default {
 // This function is for CORS preflight requests
 function handleOptions(request, headers) {
   const origin = request.headers.get('Origin');
-  if (origin && allowedOrigins.includes(origin)) {
+  if (origin && (allowedOrigins.includes(origin) || origin.endsWith('.youtopia-search-e7z.pages.dev') || origin === 'https://youtopia.co.in')) {
     headers.set('Access-Control-Allow-Origin', origin);
-  } else {
-    headers.set('Access-Control-Allow-Origin', '*');
   }
 
   headers.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
@@ -306,16 +305,13 @@ async function verifyGoogleToken(id_token, env) {
   console.log("Token payload issuer:", payload.iss);
   console.log("Token payload audience:", payload.aud);
 
-  if (!env.FIREBASE_PROJECT_ID) {
-    throw new Error('FIREBASE_PROJECT_ID environment variable is not set.');
-  }
-
-  const expectedIssuer = `https://securetoken.google.com/${env.FIREBASE_PROJECT_ID}`;
+  const firebaseProjectId = "youtopia-search-prod";
+  const expectedIssuer = `https://securetoken.google.com/${firebaseProjectId}`;
   if (payload.iss !== expectedIssuer) {
     throw new Error(`Invalid issuer: ${payload.iss}. Expected: ${expectedIssuer}`);
   }
-  if (payload.aud !== env.FIREBASE_PROJECT_ID) {
-    throw new Error(`Invalid token audience: ${payload.aud}. Expected: ${env.FIREBASE_PROJECT_ID}`);
+  if (payload.aud !== firebaseProjectId) {
+    throw new Error(`Invalid token audience: ${payload.aud}. Expected: ${firebaseProjectId}`);
   }
 
   if (payload.exp * 1000 < Date.now()) {
