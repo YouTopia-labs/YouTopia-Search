@@ -536,7 +536,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
         const searchPromises = search_plan.map(async (step) => {
           if (logCallback) {
             const toolDisplayName = toolNamesMap[step.tool] || step.tool;
-            logCallback(`<i class="fas fa-tools"></i> Looking up ${toolDisplayName} for: "<b>${step.query}</b>"`);
+            logCallback(`<i class="fas fa-cogs"></i> Planning to use ${toolDisplayName} for: "<b>${step.query}</b>"`);
           }
           if (step.tool === 'serper_web_search' || step.tool === 'serper_news_search') {
             const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
@@ -583,7 +583,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
         // --- New Agent 2 Workflow ---
         if (webSearchResults.length > 0) {
           console.log("Analyzing search results to decide on scraping...");
-          if (logCallback) logCallback(`<i class="fas fa-filter"></i> Agent 2: Analyzing search results...`);
+          if (logCallback) logCallback(`<i class="fas fa-stream"></i> Synthesizing search results...`);
 
           const agent2Input = {
             query: userQuery,
@@ -597,7 +597,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
 
           if (agent2Response.action === 'scrape' && agent2Response.scrape_plan && agent2Response.scrape_plan.length > 0) {
             const planToExecute = agent2Response.scrape_plan.slice(0, MAX_PARALLEL_SCRAPES_PER_TURN);
-            if (logCallback) logCallback(`<i class="fas fa-spider"></i> Agent 2: Decided to scrape ${planToExecute.length} site(s)...`);
+            if (logCallback) logCallback(`<i class="fas fa-cloud-download-alt"></i> Fetching content from ${planToExecute.length} relevant site(s)...`);
             
             const scrapePromises = planToExecute.map(plan =>
               scrapeWebsite(plan.url, plan.keywords, logCallback)
@@ -618,7 +618,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
            // console.log("Scraped Data (after image processing):", scrapedData);
 
           } else {
-            if (logCallback) logCallback(`<i class="fas fa-check-circle"></i> Agent 2: Decided to continue without scraping.`);
+            if (logCallback) logCallback(`<i class="fas fa-check-circle"></i> Content analysis complete. Proceeding to final answer.`);
           }
         }
 

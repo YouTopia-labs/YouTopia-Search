@@ -1292,19 +1292,15 @@ Generated on: ${currentDate}
             // Scroll to the top of the results container
             resultsContainer.scrollTo({ top: 0, behavior: 'smooth' });
 
-            // --- Live Processing with Debounce ---
-            const debouncedProcess = debounce((content, sources) => {
-                processFinalResponse(aiResponseElement, content, sources);
-            }, 300); // 300ms debounce delay
-
             // --- Direct-to-DOM Stream Rendering ---
             const streamCallback = (chunk) => {
                 aiResponseContent += chunk;
                 currentResponseContent = aiResponseContent;
+                // Directly append the parsed chunk. This is more efficient than re-parsing the whole thing.
+                // Note: This naive approach might break markdown rendering for elements that span multiple chunks (like code blocks).
+                // A more robust solution would parse the stream more intelligently.
                 aiResponseElement.innerHTML = marked.parse(aiResponseContent);
 
-                // Live-process charts, tables, etc.
-                debouncedProcess(aiResponseContent, null); // Sources are not available during stream
 
                 // Auto-scroll to keep the latest content in view
                 resultsContainer.scrollTo({
@@ -1330,6 +1326,7 @@ Generated on: ${currentDate}
 
                 // --- Final Processing Step ---
                 // This code runs after the entire stream is finished to ensure everything is perfect.
+                // The stream processing now handles live updates, so we just do a final cleanup.
                 processFinalResponse(aiResponseElement, aiResponseContent, sources);
                 
                 // For follow-up queries, scroll to the new content when response is complete
