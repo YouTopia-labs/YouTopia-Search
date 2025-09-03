@@ -85,8 +85,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const userName = document.getElementById('user-name');
     const userInfo = document.getElementById('user-info');
     const signoutButton = document.getElementById('signout-button');
-    const googleSignInButton = document.getElementById('g_id_signin');
-    const googleSignInPopup = document.getElementById('g_id_signin_popup');
+    const googleSignInButton = document.getElementById('google-signin-button');
+    const googleSignInPopup = document.getElementById('google-signin-button-popup');
     const historyButton = document.getElementById('history-button'); // History button
     const historyModal = document.getElementById('history-modal'); // History modal
     const closeHistoryModal = document.getElementById('close-history-modal'); // Close history modal button
@@ -285,26 +285,47 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 100);
     // --- Firebase Sign-In handling ---
 
-    const handleCredentialResponse = async (response) => {
-        const idToken = response.credential;
-        // Decode the JWT to get user info without verifying (verification happens server-side)
-        const decodedToken = JSON.parse(atob(idToken.split('.')[1]));
-        
-        console.log('GIS ID Token obtained and stored.');
-        localStorage.setItem('id_token', idToken);
-        localStorage.setItem('user_name', decodedToken.name);
-        localStorage.setItem('user_email', decodedToken.email);
-        localStorage.setItem('user_profile_pic', decodedToken.picture);
-
-        await updateUserUI(decodedToken);
-        hidePopup(signinRequiredPopupOverlay);
+    // Firebase configuration (replace with your actual Firebase project config)
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY", // Replace with your Firebase API Key
+        authDomain: "YOUR_AUTH_DOMAIN", // Replace with your Firebase Auth Domain
+        projectId: "YOUR_PROJECT_ID", // Replace with your Firebase Project ID
     };
 
-    const updateUserUI = async (decodedToken) => {
-        if (decodedToken) {
+    // Initialize Firebase
+    if (firebase.apps.length === 0) {
+        firebase.initializeApp(firebaseConfig);
+    }
+
+    // Google Auth Provider
+    const provider = new firebase.auth.GoogleAuthProvider();
+
+    // Sign in function
+    window.firebaseSignIn = async () => {
+        try {
+            await firebase.auth().signInWithPopup(provider);
+        } catch (error) {
+            console.error("Firebase Sign-in Error:", error);
+            alert(`Firebase Sign-in Error: ${error.message}`);
+        }
+    };
+
+    // Sign out function
+    window.firebaseSignOut = async () => {
+        try {
+            await firebase.auth().signOut();
+        } catch (error) {
+            console.error("Firebase Sign-out Error:", error);
+            alert(`Firebase Sign-out Error: ${error.message}`);
+        }
+    };
+
+    // Update UI based on auth state
+    const updateUserUI = async (user) => {
+        if (user) {
             // User is signed in.
-            userName.textContent = decodedToken.name;
-            userProfilePic.src = decodedToken.picture;
+            userName.textContent = user.displayName;
+            userProfilePic.src = user.photoURL;
             userInfo.style.display = 'flex';
             if (googleSignInButton) googleSignInButton.style.display = 'none';
             if (googleSignInPopup) googleSignInPopup.style.display = 'none';
@@ -312,7 +333,14 @@ document.addEventListener('DOMContentLoaded', () => {
             historyButton.style.display = 'block';
             userDropdown.classList.add('signed-in');
 
-            const idToken = localStorage.getItem('id_token');
+            // Store user info in localStorage
+            localStorage.setItem('user_name', user.displayName);
+            localStorage.setItem('user_email', user.email);
+            localStorage.setItem('user_profile_pic', user.photoURL);
+            
+            // Get ID token for backend authentication
+            const idToken = await user.getIdToken();
+            localStorage.setItem('id_token', idToken);
 
             // Fetch user status and history
             try {
@@ -321,8 +349,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         query: "check_user_status",
-                        user_name: decodedToken.name,
-                        user_email: decodedToken.email,
+                        user_name: user.displayName,
+                        user_email: user.email,
                         id_token: idToken,
                         api_target: "status_check",
                         api_payload: {}
@@ -362,6 +390,7 @@ document.addEventListener('DOMContentLoaded', () => {
             historyButton.style.display = 'none';
             userDropdown.classList.remove('signed-in');
 
+            // Clear user info from localStorage
             localStorage.removeItem('user_name');
             localStorage.removeItem('user_email');
             localStorage.removeItem('user_profile_pic');
@@ -374,57 +403,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     };
-    
-    // Initialize Google Identity Services
-    window.onload = function () {
-        if (typeof google === 'undefined') {
-            console.error("Google Identity Services library not loaded.");
-            return;
-        }
-        
-        google.accounts.id.initialize({
-            client_id: '450557144881-necfmjts3gdvkp5o6a7dsar6o34ns2mf.apps.googleusercontent.com',
-            callback: handleCredentialResponse,
-            auto_select: true
-        });
 
-        // Render the sign-in button in the main dropdown
-        if (googleSignInButton) {
-            google.accounts.id.renderButton(
-                googleSignInButton,
-                { theme: "outline", size: "large", type: "standard", text: "signin_with" }
-            );
-        }
+    // Listen for auth state changes
+    firebase.auth().onAuthStateChanged(updateUserUI);
 
-        // Render the sign-in button in the popup
-        if (googleSignInPopup) {
-             google.accounts.id.renderButton(
-                googleSignInPopup,
-                { theme: "outline", size: "large", type: "standard", text: "signin_with" }
-            );
-        }
-
-        // Prompt for One Tap
-        google.accounts.id.prompt();
-
-        // Check for existing session on load
-        const idToken = localStorage.getItem('id_token');
-        if (idToken) {
-            const decodedToken = JSON.parse(atob(idToken.split('.')[1]));
-            updateUserUI(decodedToken);
-        } else {
-            updateUserUI(null);
-        }
-    };
-
-    // Sign out logic
-    signoutButton.addEventListener('click', () => {
-        google.accounts.id.disableAutoSelect();
-        updateUserUI(null);
-        // Optional: Revoke the token on Google's side
-        // const idToken = localStorage.getItem('id_token');
-        // if(idToken) google.accounts.id.revoke(idToken, done => {});
-    });
+    // Attach click listeners to sign-in buttons
+    if (googleSignInButton) {
+        googleSignInButton.addEventListener('click', window.firebaseSignIn);
+    }
+    if (googleSignInPopup) {
+        googleSignInPopup.addEventListener('click', window.firebaseSignIn);
+    }
 
    // --- Popup Functions ---
    const showPopup = (popupElement) => {

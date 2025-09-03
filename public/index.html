@@ -58,7 +58,10 @@
                             </div>
                             <!-- Google Sign-In Button (visible when signed out) -->
                             <!-- New Google Sign-In Button -->
-                            <div id="g_id_signin" class="dropdown-item" style="display: none;"></div>
+                            <button id="google-signin-button" class="dropdown-item" style="display: none;">
+                                <i class="fab fa-google"></i>
+                                <span>Sign in with Google</span>
+                            </button>
                             <!-- History Button (visible when signed in) -->
                             <button id="history-button" class="dropdown-item" style="display: none;">
                                 <i class="fas fa-history"></i>
@@ -244,7 +247,10 @@
                 <h2>Sign In Required</h2>
                 <p>Please sign in to continue using YouTopia.</p>
                 <!-- New Google Sign-In Button for Popup -->
-                <div id="g_id_signin_popup" class="btn"></div>
+                <button id="google-signin-button-popup" class="btn">
+                    <i class="fab fa-google"></i>
+                    <span>Sign in with Google</span>
+                </button>
             </div>
     
         <!-- Conversation History Modal -->
@@ -281,8 +287,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
 
-    <!-- Google Identity Services (GIS) script -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js" type="module"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js" type="module"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const dropdowns = document.querySelectorAll('.dropdown-container');
