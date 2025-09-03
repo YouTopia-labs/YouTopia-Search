@@ -297,7 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
             userDropdown.classList.add('signed-in');
 
             try {
-                const idToken = await user.getIdToken(true); // Force refresh the token
+                const idToken = await user.getIdToken(); // Use cached token if available
                 console.log('Firebase ID Token obtained and stored.');
                 localStorage.setItem('id_token', idToken);
                 localStorage.setItem('user_name', user.displayName);
