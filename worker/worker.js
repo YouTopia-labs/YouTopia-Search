@@ -340,39 +340,34 @@ async function verifyGoogleToken(id_token, env) {
   }
 
   try {
-    let cryptoKey;
-    
-    if (key.source === 'firebase') {
-      console.log('Firebase certificate found, skipping signature verification (temporary workaround)');
-    } else {
-      const jwk = {
-        kty: key.kty,
-        n: key.n,
-        e: key.e,
-      };
+    console.log('Verifying token signature...');
+    const jwk = {
+      kty: key.kty,
+      n: key.n,
+      e: key.e,
+    };
 
-      cryptoKey = await crypto.subtle.importKey(
-        'jwk',
-        jwk,
-        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-        false,
-        ['verify']
-      );
+    const cryptoKey = await crypto.subtle.importKey(
+      'jwk',
+      jwk,
+      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
 
-      const signatureInput = `${raw.header}.${raw.payload}`;
-      const signatureBytes = new Uint8Array(atob(raw.signature.replace(/-/g, '+').replace(/_/g, '/')).split('').map(c => c.charCodeAt(0)));
-      const dataBytes = new TextEncoder().encode(signatureInput);
+    const signatureInput = `${raw.header}.${raw.payload}`;
+    const signatureBytes = new Uint8Array(atob(raw.signature.replace(/-/g, '+').replace(/_/g, '/')).split('').map(c => c.charCodeAt(0)));
+    const dataBytes = new TextEncoder().encode(signatureInput);
 
-      const isValid = await crypto.subtle.verify(
-        'RSASSA-PKCS1-v1_5',
-        cryptoKey,
-        signatureBytes,
-        dataBytes
-      );
+    const isValid = await crypto.subtle.verify(
+      'RSASSA-PKCS1-v1_5',
+      cryptoKey,
+      signatureBytes,
+      dataBytes
+    );
 
-      if (!isValid) {
-        throw new Error('Invalid token signature.');
-      }
+    if (!isValid) {
+      throw new Error('Invalid token signature.');
     }
   } catch (verifyError) {
     console.error('Error during signature verification:', verifyError);
