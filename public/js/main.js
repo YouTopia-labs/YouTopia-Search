@@ -287,126 +287,99 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const updateUserUI = async (user) => {
         if (user) {
-            // --- Step 1: Update UI and store user data locally ---
-            // This part is synchronous and updates the UI immediately.
+            // User is signed in.
             userName.textContent = user.displayName;
             userProfilePic.src = user.photoURL;
             userInfo.style.display = 'flex';
             firebaseSignInButton.style.display = 'none';
             signoutButton.style.display = 'block';
-            historyButton.style.display = 'block';
+            historyButton.style.display = 'block'; // Show history button when signed in
             userDropdown.classList.add('signed-in');
 
-            // Store basic info, but wait for token
-            localStorage.setItem('user_name', user.displayName);
-            localStorage.setItem('user_email', user.email);
-            localStorage.setItem('user_profile_pic', user.photoURL);
-
-            // --- Step 2: Asynchronously get and store the ID token ---
-            // This is crucial. We get the token and store it, but we don't
-            // immediately make API calls that depend on it.
             try {
-                const idToken = await user.getIdToken();
+                const idToken = await user.getIdToken(true); // Force refresh the token
                 console.log('Firebase ID Token obtained and stored.');
                 localStorage.setItem('id_token', idToken);
+                localStorage.setItem('user_name', user.displayName);
+                localStorage.setItem('user_email', user.email);
+                localStorage.setItem('user_profile_pic', user.photoURL);
+
+                // Fetch user status from the worker to check for 20x plan
+                const userStatusResponse = await fetch(`${WORKER_BASE_URL}api/query-proxy`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: "check_user_status", // A dummy query type for status check
+                        user_name: user.displayName,
+                        user_email: user.email,
+                        id_token: idToken,
+                        api_target: "status_check", // A new API target for status
+                        api_payload: {}
+                    })
+                });
+
+                if (userStatusResponse.ok) {
+                    const statusData = await userStatusResponse.json();
+                    if (statusData.is_whitelisted_20x_plan) {
+                        const userStatusElement = document.getElementById('user-status');
+                        if (userStatusElement) {
+                            userStatusElement.textContent = '✨';
+                            userStatusElement.title = '20x Plus Plan User';
+                        }
+                    }
+                } else {
+                    console.error('Failed to fetch user status:', await userStatusResponse.text());
+                }
+
+                // Fetch and load conversation history
+                try {
+                    const historyResponse = await fetch(`${WORKER_BASE_URL}api/conversation-history?id_token=${idToken}`);
+                    if (historyResponse.ok) {
+                        const historyData = await historyResponse.json();
+                        if (historyData.success && historyData.history) {
+                            conversationManager.loadHistory(historyData.history);
+                            console.log('Conversation history loaded.');
+                        }
+                    } else {
+                        console.error('Failed to fetch conversation history:', await historyResponse.text());
+                    }
+                } catch (error) {
+                    console.error('Error fetching conversation history:', error);
+                }
+
             } catch (error) {
-                console.error('Error getting ID token:', error);
-                // If we can't get a token, something is wrong. Sign out.
+                console.error('Error getting ID token or user status:', error);
+                // Handle error, maybe sign the user out
                 window.firebaseSignOut();
             }
-
         } else {
-            // --- User is signed out ---
+            // User is signed out.
             userName.textContent = '';
             userProfilePic.src = '';
             userInfo.style.display = 'none';
             firebaseSignInButton.style.display = 'block';
             signoutButton.style.display = 'none';
-            historyButton.style.display = 'none';
+            historyButton.style.display = 'none'; // Hide history button when signed out
             userDropdown.classList.remove('signed-in');
 
             // Clear all user-related data from localStorage
             localStorage.removeItem('user_name');
             localStorage.removeItem('user_email');
             localStorage.removeItem('user_profile_pic');
-            localStorage.removeItem('id_token');
+            localStorage.removeItem('id_token'); // Remove the Firebase token
 
-            // Clear any premium status indicator
             const userStatusElement = document.getElementById('user-status');
             if (userStatusElement) {
-                userStatusElement.textContent = '';
+                userStatusElement.textContent = ''; // Clear status indicator
                 userStatusElement.title = '';
             }
         }
     };
 
-    // --- New function to fetch data AFTER authentication is confirmed ---
-    const fetchUserData = async () => {
-        const idToken = localStorage.getItem('id_token');
-        const userEmail = localStorage.getItem('user_email');
-
-        // Only proceed if the token and email are actually in storage
-        if (!idToken || !userEmail) {
-            console.log('User data fetch skipped: token or email not found in storage.');
-            return;
-        }
-
-        try {
-            // --- Fetch user status (20x plan) ---
-            const userStatusResponse = await fetch(`${WORKER_BASE_URL}api/query-proxy`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    query: "check_user_status",
-                    user_email: userEmail,
-                    id_token: idToken,
-                    api_target: "status_check",
-                    api_payload: {}
-                })
-            });
-
-            if (userStatusResponse.ok) {
-                const statusData = await userStatusResponse.json();
-                if (statusData.is_whitelisted_20x_plan) {
-                    const userStatusElement = document.getElementById('user-status');
-                    if (userStatusElement) {
-                        userStatusElement.textContent = '✨';
-                        userStatusElement.title = '20x Plus Plan User';
-                    }
-                }
-            } else {
-                console.error('Failed to fetch user status:', await userStatusResponse.text());
-            }
-
-            // --- Fetch conversation history (Temporarily Disabled) ---
-            // console.log("Conversation history fetching is temporarily disabled for debugging.");
-            /*
-            const historyResponse = await fetch(`${WORKER_BASE_URL}api/conversation-history?id_token=${idToken}`);
-            if (historyResponse.ok) {
-                const historyData = await historyResponse.json();
-                if (historyData.success && historyData.history) {
-                    conversationManager.loadHistory(historyData.history);
-                    console.log('Conversation history loaded.');
-                }
-            } else {
-                console.error('Failed to fetch conversation history:', await historyResponse.text());
-            }
-            */
-
-        } catch (error) {
-            console.error('Error fetching user data:', error);
-            // Don't sign out here, as it could be a temporary network issue.
-            // The user is still technically signed in from Firebase's perspective.
-        }
-    };
-
     // Firebase Auth state change listener
     window.firebaseAuth.onAuthStateChanged(async (user) => {
-        await updateUserUI(user); // Update UI and store token first
-
+        await updateUserUI(user);
         if (user) {
-            // NOW that the UI is updated and token is stored, fetch data
-            await fetchUserData();
             hidePopup(signinRequiredPopupOverlay); // Hide sign-in popup if it was open
         }
     });

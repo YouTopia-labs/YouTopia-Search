@@ -121,8 +121,8 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
 
   const timeoutPromise = new Promise((_, reject) => {
     setTimeout(() => {
-      reject(new Error('Request timeout: Mistral API took too long to respond (60 seconds)'));
-    }, 60000);
+      reject(new Error('Request timeout: Mistral API took too long to respond (30 seconds)'));
+    }, 30000);
   });
 
   try {
