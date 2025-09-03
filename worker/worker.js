@@ -2,6 +2,7 @@
 const allowedOrigins = [
   'https://youtopia.co.in',
   'https://youtopia-search-e7z.pages.dev',
+  'https://5ff15d82.youtopia-search-e7z.pages.dev', // New deployment URL
   'https://youtopia-worker.youtopialabs.workers.dev',
   'http://localhost:8788', // For local development with wrangler
   'http://127.0.0.1:8788'
@@ -286,16 +287,9 @@ async function getPublicKeys() {
       return keys;
     }
   } catch (e) {
-    console.log('Firebase endpoint failed, trying Google OAuth endpoint');
+    console.error('Failed to fetch public keys from Firebase endpoint:', e);
+    throw new Error('Failed to fetch public keys from Firebase endpoint.');
   }
-
-  const googleUrl = 'https://www.googleapis.com/oauth2/v3/certs';
-  const googleResponse = await fetch(googleUrl);
-  if (!googleResponse.ok) {
-    throw new Error('Failed to fetch public keys from both endpoints');
-  }
-  const certs = await googleResponse.json();
-  return certs.keys.map(key => ({ ...key, source: 'google' }));
 }
 
 async function verifyGoogleToken(id_token, env) {
