@@ -383,7 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         google.accounts.id.initialize({
-            client_id: '834501863463-o2s52b572l3p5n1ifd9l3e1s8qj7h8s6.apps.googleusercontent.com',
+            client_id: '450557144881-necfmjts3gdvkp5o6a7dsar6o34ns2mf.apps.googleusercontent.com',
             callback: handleCredentialResponse,
             auto_select: true
         });
