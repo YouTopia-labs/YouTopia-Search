@@ -272,36 +272,29 @@ function decodeJwt(token) {
 }
 
 async function getPublicKeys() {
-    // This function fetches Google's public keys and transforms them into a JWK format.
     const response = await fetch('https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com');
     if (!response.ok) {
-        throw new Error('Failed to fetch public keys.');
+        throw new Error('Failed to fetch public keys from Google.');
     }
     const certs = await response.json();
-    const keys = [];
-
+    const keys = {};
     for (const [kid, cert] of Object.entries(certs)) {
-        // The certificate is in PEM format. We need to extract the key data.
+        // The certificate is in PEM format. We need to extract the DER-encoded public key.
         const pem = cert.replace(/-----BEGIN CERTIFICATE-----/, '')
                         .replace(/-----END CERTIFICATE-----/, '')
-                        .replace(/\n/g, '');
+                        .replace(/\s/g, ''); // Use regex to remove all whitespace
         const buffer = Uint8Array.from(atob(pem), c => c.charCodeAt(0));
         
-        // This is a simplified way to parse the ASN.1 structure of an X.509 certificate
-        // to get the public key (modulus and exponent). A more robust library would be
-        // better for production, but for this specific use case, it works.
-        // The goal is to find the start of the SubjectPublicKeyInfo block.
-        const subjectPublicKeyInfo = new Uint8Array(buffer).slice(29);
-        const keyData = new Uint8Array(subjectPublicKeyInfo).slice(15);
-        const modulus = new Uint8Array(keyData).slice(5);
-        const exponent = new Uint8Array(keyData).slice(modulus.length + 6);
-
-        keys.push({
-            kid: kid,
-            kty: 'RSA',
-            n: btoa(String.fromCharCode.apply(null, modulus)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
-            e: btoa(String.fromCharCode.apply(null, exponent)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
-        });
+        // Import the certificate as a CryptoKey object using the standard Web Crypto API.
+        // This is the robust way to handle X.509 certificates.
+        const cryptoKey = await crypto.subtle.importKey(
+            'spki', // SubjectPublicKeyInfo format
+            buffer,
+            { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+            true, // extractable
+            ['verify']
+        );
+        keys[kid] = cryptoKey;
     }
     return keys;
 }
@@ -337,36 +330,22 @@ async function verifyGoogleToken(id_token, env) {
   console.log("Available public keys:", keys.map(k => ({ kid: k.kid, source: k.source })));
   console.log("Looking for key with kid:", header.kid);
   
-  const key = keys.find(k => k.kid === header.kid);
-  if (!key) {
-    console.error("Public key not found. Available keys:", keys.map(k => k.kid));
-    console.error("Token header kid:", header.kid);
-    throw new Error(`Public key not found for token. Available keys: ${keys.map(k => k.kid).join(', ')}. Token kid: ${header.kid}`);
+  const cryptoKey = keys[header.kid];
+  if (!cryptoKey) {
+    console.error("Public key not found for kid:", header.kid);
+    throw new Error(`Public key not found for token. Available key IDs: ${Object.keys(keys).join(', ')}`);
   }
 
   try {
-    console.log('Verifying token signature...');
-    const jwk = {
-      kty: key.kty,
-      n: key.n,
-      e: key.e,
-    };
-
-    const cryptoKey = await crypto.subtle.importKey(
-      'jwk',
-      jwk,
-      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-      false,
-      ['verify']
-    );
-
+    console.log('Verifying token signature with imported CryptoKey...');
+    
     const signatureInput = `${raw.header}.${raw.payload}`;
     const signatureBytes = new Uint8Array(atob(raw.signature.replace(/-/g, '+').replace(/_/g, '/')).split('').map(c => c.charCodeAt(0)));
     const dataBytes = new TextEncoder().encode(signatureInput);
 
     const isValid = await crypto.subtle.verify(
       'RSASSA-PKCS1-v1_5',
-      cryptoKey,
+      cryptoKey, // Use the directly imported CryptoKey
       signatureBytes,
       dataBytes
     );
