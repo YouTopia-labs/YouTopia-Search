@@ -229,22 +229,32 @@ async function proxyMistral(request, api_payload, env) {
         });
     }
 
-    // Implement a TransformStream for real-time, immediate flushing of tokens.
-    // This ensures that data is sent to the client as soon as it's received,
-    // with no buffering, providing the fastest possible streaming experience.
-    console.log('Rushing Mistral stream to client with immediate flushing.');
+    // When streaming is enabled, we use a TransformStream to ensure that
+    // data is sent to the client with no buffering, providing the fastest
+    // possible real-time experience.
+    if (api_payload.body.stream) {
+        console.log('Rushing Mistral stream to client with immediate flushing.');
 
-    const { readable, writable } = new TransformStream();
-    mistralResponse.body.pipeTo(writable);
+        const { readable, writable } = new TransformStream({
+            transform(chunk, controller) {
+                controller.enqueue(chunk);
+            },
+            flush(controller) {
+                controller.terminate();
+            },
+        });
 
-    // Log final response details for debugging in a single entry
-    console.log('--- FINAL MISTRAL PROXY RESPONSE ---', {
-        status: mistralResponse.status,
-        statusText: mistralResponse.statusText,
-        headers: Object.fromEntries(responseHeaders.entries())
-    });
+        mistralResponse.body.pipeTo(writable);
 
-    return new Response(readable, {
+        return new Response(readable, {
+            status: mistralResponse.status,
+            statusText: mistralResponse.statusText,
+            headers: responseHeaders,
+        });
+    }
+
+    // For non-streaming requests, return the response directly.
+    return new Response(mistralResponse.body, {
       status: mistralResponse.status,
       statusText: mistralResponse.statusText,
       headers: responseHeaders,

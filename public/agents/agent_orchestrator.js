@@ -101,18 +101,12 @@ async function fetchWithProxy(api_target, api_payload, query, userName, userLoca
   return response.json();
 }
 
-export async function callAgent(model, prompt, input, retryCount = 0, streamCallback = null, query, userName, userLocalTime, conversationHistory = null) {
-  // console.log(`Calling agent with model: ${model}, input:`, input);
+export async function callAgent(model, prompt, input, retryCount = 0, streamCallback = null, query, userName, userLocalTime, conversationHistory = null, isStreaming = false) {
   const maxRetries = 2;
-
-  if (streamCallback) {
-    // console.log("Streaming enabled.");
-  }
 
   let messages = [
     { role: 'system', content: prompt }
   ];
-
 
   if (input) {
     const userInputContent = typeof input === 'string' ? input : JSON.stringify(input);
@@ -132,7 +126,7 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
         messages: messages,
         temperature: 0.5,
         max_tokens: 6000,
-        stream: true
+        stream: isStreaming
       }
     };
 
@@ -152,74 +146,68 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
       throw new Error(`Mistral API error: ${response.status} - ${errorData.message || response.statusText}`);
     }
 
-    // Check if response body exists
     if (!response.body) {
       throw new Error('Empty response body from Mistral API');
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let content = ''; // To accumulate the full response for non-streaming returns
+    if (isStreaming) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let content = '';
 
-    const processLine = (line) => {
-        if (line.startsWith('data: ')) {
-            const jsonStr = line.substring(6);
-            if (jsonStr.trim() === '[DONE]') {
-                return;
-            }
-            try {
-                const parsed = JSON.parse(jsonStr);
-                if (parsed.choices && parsed.choices[0].delta && parsed.choices[0].delta.content !== undefined) {
-                    const chunk = parsed.choices[0].delta.content;
-                    content += chunk;
-                    if (streamCallback) {
-                        streamCallback(chunk);
-                    }
-                }
-            } catch (e) {
-                console.error('Error parsing stream chunk:', e, 'Line:', line);
-            }
-        }
-    };
-    
-    // Read the stream
-    while (true) {
-        const { value, done } = await reader.read();
-        if (done) {
-            if (buffer) { // Process any remaining data in the buffer
-                processLine(buffer);
-            }
-            break;
-        }
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        
-        // Process all complete lines, keep the last partial line in the buffer
-        for (let i = 0; i < lines.length - 1; i++) {
-            processLine(lines[i]);
-        }
-        buffer = lines[lines.length - 1];
+      const processLine = (line) => {
+          if (line.startsWith('data: ')) {
+              const jsonStr = line.substring(6);
+              if (jsonStr.trim() === '[DONE]') {
+                  return;
+              }
+              try {
+                  const parsed = JSON.parse(jsonStr);
+                  if (parsed.choices && parsed.choices[0].delta && parsed.choices[0].delta.content !== undefined) {
+                      const chunk = parsed.choices[0].delta.content;
+                      content += chunk;
+                      if (streamCallback) {
+                          streamCallback(chunk);
+                      }
+                  }
+              } catch (e) {
+                  console.error('Error parsing stream chunk:', e, 'Line:', line);
+              }
+          }
+      };
+      
+      while (true) {
+          const { value, done } = await reader.read();
+          if (done) {
+              if (buffer) {
+                  processLine(buffer);
+              }
+              break;
+          }
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          
+          for (let i = 0; i < lines.length - 1; i++) {
+              processLine(lines[i]);
+          }
+          buffer = lines[lines.length - 1];
+      }
+
+      if (!content.trim()) {
+        throw new Error('No content received from Mistral API');
+      }
+
+      return content;
+    } else {
+      // Handle non-streaming response
+      const jsonResponse = await response.json();
+      if (jsonResponse.choices && jsonResponse.choices[0] && jsonResponse.choices[0].message) {
+        return jsonResponse.choices[0].message.content;
+      } else {
+        throw new Error('Invalid non-streaming response format from Mistral API');
+      }
     }
-
-    // Check if we got any content
-    if (!content.trim()) {
-      throw new Error('No content received from Mistral API');
-    }
-
-    // For Agent 1, validate JSON format before returning
-    // If Agent 3 and streaming, skip JSON validation here as partials won't be valid
-    // Validation and retry logic has been moved to orchestrateAgents
-    
-    // If Agent 3 and streaming, the final response is sent via callback.
-    // The content returned here might include the sources block, which needs to be handled.
-    if (streamCallback) {
-        // console.log("Streaming: callAgent returning full content for post-processing.");
-        return content;
-    }
-
-    // console.log("callAgent returning content:", content.substring(0, 100) + (content.length > 100 ? '...' : '')); // Log first 100 chars
-    return content;
 
   } catch (error) {
     // Check if the thrown error is the 429 Response object. If so, re-throw it for main.js to handle.
@@ -440,7 +428,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
         currentPrompt = `${agent1SystemPrompt(false)}\n\nYour previous response was not valid JSON and could not be parsed. Please review the following error and the malformed response, then provide a corrected and valid JSON object. Do not include any text or markdown formatting outside of the JSON object.\n\nMalformed Response:\n${agent1ResponseRaw}`;
       }
 
-      agent1ResponseRaw = await callAgent(agent1Model, currentPrompt, currentInput, 0, null, userQuery, userName, userLocalTime, null);
+      agent1ResponseRaw = await callAgent(agent1Model, currentPrompt, currentInput, 0, null, userQuery, userName, userLocalTime, null, false);
 
     if (agent1ResponseRaw instanceof Response && !agent1ResponseRaw.ok) {
         if (agent1ResponseRaw.status === 429) {
@@ -491,7 +479,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
       // We can achieve this by modifying the system prompt for this specific call.
       const directAgent3SystemPrompt = agent3SystemPrompt(isShortResponseEnabled).replace('---END_OF_ANSWER---', '');
 
-      const finalResponse = await callAgent(agent3Model, directAgent3SystemPrompt, { rawQuery: userQuery, query: queryForAgent3, classification: classification, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime, null);
+      const finalResponse = await callAgent(agent3Model, directAgent3SystemPrompt, { rawQuery: userQuery, query: queryForAgent3, classification: classification, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime, null, true);
       
       // console.log("Final Response Generated by Agent 3. Value from callAgent:", finalResponse);
       if (streamCallback) {
@@ -584,7 +572,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
             serper_results: webSearchResults.map(r => ({ title: r.title, link: r.link, snippet: r.snippet }))
           };
 
-          const agent2ResponseRaw = await callAgent(agent2Model, agent2SystemPrompt, agent2Input, 0, null, userQuery, userName, userLocalTime, null);
+          const agent2ResponseRaw = await callAgent(agent2Model, agent2SystemPrompt, agent2Input, 0, null, userQuery, userName, userLocalTime, null, false);
           const agent2Response = safeParse(agent2ResponseRaw, true);
 
           console.log("Agent Response:", agent2Response);
@@ -635,7 +623,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
       };
 
       // console.log("Sending combined data to Agent 3:", dataForAgent3);
-      const finalResponse = await callAgent(agent3Model, agent3SystemPrompt(isShortResponseEnabled), { ...dataForAgent3, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime, null);
+      const finalResponse = await callAgent(agent3Model, agent3SystemPrompt(isShortResponseEnabled), { ...dataForAgent3, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime, null, true);
 
       return { finalResponse, sources: allSources };
     }
@@ -645,4 +633,4 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
     // console.log(`Agent 1 returned an unhandled action or classification: ${action || classification}.`);
     return "An unexpected error occurred during orchestration.";
   }
-}
+}d
