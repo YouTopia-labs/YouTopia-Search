@@ -1290,23 +1290,94 @@ Generated on: ${currentDate}
             // Scroll to the top of the results container
             resultsContainer.scrollTo({ top: 0, behavior: 'smooth' });
 
-            // --- Direct-to-DOM Stream Rendering ---
+            // --- Ultra-Fast Real-time Character-by-Character Streaming ---
             let accumulatedContent = '';
+            let textBuffer = '';
+            let lastRenderedContent = '';
+            let renderTimeout = null;
+            let isTyping = false;
+            
+            // Ultra-fast streaming callback for immediate character display
             const streamCallback = (chunk) => {
                 // Add new chunk to accumulated content
                 accumulatedContent += chunk;
                 currentResponseContent = accumulatedContent;
-
-                // Parse the accumulated content with marked
-                const parsedContent = marked.parse(accumulatedContent);
-
-                // Update the DOM with the new content
-                aiResponseElement.innerHTML = parsedContent;
-
-                // Auto-scroll to keep the latest content in view
+                
+                // Process each character individually for real-time display
+                for (let char of chunk) {
+                    textBuffer += char;
+                    
+                    // Render immediately for fast, responsive display
+                    if (!isTyping) {
+                        isTyping = true;
+                        renderCharacterByCharacter();
+                    }
+                }
+            };
+            
+            // Character-by-character rendering with debounced markdown parsing
+            const renderCharacterByCharacter = () => {
+                // Clear any existing timeout
+                if (renderTimeout) {
+                    clearTimeout(renderTimeout);
+                }
+                
+                // Immediate text update for typing effect
+                updateLiveText();
+                
+                // Debounced markdown parsing for performance
+                renderTimeout = setTimeout(() => {
+                    parseAndRenderMarkdown();
+                    isTyping = false;
+                }, 16); // ~60fps for smooth rendering
+            };
+            
+            // Update live text without markdown parsing for instant feedback
+            const updateLiveText = () => {
+                if (textBuffer !== lastRenderedContent) {
+                    // Create a simple text display for immediate feedback
+                    const plainText = textBuffer
+                        .replace(/#{1,6}\s+/g, '') // Remove headers
+                        .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
+                        .replace(/\*(.*?)\*/g, '$1') // Remove italic
+                        .replace(/`(.*?)`/g, '$1') // Remove inline code
+                        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove links, keep text
+                        .replace(/```[\s\S]*?```/g, '[Code Block]'); // Replace code blocks
+                    
+                    // Show plain text with typing indicator
+                    aiResponseElement.innerHTML = `<div class="typing-indicator">${plainText}<span class="cursor">|</span></div>`;
+                    lastRenderedContent = textBuffer;
+                    
+                    // Auto-scroll to keep the latest content in view
+                    resultsContainer.scrollTo({
+                        top: resultsContainer.scrollHeight,
+                        behavior: 'auto'
+                    });
+                }
+            };
+            
+            // Parse and render markdown with optimized performance
+            const parseAndRenderMarkdown = () => {
+                try {
+                    const parsedContent = marked.parse(textBuffer);
+                    
+                    // Only update DOM if content has changed
+                    if (parsedContent !== aiResponseElement.innerHTML.replace(/<div class="typing-indicator">(.+?)<\/div>/s, '$1').replace('<span class="cursor">|</span>', '')) {
+                        aiResponseElement.innerHTML = parsedContent;
+                        
+                        // Apply syntax highlighting to any code blocks
+                        renderCodeHighlighting(aiResponseElement);
+                    }
+                } catch (error) {
+                    console.error('Markdown parsing error:', error);
+                    // Fallback to plain text display
+                    aiResponseElement.innerHTML = `<div class="error-message">Rendering error. Showing plain text:<br><br>${textBuffer.replace(/</g, '<').replace(/>/g, '>')}</div>`;
+                }
+                
+                // Final auto-scroll to ensure latest content is visible
                 resultsContainer.scrollTo({
                     top: resultsContainer.scrollHeight,
-                    behavior: 'auto' // Use 'auto' for instant scroll without smooth animation
+                    behavior: 'auto'
                 });
             };
 
