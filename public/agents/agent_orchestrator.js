@@ -414,11 +414,11 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
       query: userQuery,
     };
 
-    // If we have conversation history, add condensed context
-    if (conversationHistory && conversationHistory.summary) {
-      agent1Input.context = conversationHistory.summary;
-      agent1Input.recent_context = conversationHistory.recent_interactions;
-    }
+    // // If we have conversation history, add condensed context (DISABLED)
+    // if (conversationHistory && conversationHistory.summary) {
+    //   agent1Input.context = conversationHistory.summary;
+    //   agent1Input.recent_context = conversationHistory.recent_interactions;
+    // }
 
     // console.log("Agent 1: Deciding next action...");
 
@@ -431,13 +431,13 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
       attempt++;
       // console.log(`Agent 1: Attempt ${attempt} to get a valid JSON response.`);
       
-      let currentPrompt = agent1SystemPrompt(conversationHistory && conversationHistory.length > 0);
+      let currentPrompt = agent1SystemPrompt(false); // History disabled
       let currentInput = agent1Input;
 
       if (attempt > 1 && agent1ResponseRaw) {
         // If this is a retry, modify the prompt to ask for a fix
         // console.log("Retrying with a request to fix the malformed JSON.");
-        currentPrompt = `${agent1SystemPrompt(conversationHistory && conversationHistory.length > 0)}\n\nYour previous response was not valid JSON and could not be parsed. Please review the following error and the malformed response, then provide a corrected and valid JSON object. Do not include any text or markdown formatting outside of the JSON object.\n\nMalformed Response:\n${agent1ResponseRaw}`;
+        currentPrompt = `${agent1SystemPrompt(false)}\n\nYour previous response was not valid JSON and could not be parsed. Please review the following error and the malformed response, then provide a corrected and valid JSON object. Do not include any text or markdown formatting outside of the JSON object.\n\nMalformed Response:\n${agent1ResponseRaw}`;
       }
 
       agent1ResponseRaw = await callAgent(agent1Model, currentPrompt, currentInput, 0, null, userQuery, userName, userLocalTime, null);

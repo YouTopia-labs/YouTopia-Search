@@ -2,13 +2,13 @@ import { orchestrateAgents } from '../agents/agent_orchestrator.js';
 import { renderTable, renderChart, parseChartConfig } from './render_tools.js';
 import { updateChartsTheme } from './chart_utils.js';
 import { parseChartConfig as safeParseChartConfig, parseTableConfig } from './json_utils.js';
-import ConversationManager from './conversation_manager.js';
+// import ConversationManager from './conversation_manager.js'; // History disabled
 
 const WORKER_BASE_URL = 'https://youtopia-worker.youtopialabs.workers.dev/';
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize conversation manager
-    const conversationManager = new ConversationManager();
+    // const conversationManager = new ConversationManager(); // History disabled
 
     // Dynamic cursor alignment function
     const alignCursorWithPlaceholder = (textareaId) => {
@@ -331,21 +331,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error('Failed to fetch user status:', await userStatusResponse.text());
                 }
 
-                // Fetch and load conversation history
-                try {
-                    const historyResponse = await fetch(`${WORKER_BASE_URL}api/conversation-history?id_token=${idToken}`);
-                    if (historyResponse.ok) {
-                        const historyData = await historyResponse.json();
-                        if (historyData.success && historyData.history) {
-                            conversationManager.loadHistory(historyData.history);
-                            console.log('Conversation history loaded.');
-                        }
-                    } else {
-                        console.error('Failed to fetch conversation history:', await historyResponse.text());
-                    }
-                } catch (error) {
-                    console.error('Error fetching conversation history:', error);
-                }
+                // // Fetch and load conversation history (DISABLED)
+                // try {
+                //     const historyResponse = await fetch(`${WORKER_BASE_URL}api/conversation-history?id_token=${idToken}`);
+                //     if (historyResponse.ok) {
+                //         const historyData = await historyResponse.json();
+                //         if (historyData.success && historyData.history) {
+                //             // conversationManager.loadHistory(historyData.history); // History disabled
+                //             // console.log('Conversation history loaded.');
+                //         }
+                //     } else {
+                //         console.error('Failed to fetch conversation history:', await historyResponse.text());
+                //     }
+                // } catch (error) {
+                //     console.error('Error fetching conversation history:', error);
+                // }
 
             } catch (error) {
                 console.error('Error getting ID token or user status:', error);
@@ -451,8 +451,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
    // --- History Modal Functions ---
    const showHistoryModal = () => {
-       // Get conversation history from the conversation manager
-       const history = conversationManager.getUserHistory();
+       // Get conversation history from the conversation manager (DISABLED)
+       const history = []; // History disabled
        
        // Clear the history list
        historyList.innerHTML = '';
@@ -536,8 +536,8 @@ document.addEventListener('DOMContentLoaded', () => {
            body.classList.add('search-active');
        }
        
-       // Update the conversation manager with this item
-       conversationManager.addInteraction(item.query, item.response, item.sources || []);
+       // Update the conversation manager with this item (DISABLED)
+       // conversationManager.addInteraction(item.query, item.response, item.sources || []);
    };
 
    // Initial UI update on page load
@@ -1214,12 +1214,11 @@ Generated on: ${currentDate}
 
         if (!query.trim()) return;
 
-        // Add query to conversation history
-        conversationManager.addUserQuery(query);
+        // Add query to conversation history (DISABLED)
+        // conversationManager.addUserQuery(query);
         
-        // Get conversation history (chat context only)
-        // Get a condensed summary and the last 2 interactions for context
-        const condensedHistory = conversationManager.getCondensedHistory();
+        // Get conversation history (chat context only) (DISABLED)
+        const condensedHistory = null; // History disabled
 
         // Clear previous results for every query to treat it as a new one
         resultsContainer.innerHTML = '';
@@ -1321,8 +1320,8 @@ Generated on: ${currentDate}
             try {
                 const { finalResponse, sources } = await orchestrateAgents(query, userName, userLocalTime, selectedModel, streamCallback, logCallback, isShortResponseEnabled, condensedHistory);
 
-                // Add interaction to conversation history
-                conversationManager.addInteraction(query, finalResponse, sources);
+                // Add interaction to conversation history (DISABLED)
+                // conversationManager.addInteraction(query, finalResponse, sources);
 
                 // --- Final Processing Step ---
                 // This code runs after the entire stream is finished to ensure everything is perfect.
