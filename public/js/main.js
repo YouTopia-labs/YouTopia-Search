@@ -1292,31 +1292,21 @@ Generated on: ${currentDate}
 
             // --- Direct-to-DOM Stream Rendering ---
             let accumulatedContent = '';
-            let lastUpdateTime = 0;
-            const MIN_UPDATE_INTERVAL = 16; // ~60fps
-            
             const streamCallback = (chunk) => {
                 // Add new chunk to accumulated content
                 accumulatedContent += chunk;
                 currentResponseContent = accumulatedContent;
-                
-                // Throttle updates to maintain performance while keeping the streaming feel
-                const now = Date.now();
-                if (now - lastUpdateTime < MIN_UPDATE_INTERVAL) {
-                    return;
-                }
-                lastUpdateTime = now;
-                
+
                 // Parse the accumulated content with marked
                 const parsedContent = marked.parse(accumulatedContent);
-                
+
                 // Update the DOM with the new content
                 aiResponseElement.innerHTML = parsedContent;
-                
+
                 // Auto-scroll to keep the latest content in view
                 resultsContainer.scrollTo({
                     top: resultsContainer.scrollHeight,
-                    behavior: 'smooth'
+                    behavior: 'auto' // Use 'auto' for instant scroll without smooth animation
                 });
             };
 
