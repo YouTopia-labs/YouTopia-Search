@@ -1513,6 +1513,9 @@ Generated on: ${currentDate}
        // Update the global content for export functions
        currentResponseContent = mainAnswer;
 
+       // Render the final main answer content
+       aiResponseElement.innerHTML = marked.parse(mainAnswer);
+
        // Now, find and render all charts and tables from the final content
        aiResponseElement.querySelectorAll('pre code.language-chart').forEach((codeBlock, index) => {
             const chartContainerId = `chart-container-${Date.now()}-${index}`;
