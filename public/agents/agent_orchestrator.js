@@ -113,11 +113,6 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
     messages.push({ role: 'user', content: userInputContent });
   }
 
-  const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => {
-      reject(new Error('Request timeout: Mistral API took too long to respond (30 seconds)'));
-    }, 30000);
-  });
 
   try {
     const api_payload = {
@@ -130,8 +125,7 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
       }
     };
 
-    const fetchPromise = fetchWithProxy('mistral', api_payload, query, userName, userLocalTime);
-    const response = await Promise.race([fetchPromise, timeoutPromise]);
+    const response = await fetchWithProxy('mistral', api_payload, query, userName, userLocalTime);
 
     if (!response.ok) {
         if (response.status === 429) {

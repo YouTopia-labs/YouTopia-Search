@@ -1503,8 +1503,8 @@ Generated on: ${currentDate}
        // Update the global content for export functions
        currentResponseContent = mainAnswer;
 
-       // Render the final main answer content
-       aiResponseElement.innerHTML = marked.parse(mainAnswer);
+       // The main answer is already rendered by the streamCallback.
+       // This function will now only handle post-processing like charts, tables, and sources.
 
        // Now, find and render all charts and tables from the final content
        aiResponseElement.querySelectorAll('pre code.language-chart').forEach((codeBlock, index) => {
