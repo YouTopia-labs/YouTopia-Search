@@ -394,7 +394,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
   const agentConfig = selectAgents(agentSelectionType);
   const agent1Model = 'mistral-small-latest';
   const agent2Model = 'mistral-small-latest';
-  const agent3Model = agentConfig.agent3.model;
+  const agent3Model = 'mistral-small-latest';
 
   let allSearchResults = [];
   let allSources = [];

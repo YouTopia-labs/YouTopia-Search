@@ -197,6 +197,14 @@ async function proxyMistral(request, api_payload, env) {
     console.log('--- MISTRAL INITIAL CHUNK ---');
     console.log(initialChunk);
 
+    if (!initialChunk) {
+        console.error('Mistral API returned a completely empty response body.');
+        return new Response(JSON.stringify({ error: 'The Mistral API returned a completely empty response. This is often due to an invalid API key, a billing issue, or a server-side problem with the API.' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        });
+    }
+
     // Check if the initial chunk contains an error object
     try {
         const parsedChunk = JSON.parse(initialChunk);
