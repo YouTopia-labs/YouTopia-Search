@@ -1283,7 +1283,6 @@ Generated on: ${currentDate}
                 });
             }
 
-            let aiResponseContent = ''; // Accumulate streamed content here
             const aiResponseElement = document.createElement('div');
             aiResponseElement.classList.add('ai-response');
             resultsContainer.appendChild(aiResponseElement);
@@ -1339,7 +1338,7 @@ Generated on: ${currentDate}
                 // --- Final Processing Step ---
                 // This code runs after the entire stream is finished to ensure everything is perfect.
                 // The stream processing now handles live updates, so we just do a final cleanup.
-                processFinalResponse(aiResponseElement, aiResponseContent, sources);
+                processFinalResponse(aiResponseElement, finalResponse, sources);
                 
                 // For follow-up queries, scroll to the new content when response is complete
                 if (body.classList.contains('search-active')) {
