@@ -1296,7 +1296,7 @@ Generated on: ${currentDate}
             let textBuffer = '';
             let lastRenderedContent = '';
             let renderTimeout = null;
-            let isTyping = false;
+            // isTyping variable removed - now using direct rendering without state tracking
             let completedBlocks = new Set(); // Track completed code blocks
             let blockCounter = 0; // Counter for unique block IDs
             
@@ -1317,16 +1317,19 @@ Generated on: ${currentDate}
                     renderCompletedBlocks(completedBlocks);
                 }
                 
-                // Process each character individually for real-time display
-                for (let char of chunk) {
-                    textBuffer += char;
-                    
-                    // Render immediately for fast, responsive display
-                    if (!isTyping) {
-                        isTyping = true;
-                        renderCharacterByCharacter();
-                    }
+                // Add chunk directly to text buffer
+                textBuffer += chunk;
+                
+                // Immediate character rendering - no buffering or delays
+                updateLiveText();
+                
+                // Trigger enhanced markdown parsing with minimal delay
+                if (renderTimeout) {
+                    clearTimeout(renderTimeout);
                 }
+                renderTimeout = setTimeout(() => {
+                    parseAndRenderMarkdownEnhanced();
+                }, 1); // Minimal 1ms delay for batching
             };
             
             // Render completed markdown blocks with animations
@@ -1472,22 +1475,7 @@ Generated on: ${currentDate}
                 }
             };
             
-            // Character-by-character rendering with enhanced markdown parsing
-            const renderCharacterByCharacter = () => {
-                // Clear any existing timeout
-                if (renderTimeout) {
-                    clearTimeout(renderTimeout);
-                }
-                
-                // Immediate text update for typing effect
-                updateLiveText();
-                
-                // Enhanced markdown parsing with real-time rendering
-                renderTimeout = setTimeout(() => {
-                    parseAndRenderMarkdownEnhanced();
-                    isTyping = false;
-                }, 4); // Optimized for ultra-fast rendering
-            };
+            // Note: renderCharacterByCharacter function removed - now using direct updateLiveText() calls for immediate rendering
             
             // Enhanced live text update with smart markdown parser
             const updateLiveText = () => {
