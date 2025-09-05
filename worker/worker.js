@@ -127,10 +127,10 @@ async function proxySerper(api_payload, env) {
   }
 }
 
-async function proxyMistral(api_payload, env) {
-  const mistralApiKey = "oYOiUoNbtUF4eIOlEPV9yAMTAjXVkUrn";
+async function proxyMistral(request, api_payload, env) {
+  const mistralApiKey = env.MISTRAL_API_KEY; // Fetch from environment variables
   if (!mistralApiKey) {
-    return new Response(JSON.stringify({ error: 'MISTRAL_API_KEY not set in environment variables' }), {
+    return new Response(JSON.stringify({ error: 'MISTRAL_API_KEY is not set in environment variables.' }), {
       status: 500,
       headers: {
         'Content-Type': 'application/json',
@@ -141,15 +141,23 @@ async function proxyMistral(api_payload, env) {
 
   try {
     const mistralApiUrl = 'https://api.mistral.ai/v1/chat/completions';
-    console.log('Proxying to Mistral with payload:', JSON.stringify(api_payload, null, 2));
-     const responseHeaders = new Headers({
+    
+    // Enhanced logging for debugging
+    console.log('--- MISTRAL PROXY ---');
+    console.log('Received api_payload:', JSON.stringify(api_payload, null, 2));
+    
+    const responseHeaders = new Headers({
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
       'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Allow-Origin': '*',
     });
+
+    const origin = request.headers.get('Origin');
+    if (origin && allowedOrigins.includes(origin)) {
+      responseHeaders.set('Access-Control-Allow-Origin', origin);
+    }
     
     const mistralResponse = await fetch(mistralApiUrl, {
       method: 'POST',
@@ -160,9 +168,15 @@ async function proxyMistral(api_payload, env) {
       body: JSON.stringify(api_payload.body),
     });
 
+    // Enhanced logging for debugging the response
+    console.log('--- MISTRAL RESPONSE ---');
+    console.log('Status:', mistralResponse.status);
+    console.log('Status Text:', mistralResponse.statusText);
+    console.log('Headers:', JSON.stringify(Object.fromEntries(mistralResponse.headers.entries())));
+
     if (!mistralResponse.ok) {
       const errorText = await mistralResponse.text();
-      console.error('Mistral API error response:', errorText);
+      console.error('Mistral API error response body:', errorText);
       
       return new Response(errorText || JSON.stringify({ error: `Mistral API error: ${mistralResponse.status}` }), {
         status: mistralResponse.status,
@@ -173,12 +187,55 @@ async function proxyMistral(api_payload, env) {
       });
     }
 
-    // Use a TransformStream to ensure true streaming pass-through.
-    const { readable, writable } = new TransformStream();
-    mistralResponse.body.pipeTo(writable);
+    // Buffer the initial part of the response to check for errors
+    const reader = mistralResponse.body.getReader();
+    const { value, done } = await reader.read();
+    const decoder = new TextDecoder();
+    const initialChunk = decoder.decode(value);
 
+    // Log the initial chunk for debugging
+    console.log('--- MISTRAL INITIAL CHUNK ---');
+    console.log(initialChunk);
 
-    return new Response(readable, {
+    // Check if the initial chunk contains an error object
+    try {
+        const parsedChunk = JSON.parse(initialChunk);
+        if (parsedChunk.error) {
+            console.error('Mistral API returned a JSON error:', parsedChunk.error);
+            return new Response(JSON.stringify(parsedChunk), {
+                status: 400, // Or another appropriate error code
+                headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+            });
+        }
+    } catch (e) {
+        // Not a JSON error, proceed with streaming
+    }
+
+    // Reconstruct the stream
+    const stream = new ReadableStream({
+        start(controller) {
+            // Enqueue the initial chunk we already read
+            controller.enqueue(value);
+
+            // Continue reading from the original stream
+            function push() {
+                reader.read().then(({ done, value }) => {
+                    if (done) {
+                        controller.close();
+                        return;
+                    }
+                    controller.enqueue(value);
+                    push();
+                }).catch(error => {
+                    console.error('Error reading from stream:', error);
+                    controller.error(error);
+                });
+            }
+            push();
+        }
+    });
+
+    return new Response(stream, {
       status: mistralResponse.status,
       statusText: mistralResponse.statusText,
       headers: responseHeaders,
@@ -485,7 +542,7 @@ async function handleQueryProxy(request, env) {
           proxyResponse = await proxySerper(api_payload, env);
           break;
         case 'mistral':
-          proxyResponse = await proxyMistral(api_payload, env);
+          proxyResponse = await proxyMistral(request, api_payload, env);
           break;
         case 'coingecko':
           proxyResponse = await proxyCoingecko(api_payload, env);
@@ -600,7 +657,7 @@ Thank you for your support, it truly makes a difference to allow this project to
         proxyResponse = await proxySerper(api_payload, env);
         break;
       case 'mistral':
-        proxyResponse = await proxyMistral(api_payload, env);
+        proxyResponse = await proxyMistral(request, api_payload, env);
         break;
       case 'coingecko':
         proxyResponse = await proxyCoingecko(api_payload, env);
