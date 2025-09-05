@@ -1292,15 +1292,28 @@ Generated on: ${currentDate}
             resultsContainer.scrollTo({ top: 0, behavior: 'smooth' });
 
             // --- Direct-to-DOM Stream Rendering ---
+            let accumulatedContent = '';
+            let lastUpdateTime = 0;
+            const MIN_UPDATE_INTERVAL = 16; // ~60fps
+            
             const streamCallback = (chunk) => {
-                aiResponseContent += chunk;
-                currentResponseContent = aiResponseContent;
-                // Directly append the parsed chunk. This is more efficient than re-parsing the whole thing.
-                // Note: This naive approach might break markdown rendering for elements that span multiple chunks (like code blocks).
-                // A more robust solution would parse the stream more intelligently.
-                aiResponseElement.innerHTML = marked.parse(aiResponseContent);
-
-
+                // Add new chunk to accumulated content
+                accumulatedContent += chunk;
+                currentResponseContent = accumulatedContent;
+                
+                // Throttle updates to maintain performance while keeping the streaming feel
+                const now = Date.now();
+                if (now - lastUpdateTime < MIN_UPDATE_INTERVAL) {
+                    return;
+                }
+                lastUpdateTime = now;
+                
+                // Parse the accumulated content with marked
+                const parsedContent = marked.parse(accumulatedContent);
+                
+                // Update the DOM with the new content
+                aiResponseElement.innerHTML = parsedContent;
+                
                 // Auto-scroll to keep the latest content in view
                 resultsContainer.scrollTo({
                     top: resultsContainer.scrollHeight,

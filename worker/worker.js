@@ -229,38 +229,22 @@ async function proxyMistral(request, api_payload, env) {
         });
     }
 
-    // To achieve the lowest possible latency for streaming responses,
-    // we use a TransformStream to read data chunks from the Mistral response
-    // and immediately enqueue them to be sent to the client.
-    // This aims to provide a "letter by letter" real-time experience.
-    if (api_payload.body.stream) {
-        console.log('Rushing Mistral stream to client with immediate flushing for Agent 3.');
-
-        const transformStream = new TransformStream({
-            transform(chunk, controller) {
-                // Enqueue the chunk immediately to the output stream
-                controller.enqueue(chunk);
-            }
-        });
-
-        // Pipe the Mistral response body through our transform stream
-        mistralResponse.body.pipeThrough(transformStream);
-
-        // Return the readable end of the transform stream as the response
-        return new Response(transformStream.readable, {
-            status: mistralResponse.status,
-            statusText: mistralResponse.statusText,
-            headers: responseHeaders,
-        });
-    } else {
-        // For non-streaming responses (Agents 1 & 2), return the response directly.
-        console.log('Piping non-streaming Mistral response directly to client.');
-        return new Response(mistralResponse.body, {
-            status: mistralResponse.status,
-            statusText: mistralResponse.statusText,
-            headers: responseHeaders,
-        });
-    }
+    // Pipe the response body directly from Mistral to the client
+    // This is the standard and most efficient way to proxy a stream.
+    console.log('Piping Mistral stream directly to client.');
+    
+    // Log final response details for debugging in a single entry
+    console.log('--- FINAL MISTRAL PROXY RESPONSE ---', {
+        status: mistralResponse.status,
+        statusText: mistralResponse.statusText,
+        headers: Object.fromEntries(responseHeaders.entries())
+    });
+    
+    return new Response(mistralResponse.body, {
+      status: mistralResponse.status,
+      statusText: mistralResponse.statusText,
+      headers: responseHeaders,
+    });
 
   } catch (error) {
     console.error('Error in Mistral API proxy:', error);
