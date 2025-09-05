@@ -1300,9 +1300,18 @@ Generated on: ${currentDate}
                 accumulatedContent += chunk;
                 currentResponseContent = accumulatedContent;
                 
-                // No-buffer, character-by-character rendering
-                const parsedChunk = marked.parse(chunk); // Parse only the new chunk
-                aiResponseElement.innerHTML += parsedChunk;
+                // Throttle updates to maintain performance while keeping the streaming feel
+                const now = Date.now();
+                if (now - lastUpdateTime < MIN_UPDATE_INTERVAL) {
+                    return;
+                }
+                lastUpdateTime = now;
+                
+                // Parse the accumulated content with marked
+                const parsedContent = marked.parse(accumulatedContent);
+                
+                // Update the DOM with the new content
+                aiResponseElement.innerHTML = parsedContent;
                 
                 // Auto-scroll to keep the latest content in view
                 resultsContainer.scrollTo({
