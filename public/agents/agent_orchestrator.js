@@ -153,45 +153,39 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
     if (isStreaming) {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let buffer = '';
       let content = '';
+      let buffer = '';
 
-      const processLine = (line) => {
-          if (line.startsWith('data: ')) {
-              const jsonStr = line.substring(6);
-              if (jsonStr.trim() === '[DONE]') {
-                  return;
-              }
-              try {
-                  const parsed = JSON.parse(jsonStr);
-                  if (parsed.choices && parsed.choices[0].delta && parsed.choices[0].delta.content !== undefined) {
-                      const chunk = parsed.choices[0].delta.content;
-                      content += chunk;
-                      if (streamCallback) {
-                          streamCallback(chunk);
-                      }
-                  }
-              } catch (e) {
-                  console.error('Error parsing stream chunk:', e, 'Line:', line);
-              }
-          }
-      };
-      
       while (true) {
-          const { value, done } = await reader.read();
-          if (done) {
-              if (buffer) {
-                  processLine(buffer);
+        const { value, done } = await reader.read();
+        if (done) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop(); // Keep the last, possibly incomplete, line
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const jsonStr = line.substring(6);
+            if (jsonStr.trim() === '[DONE]') {
+              continue;
+            }
+            try {
+              const parsed = JSON.parse(jsonStr);
+              if (parsed.choices && parsed.choices[0].delta && parsed.choices[0].delta.content !== undefined) {
+                const chunk = parsed.choices[0].delta.content;
+                content += chunk;
+                if (streamCallback) {
+                  streamCallback(chunk);
+                }
               }
-              break;
+            } catch (e) {
+              console.error('Error parsing stream chunk:', e, 'Line:', line);
+            }
           }
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          
-          for (let i = 0; i < lines.length - 1; i++) {
-              processLine(lines[i]);
-          }
-          buffer = lines[lines.length - 1];
+        }
       }
 
       if (!content.trim()) {
