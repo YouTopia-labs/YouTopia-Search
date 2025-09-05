@@ -161,35 +161,25 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
     const decoder = new TextDecoder();
     let buffer = '';
     let content = ''; // To accumulate the full response for non-streaming returns
-    console.log("Starting to process stream from worker...");
 
     const processLine = (line) => {
-        console.log("Processing line:", line);
         if (line.startsWith('data: ')) {
             const jsonStr = line.substring(6);
-            console.log("JSON String to parse:", jsonStr);
             if (jsonStr.trim() === '[DONE]') {
-                console.log("Stream finished ([DONE] received)");
                 return;
             }
             try {
                 const parsed = JSON.parse(jsonStr);
-                console.log("Parsed chunk:", parsed);
                 if (parsed.choices && parsed.choices[0].delta && parsed.choices[0].delta.content !== undefined) {
                     const chunk = parsed.choices[0].delta.content;
-                    console.log("Appending chunk content:", chunk);
                     content += chunk;
                     if (streamCallback) {
                         streamCallback(chunk);
                     }
-                } else {
-                    console.log("Chunk did not contain content or was malformed.");
                 }
             } catch (e) {
                 console.error('Error parsing stream chunk:', e, 'Line:', line);
             }
-        } else {
-            console.log("Line did not start with 'data: '");
         }
     };
     
@@ -212,12 +202,8 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
         buffer = lines[lines.length - 1];
     }
 
-    console.log("Finished processing stream. Final content length:", content.length);
-    console.log("Finished processing stream. Final content (first 100 chars):", content.substring(0, 100));
-    
     // Check if we got any content
     if (!content.trim()) {
-      console.error("No content received from Mistral API. Final content was empty or whitespace.");
       throw new Error('No content received from Mistral API');
     }
 

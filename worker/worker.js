@@ -216,63 +216,35 @@ async function proxyMistral(request, api_payload, env) {
       });
     }
 
-    // Buffer the initial part of the response to check for errors
-    const reader = mistralResponse.body.getReader();
-    const { value, done } = await reader.read();
-    const decoder = new TextDecoder();
-    const initialChunk = decoder.decode(value);
-
     // Log the initial chunk for debugging
     console.log('--- MISTRAL INITIAL CHUNK ---');
-    console.log(initialChunk);
-
-    if (!initialChunk) {
-        console.error('Mistral API returned a completely empty response body.');
-        return new Response(JSON.stringify({ error: 'The Mistral API returned a completely empty response. This is often due to an invalid API key, a billing issue, or a server-side problem with the API.' }), {
+    // For now, we trust the stream from Mistral and pipe it directly.
+    // If issues persist, we can re-introduce buffering and inspection.
+    // A direct pipe is simpler and less error-prone.
+    if (!mistralResponse.body) {
+        console.error('Mistral API returned a response with no body.');
+        return new Response(JSON.stringify({ error: 'The Mistral API returned a response with no body.' }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
     }
 
-    // Check if the initial chunk contains an error object
-    try {
-        const parsedChunk = JSON.parse(initialChunk);
-        if (parsedChunk.error) {
-            console.error('Mistral API returned a JSON error:', parsedChunk.error);
-            return new Response(JSON.stringify(parsedChunk), {
-                status: 400, // Or another appropriate error code
-                headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-            });
-        }
-    } catch (e) {
-        // Not a JSON error, proceed with streaming
-    }
+    // Implement a TransformStream for real-time, immediate flushing of tokens.
+    // This ensures that data is sent to the client as soon as it's received,
+    // with no buffering, providing the fastest possible streaming experience.
+    console.log('Rushing Mistral stream to client with immediate flushing.');
 
-    // Reconstruct the stream
-    const stream = new ReadableStream({
-        start(controller) {
-            // Enqueue the initial chunk we already read
-            controller.enqueue(value);
+    const { readable, writable } = new TransformStream();
+    mistralResponse.body.pipeTo(writable);
 
-            // Continue reading from the original stream
-            function push() {
-                reader.read().then(({ done, value }) => {
-                    if (done) {
-                        controller.close();
-                        return;
-                    }
-                    controller.enqueue(value);
-                    push();
-                }).catch(error => {
-                    console.error('Error reading from stream:', error);
-                    controller.error(error);
-                });
-            }
-            push();
-        }
+    // Log final response details for debugging in a single entry
+    console.log('--- FINAL MISTRAL PROXY RESPONSE ---', {
+        status: mistralResponse.status,
+        statusText: mistralResponse.statusText,
+        headers: Object.fromEntries(responseHeaders.entries())
     });
 
-    return new Response(stream, {
+    return new Response(readable, {
       status: mistralResponse.status,
       statusText: mistralResponse.statusText,
       headers: responseHeaders,
