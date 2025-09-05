@@ -13,6 +13,24 @@ const allowedOrigins = [
 async function handleApiRequest(request, env) {
   const url = new URL(request.url);
 
+  if (url.pathname === '/api/test-outbound') {
+    // Simple outbound connectivity test
+    try {
+      const testResponse = await fetch('https://httpbin.org/get', { method: 'GET' });
+      const testData = await testResponse.json();
+      return new Response(JSON.stringify({ success: true, outbound_test: testData }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      });
+    } catch (e) {
+      console.error('Outbound connectivity test failed:', e);
+      return new Response(JSON.stringify({ success: false, error: e.message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      });
+    }
+  }
+
   if (url.pathname === '/api/google-auth') {
     return handleGoogleAuth(request, env);
   }
@@ -128,9 +146,9 @@ async function proxySerper(api_payload, env) {
 }
 
 async function proxyMistral(request, api_payload, env) {
-  const mistralApiKey = env.MISTRAL_API_KEY; // Fetch from environment variables
+  const mistralApiKey = "TcTEMn3IxCjzq759GMAtTaLevjpjJqR2"; // Hardcoded for debugging
   if (!mistralApiKey) {
-    return new Response(JSON.stringify({ error: 'MISTRAL_API_KEY is not set in environment variables.' }), {
+    return new Response(JSON.stringify({ error: 'MISTRAL_API_KEY is not set.' }), {
       status: 500,
       headers: {
         'Content-Type': 'application/json',
@@ -159,13 +177,24 @@ async function proxyMistral(request, api_payload, env) {
       responseHeaders.set('Access-Control-Allow-Origin', origin);
     }
     
-    const mistralResponse = await fetch(mistralApiUrl, {
+    // Enhanced logging for the request being sent
+    const mistralRequestDetails = {
+      url: mistralApiUrl,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${mistralApiKey}`,
+        'Authorization': 'Bearer TcTEMn3IxCjzq759GMAtTaLevjpjJqR2',
       },
       body: JSON.stringify(api_payload.body),
+    };
+    
+    console.log('--- MISTRAL REQUEST DETAILS ---');
+    console.log(JSON.stringify(mistralRequestDetails, null, 2));
+
+    const mistralResponse = await fetch(mistralRequestDetails.url, {
+      method: mistralRequestDetails.method,
+      headers: mistralRequestDetails.headers,
+      body: mistralRequestDetails.body,
     });
 
     // Enhanced logging for debugging the response
