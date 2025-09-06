@@ -204,7 +204,7 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
     }
 
     let errorMessage = `Error calling Mistral API: ${error.message}`;
-    if (error instanceof TypeError && (error.message === 'Load failed' || error.message.includes('fetch'))) {
+    if (error instanceof TypeError && error.message === 'Load failed') {
         errorMessage = `Network Error: Could not connect to Mistral API or the request was aborted. Details: ${error.message}`;
     } else if (error.response && error.response.status) {
         errorMessage = `Mistral API returned status ${error.response.status}. Details: ${error.message}`;

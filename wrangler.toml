@@ -5,9 +5,6 @@ compatibility_date = "2023-08-01"
 [vars]
 GOOGLE_CLIENT_ID = "450557144881-necfmjts3gdvkp5o6a7dsar6o34ns2mf.apps.googleusercontent.com"
 FIREBASE_PROJECT_ID = "youtopia-search-prod"
-MISTRAL_API_KEY = "your_mistral_api_key_here"
-SERPER_API_KEY = "your_serper_api_key_here"
-COINGECKO_API_KEY = "your_coingecko_api_key_here"
 
 [[kv_namespaces]]
 binding = "YOUTOPIA_DATA"

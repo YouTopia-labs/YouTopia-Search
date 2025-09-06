@@ -2,7 +2,6 @@ import { orchestrateAgents } from '../agents/agent_orchestrator.js';
 import { renderTable, renderChart, parseChartConfig } from './render_tools.js';
 import { updateChartsTheme } from './chart_utils.js';
 import { parseChartConfig as safeParseChartConfig, parseTableConfig } from './json_utils.js';
-import './smart_markdown_parser.js'; // Import the smart markdown parser
 // import ConversationManager from './conversation_manager.js'; // History disabled
 
 const WORKER_BASE_URL = 'https://youtopia-worker.youtopialabs.workers.dev/';
@@ -1291,221 +1290,62 @@ Generated on: ${currentDate}
             // Scroll to the top of the results container
             resultsContainer.scrollTo({ top: 0, behavior: 'smooth' });
 
-            // --- Ultra-Fast Real-time Character-by-Character Streaming with Smart Markdown Rendering ---
+            // --- Ultra-Fast Real-time Character-by-Character Streaming ---
             let accumulatedContent = '';
             let textBuffer = '';
             let lastRenderedContent = '';
             let renderTimeout = null;
-            // isTyping variable removed - now using direct rendering without state tracking
-            let completedBlocks = new Set(); // Track completed code blocks
-            let blockCounter = 0; // Counter for unique block IDs
+            let isTyping = false;
             
-            // Initialize the smart markdown parser
-            const markdownParser = new SmartMarkdownParser();
-            
-            // Ultra-fast streaming callback for immediate character display with smart markdown detection
+            // Ultra-fast streaming callback for immediate character display
             const streamCallback = (chunk) => {
                 // Add new chunk to accumulated content
                 accumulatedContent += chunk;
                 currentResponseContent = accumulatedContent;
                 
-                // Process chunk through smart markdown parser
-                const completedBlocks = markdownParser.processChunk(chunk);
-                
-                // Render any completed blocks immediately
-                if (completedBlocks.length > 0) {
-                    renderCompletedBlocks(completedBlocks);
+                // Process each character individually for real-time display
+                for (let char of chunk) {
+                    textBuffer += char;
+                    
+                    // Render immediately for fast, responsive display
+                    if (!isTyping) {
+                        isTyping = true;
+                        renderCharacterByCharacter();
+                    }
                 }
-                
-                // Add chunk directly to text buffer
-                textBuffer += chunk;
-                
-                // Immediate character rendering - no buffering or delays
-                updateLiveText();
-                
-                // Trigger enhanced markdown parsing with minimal delay
+            };
+            
+            // Character-by-character rendering with debounced markdown parsing
+            const renderCharacterByCharacter = () => {
+                // Clear any existing timeout
                 if (renderTimeout) {
                     clearTimeout(renderTimeout);
                 }
-                renderTimeout = setTimeout(() => {
-                    parseAndRenderMarkdownEnhanced();
-                }, 1); // Minimal 1ms delay for batching
-            };
-            
-            // Render completed markdown blocks with animations
-             const renderCompletedBlocks = (blocks) => {
-                 blocks.forEach(block => {
-                     const renderedHtml = markdownParser.renderBlock(block);
-                     const blockElement = document.createElement('div');
-                     blockElement.innerHTML = renderedHtml;
-                     blockElement.classList.add('markdown-block-fade-in');
-                     
-                     // Add specific classes for different block types
-                     if (block.type === 'table') {
-                         blockElement.classList.add('streaming-table');
-                         // Process table content through existing table renderer
-                         const tableContent = blockElement.querySelector('[data-table-content]');
-                         if (tableContent) {
-                             const content = decodeURIComponent(tableContent.dataset.tableContent);
-                             processTableBlock(content, blockElement);
-                         }
-                     } else if (block.type === 'chart') {
-                         blockElement.classList.add('streaming-chart');
-                         // Process chart content through existing chart renderer
-                         const chartContent = blockElement.querySelector('[data-chart-content]');
-                         if (chartContent) {
-                             const content = decodeURIComponent(chartContent.dataset.chartContent);
-                             processChartBlock(content, blockElement);
-                         }
-                     }
-                     
-                     // Append to AI response element
-                     aiResponseElement.appendChild(blockElement);
-                 });
-             };
-             
-             // Process table block with existing renderer
-             const processTableBlock = (content, blockElement) => {
-                 try {
-                     const tableConfig = parseTableConfig(content.trim());
-                     const containerId = `table-container-smart-${blockCounter++}`;
-                     
-                     blockElement.innerHTML = `<div id="${containerId}" class="table-display"></div>`;
-                     
-                     setTimeout(() => {
-                         renderTable(tableConfig, containerId);
-                     }, 10);
-                 } catch (error) {
-                     console.error('Smart table rendering error:', error);
-                     blockElement.innerHTML = `<pre><code>${content}</code></pre>`;
-                 }
-             };
-             
-             // Process chart block with existing renderer
-             const processChartBlock = (content, blockElement) => {
-                 try {
-                     const chartConfig = safeParseChartConfig(content.trim());
-                     const containerId = `chart-container-smart-${blockCounter++}`;
-                     
-                     blockElement.innerHTML = `<div id="${containerId}" class="chart-display"></div>`;
-                     
-                     setTimeout(() => {
-                         renderChart(containerId, chartConfig);
-                     }, 10);
-                 } catch (error) {
-                     console.error('Smart chart rendering error:', error);
-                     blockElement.innerHTML = `<pre><code>${content}</code></pre>`;
-                 }
-             };
-            
-            // Detect and render completed markdown blocks (tables, charts, code) in real-time
-            const detectAndRenderCompletedBlocks = () => {
-                // Detect completed table blocks
-                const tableMatches = textBuffer.match(/```table\s*\n([\s\S]*?)\n```/g);
-                if (tableMatches) {
-                    tableMatches.forEach((match, index) => {
-                        const blockId = `table-${index}`;
-                        if (!completedBlocks.has(blockId)) {
-                            completedBlocks.add(blockId);
-                            renderTableBlockRealTime(match, blockId);
-                        }
-                    });
-                }
                 
-                // Detect completed chart blocks
-                const chartMatches = textBuffer.match(/```chart\s*\n([\s\S]*?)\n```/g);
-                if (chartMatches) {
-                    chartMatches.forEach((match, index) => {
-                        const blockId = `chart-${index}`;
-                        if (!completedBlocks.has(blockId)) {
-                            completedBlocks.add(blockId);
-                            renderChartBlockRealTime(match, blockId);
-                        }
-                    });
-                }
+                // Immediate text update for typing effect
+                updateLiveText();
+                
+                // Debounced markdown parsing for performance
+                renderTimeout = setTimeout(() => {
+                    parseAndRenderMarkdown();
+                    isTyping = false;
+                }, 16); // ~60fps for smooth rendering
             };
             
-            // Render table blocks in real-time as they complete
-            const renderTableBlockRealTime = (tableBlock, blockId) => {
-                try {
-                    const tableContent = tableBlock.match(/```table\s*\n([\s\S]*?)\n```/)[1];
-                    const tableConfig = parseTableConfig(tableContent.trim());
-                    
-                    // Create unique container ID
-                    const containerId = `table-container-realtime-${blockCounter++}`;
-                    
-                    // Replace the table block in textBuffer with a placeholder
-                    textBuffer = textBuffer.replace(tableBlock, `<div id="${containerId}" class="table-display table-realtime"></div>`);
-                    
-                    // Render the table immediately
-                    setTimeout(() => {
-                        const container = document.getElementById(containerId);
-                        if (container) {
-                            renderTable(tableConfig, containerId);
-                            container.classList.add('fade-in-realtime');
-                        }
-                    }, 10);
-                } catch (error) {
-                    console.error('Real-time table rendering error:', error);
-                }
-            };
-            
-            // Render chart blocks in real-time as they complete
-            const renderChartBlockRealTime = (chartBlock, blockId) => {
-                try {
-                    const chartContent = chartBlock.match(/```chart\s*\n([\s\S]*?)\n```/)[1];
-                    const chartConfig = safeParseChartConfig(chartContent.trim());
-                    
-                    // Create unique container ID
-                    const containerId = `chart-container-realtime-${blockCounter++}`;
-                    
-                    // Replace the chart block in textBuffer with a placeholder
-                    textBuffer = textBuffer.replace(chartBlock, `<div id="${containerId}" class="chart-display chart-realtime"></div>`);
-                    
-                    // Render the chart immediately
-                    setTimeout(() => {
-                        const container = document.getElementById(containerId);
-                        if (container) {
-                            renderChart(containerId, chartConfig);
-                            container.classList.add('fade-in-realtime');
-                        }
-                    }, 10);
-                } catch (error) {
-                    console.error('Real-time chart rendering error:', error);
-                }
-            };
-            
-            // Note: renderCharacterByCharacter function removed - now using direct updateLiveText() calls for immediate rendering
-            
-            // Enhanced live text update with smart markdown parser
+            // Update live text without markdown parsing for instant feedback
             const updateLiveText = () => {
                 if (textBuffer !== lastRenderedContent) {
-                    // Get incomplete text from parser (text not yet rendered as blocks)
-                    const incompleteText = markdownParser.getIncompleteText();
+                    // Create a simple text display for immediate feedback
+                    const plainText = textBuffer
+                        .replace(/#{1,6}\s+/g, '') // Remove headers
+                        .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
+                        .replace(/\*(.*?)\*/g, '$1') // Remove italic
+                        .replace(/`(.*?)`/g, '$1') // Remove inline code
+                        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove links, keep text
+                        .replace(/```[\s\S]*?```/g, '[Code Block]'); // Replace code blocks
                     
-                    // Apply inline formatting using the parser
-                    let previewText = markdownParser.applyInlineFormatting(incompleteText);
-                    
-                    // Preserve line breaks
-                    previewText = previewText.replace(/\n/g, '<br>');
-                    
-                    // Show enhanced preview with typing cursor and character stream animation
-                    const streamingContent = `<div class="live-text-preview">${previewText}</div>`;
-                    
-                    // Update the response element with streaming content
-                    const existingBlocks = aiResponseElement.querySelectorAll('.markdown-block-fade-in');
-                    aiResponseElement.innerHTML = '';
-                    
-                    // Re-append existing completed blocks
-                    existingBlocks.forEach(block => {
-                        aiResponseElement.appendChild(block);
-                    });
-                    
-                    // Add the live preview
-                    const livePreview = document.createElement('div');
-                    livePreview.innerHTML = streamingContent;
-                    aiResponseElement.appendChild(livePreview);
-                    
+                    // Show plain text with typing indicator
+                    aiResponseElement.innerHTML = `<div class="typing-indicator">${plainText}<span class="cursor">|</span></div>`;
                     lastRenderedContent = textBuffer;
                     
                     // Auto-scroll to keep the latest content in view
@@ -1516,82 +1356,28 @@ Generated on: ${currentDate}
                 }
             };
             
-            // Enhanced markdown parsing with real-time block rendering
-            const parseAndRenderMarkdownEnhanced = () => {
+            // Parse and render markdown with optimized performance
+            const parseAndRenderMarkdown = () => {
                 try {
                     const parsedContent = marked.parse(textBuffer);
                     
-                    // Only update DOM if content has significantly changed
-                    const currentContent = aiResponseElement.innerHTML.replace(/<div class="streaming-content">([\s\S]*?)<span class="cursor-blink">\|<\/span><\/div>/, '$1');
-                    
-                    if (parsedContent !== currentContent) {
+                    // Only update DOM if content has changed
+                    if (parsedContent !== aiResponseElement.innerHTML.replace(/<div class="typing-indicator">(.+?)<\/div>/s, '$1').replace('<span class="cursor">|</span>', '')) {
                         aiResponseElement.innerHTML = parsedContent;
                         
                         // Apply syntax highlighting to any code blocks
                         renderCodeHighlighting(aiResponseElement);
-                        
-                        // Process any remaining table/chart blocks that weren't caught in real-time
-                        processRemainingBlocks();
                     }
                 } catch (error) {
-                    console.error('Enhanced markdown parsing error:', error);
-                    // Fallback to enhanced preview
-                    const fallbackContent = textBuffer
-                        .replace(/</g, '&lt;')
-                        .replace(/>/g, '&gt;')
-                        .replace(/\n/g, '<br>');
-                    aiResponseElement.innerHTML = `<div class="error-message">Rendering error. Showing formatted text:<br><br>${fallbackContent}</div>`;
+                    console.error('Markdown parsing error:', error);
+                    // Fallback to plain text display
+                    aiResponseElement.innerHTML = `<div class="error-message">Rendering error. Showing plain text:<br><br>${textBuffer.replace(/</g, '<').replace(/>/g, '>')}</div>`;
                 }
                 
                 // Final auto-scroll to ensure latest content is visible
                 resultsContainer.scrollTo({
                     top: resultsContainer.scrollHeight,
                     behavior: 'auto'
-                });
-            };
-            
-            // Process any remaining blocks that weren't caught in real-time
-            const processRemainingBlocks = () => {
-                // Process any remaining table blocks
-                aiResponseElement.querySelectorAll('pre code.language-table').forEach((codeBlock, index) => {
-                    const blockId = `table-remaining-${index}`;
-                    if (!completedBlocks.has(blockId)) {
-                        completedBlocks.add(blockId);
-                        const containerId = `table-container-remaining-${blockCounter++}`;
-                        const tableDiv = document.createElement('div');
-                        tableDiv.id = containerId;
-                        tableDiv.classList.add('table-display', 'table-remaining');
-                        codeBlock.parentNode.parentNode.replaceChild(tableDiv, codeBlock.parentNode);
-                        
-                        try {
-                            const tableConfig = parseTableConfig(codeBlock.textContent.trim());
-                            renderTable(tableConfig, containerId);
-                            tableDiv.classList.add('fade-in-realtime');
-                        } catch (e) {
-                            tableDiv.innerHTML = `<div class="render-error">Table Processing Error: ${e.message}</div>`;
-                        }
-                    }
-                });
-                
-                // Process any remaining chart blocks
-                aiResponseElement.querySelectorAll('pre code.language-chart').forEach((codeBlock, index) => {
-                    const blockId = `chart-remaining-${index}`;
-                    if (!completedBlocks.has(blockId)) {
-                        completedBlocks.add(blockId);
-                        const containerId = `chart-container-remaining-${blockCounter++}`;
-                        const chartDiv = document.createElement('div');
-                        chartDiv.id = containerId;
-                        chartDiv.classList.add('chart-display', 'chart-remaining');
-                        codeBlock.parentNode.parentNode.replaceChild(chartDiv, codeBlock.parentNode);
-                        
-                        try {
-                            const chartConfig = safeParseChartConfig(codeBlock.textContent.trim());
-                            renderChart(containerId, chartConfig);
-                            chartDiv.classList.add('fade-in-realtime');
-                        } catch (e) {
-                            chartDiv.innerHTML = `<div class="render-error">Chart Processing Error: ${e.message}</div>`;
-                        }
-                    }
                 });
             };
 
@@ -1679,7 +1465,7 @@ Generated on: ${currentDate}
                         logList.appendChild(li);
                         logList.scrollTop = logList.scrollHeight; // Scroll to bottom
                     }
-                } else if (errorMessage.includes('Network Error') || errorMessage.includes('Load failed') || errorMessage.includes('Failed to fetch') || errorMessage.includes('fetch')) {
+                } else if (errorMessage.includes('Network Error') || errorMessage.includes('Load failed') || errorMessage.includes('Failed to fetch')) {
                     errorIcon = 'fas fa-wifi';
                     userFriendlyMessage = 'Network connection issue. Please check your internet connection and try again.';
                     if (logList) {

@@ -94,7 +94,6 @@ function handleOptions(request, headers) {
 
   headers.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
   headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  headers.set('Access-Control-Allow-Credentials', 'true');
   return new Response(null, { headers });
 }
 
@@ -114,7 +113,7 @@ async function proxySerper(api_payload, env) {
     const serperResponse = await fetch(serperApiUrl, {
       method: 'POST',
       headers: {
-        'X-API-KEY': env.SERPER_API_KEY || 'your_serper_api_key_here',
+        'X-API-KEY': env.SERPER_API_KEY,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(api_payload.body),
@@ -134,8 +133,7 @@ async function proxySerper(api_payload, env) {
       status: serperResponse.status,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': request.headers.get('Origin') || '*',
-        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Origin': '*',
       },
     });
   } catch (error) {
@@ -148,7 +146,7 @@ async function proxySerper(api_payload, env) {
 }
 
 async function proxyMistral(request, api_payload, env) {
-  const mistralApiKey = env.MISTRAL_API_KEY || "TcTEMn3IxCjzq759GMAtTaLevjpjJqR2"; // Use environment variable if available, otherwise use hardcoded for debugging
+  const mistralApiKey = "TcTEMn3IxCjzq759GMAtTaLevjpjJqR2"; // Hardcoded for debugging
   if (!mistralApiKey) {
     return new Response(JSON.stringify({ error: 'MISTRAL_API_KEY is not set.' }), {
       status: 500,
@@ -172,7 +170,6 @@ async function proxyMistral(request, api_payload, env) {
       'Connection': 'keep-alive',
       'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Allow-Credentials': 'true',
     });
 
     const origin = request.headers.get('Origin');
@@ -186,7 +183,7 @@ async function proxyMistral(request, api_payload, env) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${mistralApiKey}`,
+        'Authorization': 'Bearer TcTEMn3IxCjzq759GMAtTaLevjpjJqR2',
       },
       body: JSON.stringify(api_payload.body),
     };
@@ -198,9 +195,6 @@ async function proxyMistral(request, api_payload, env) {
       method: mistralRequestDetails.method,
       headers: mistralRequestDetails.headers,
       body: mistralRequestDetails.body,
-    }).catch(error => {
-      console.error('Network error when connecting to Mistral API:', error);
-      throw new Error(`Network Error: Could not connect to Mistral API. Details: ${error.message}`);
     });
 
     // Enhanced logging for debugging the response
@@ -217,8 +211,7 @@ async function proxyMistral(request, api_payload, env) {
         status: mistralResponse.status,
         headers: {
           'Content-Type': mistralResponse.headers.get('Content-Type') || 'application/json',
-          'Access-Control-Allow-Origin': request.headers.get('Origin') || '*',
-          'Access-Control-Allow-Credentials': 'true'
+          'Access-Control-Allow-Origin': '*'
         }
       });
     }
@@ -259,8 +252,7 @@ async function proxyMistral(request, api_payload, env) {
       status: 500,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': request.headers.get('Origin') || '*',
-        'Access-Control-Allow-Credentials': 'true'
+        'Access-Control-Allow-Origin': '*'
       }
     });
   }
@@ -301,8 +293,7 @@ async function proxyCoingecko(api_payload, env) {
       status: coingeckoResponse.status,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': request.headers.get('Origin') || '*',
-        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Origin': '*',
       },
     });
     return response;
@@ -310,11 +301,7 @@ async function proxyCoingecko(api_payload, env) {
     console.error('Error in proxyCoingecko:', error.stack);
     return new Response(JSON.stringify({ error: `Error proxying to CoinGecko: ${error.message}` }), {
       status: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': request.headers.get('Origin') || '*',
-        'Access-Control-Allow-Credentials': 'true'
-      }
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
     });
   }
 }
@@ -419,11 +406,6 @@ async function verifyGoogleToken(id_token, env) {
     
     if (key.source === 'firebase') {
       console.log('Firebase certificate found, skipping signature verification (temporary workaround)');
-      // For Firebase tokens, we'll do a basic validation without signature verification
-      // This is a temporary workaround - in production, proper signature verification should be implemented
-      if (!payload.exp || payload.exp * 100 < Date.now()) {
-        throw new Error('Firebase token has expired.');
-      }
     } else {
       const jwk = {
         kty: key.kty,
