@@ -1,5 +1,4 @@
 import agent1SystemPrompt from './agent1_prompt.js';
-import agent2SystemPrompt from './agent2_prompt.js';
 import agent3SystemPrompt from './agent3_prompt.js';
 
 export function selectAgents(selection) {
@@ -13,10 +12,6 @@ export function selectAgents(selection) {
         model: 'mistral-small-latest',
         prompt: agent1SystemPrompt
       },
-      agent2: {
-        model: 'mistral-small-latest',
-        prompt: agent2SystemPrompt
-      },
       agent3: {
         model: 'mistral-small-latest',
         prompt: agent3SystemPrompt
@@ -27,10 +22,6 @@ export function selectAgents(selection) {
       agent1: {
         model: 'mistral-small-latest',
         prompt: agent1SystemPrompt
-      },
-      agent2: {
-        model: 'mistral-small-latest',
-        prompt: agent2SystemPrompt
       },
       agent3: {
         model: 'mistral-small-latest',

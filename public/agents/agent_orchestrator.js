@@ -5,7 +5,6 @@ import agent3SystemPrompt from './agent3_prompt.js';
 import { fetchWheatData } from '../tools/wheat_tool.js'; // Import the new Wheat tool
 import { scrapeWebsite, tagImageWithDimensions } from '../tools/scraper_tool.js'; // Import the new scraper tool
 import { safeParse } from '../js/json_utils.js';
-import { condenseContext } from '../js/conversation_manager.js'; // Import context condensing function
 async function executeTool(toolName, query, params = {}, userQuery, userName, userLocalTime) {
   // console.log(`Executing tool: ${toolName} with query: ${query} and params:`, params);
 
@@ -58,7 +57,7 @@ async function fetchWithProxy(api_target, api_payload, query, userName, userLoca
     throw new Error('Authentication token not found. Please sign in.');
   }
 
-  const WORKER_BASE_URL = window.location.origin.includes('pages.dev') ? `https://youtopia-worker.pages.dev/` : `https://youtopia-worker.youtopialabs.workers.dev/`;
+  const WORKER_BASE_URL = 'https://youtopia-worker.youtopialabs.workers.dev/';
   const response = await fetch(`${WORKER_BASE_URL}api/query-proxy`, {
     method: 'POST',
     headers: {
@@ -101,18 +100,29 @@ async function fetchWithProxy(api_target, api_payload, query, userName, userLoca
   return response.json();
 }
 
-export async function callAgent(model, prompt, input, retryCount = 0, streamCallback = null, query, userName, userLocalTime, conversationHistory = null, isStreaming = false) {
+export async function callAgent(model, prompt, input, retryCount = 0, streamCallback = null, query, userName, userLocalTime) {
+  // console.log(`Calling agent with model: ${model}, input:`, input);
   const maxRetries = 2;
+
+  if (streamCallback) {
+    // console.log("Streaming enabled.");
+  }
 
   let messages = [
     { role: 'system', content: prompt }
   ];
+
 
   if (input) {
     const userInputContent = typeof input === 'string' ? input : JSON.stringify(input);
     messages.push({ role: 'user', content: userInputContent });
   }
 
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => {
+      reject(new Error('Request timeout: Mistral API took too long to respond (30 seconds)'));
+    }, 30000);
+  });
 
   try {
     const api_payload = {
@@ -121,11 +131,12 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
         messages: messages,
         temperature: 0.5,
         max_tokens: 6000,
-        stream: isStreaming
+        stream: true
       }
     };
 
-    const response = await fetchWithProxy('mistral', api_payload, query, userName, userLocalTime);
+    const fetchPromise = fetchWithProxy('mistral', api_payload, query, userName, userLocalTime);
+    const response = await Promise.race([fetchPromise, timeoutPromise]);
 
     if (!response.ok) {
         if (response.status === 429) {
@@ -140,62 +151,65 @@ export async function callAgent(model, prompt, input, retryCount = 0, streamCall
       throw new Error(`Mistral API error: ${response.status} - ${errorData.message || response.statusText}`);
     }
 
+    // Check if response body exists
     if (!response.body) {
       throw new Error('Empty response body from Mistral API');
     }
 
-    if (isStreaming) {
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let content = '';
-      let buffer = '';
+    let content = '';
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
 
-      while (true) {
+    while (true) {
         const { value, done } = await reader.read();
         if (done) {
-          break;
+            break;
         }
-
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop(); // Keep the last, possibly incomplete, line
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // Keep the last partial line in the buffer
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const jsonStr = line.substring(6);
-            if (jsonStr.trim() === '[DONE]') {
-              continue;
-            }
-            try {
-              const parsed = JSON.parse(jsonStr);
-              if (parsed.choices && parsed.choices[0].delta && parsed.choices[0].delta.content !== undefined) {
-                const chunk = parsed.choices[0].delta.content;
-                content += chunk;
-                if (streamCallback) {
-                  streamCallback(chunk);
+            if (line.startsWith('data: ')) {
+                const jsonStr = line.substring(6);
+                if (jsonStr === '[DONE]') {
+                    break;
                 }
-              }
-            } catch (e) {
-              console.error('Error parsing stream chunk:', e, 'Line:', line);
+                try {
+                    const parsed = JSON.parse(jsonStr);
+                    if (parsed.choices && parsed.choices[0].delta && parsed.choices[0].delta.content) {
+                        const chunk = parsed.choices[0].delta.content;
+                        content += chunk;
+                        if (streamCallback) {
+                            streamCallback(chunk);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error parsing stream chunk:', e);
+                }
             }
-          }
         }
-      }
-
-      if (!content.trim()) {
-        throw new Error('No content received from Mistral API');
-      }
-
-      return content;
-    } else {
-      // Handle non-streaming response
-      const jsonResponse = await response.json();
-      if (jsonResponse.choices && jsonResponse.choices[0] && jsonResponse.choices[0].message) {
-        return jsonResponse.choices[0].message.content;
-      } else {
-        throw new Error('Invalid non-streaming response format from Mistral API');
-      }
     }
+
+    // Check if we got any content
+    if (!content.trim()) {
+      throw new Error('No content received from Mistral API');
+    }
+
+    // For Agent 1, validate JSON format before returning
+    // If Agent 3 and streaming, skip JSON validation here as partials won't be valid
+    // Validation and retry logic has been moved to orchestrateAgents
+    
+    // If Agent 3 and streaming, the final response is sent via callback.
+    // The content returned here might include the sources block, which needs to be handled.
+    if (streamCallback) {
+        // console.log("Streaming: callAgent returning full content for post-processing.");
+        return content;
+    }
+
+    // console.log("callAgent returning content:", content.substring(0, 100) + (content.length > 100 ? '...' : '')); // Log first 100 chars
+    return content;
 
   } catch (error) {
     // Check if the thrown error is the 429 Response object. If so, re-throw it for main.js to handle.
@@ -362,15 +376,15 @@ function validateAgent1Response(response) {
   return errors;
 }
 
-export async function orchestrateAgents(userQuery, userName, userLocalTime, agentSelectionType, streamCallback = null, logCallback = null, isShortResponseEnabled = false, conversationHistory = null) {
+export async function orchestrateAgents(userQuery, userName, userLocalTime, agentSelectionType, streamCallback = null, logCallback = null, isShortResponseEnabled = false) {
   // console.log(`Starting orchestration for query: "${userQuery}" with selection: "${agentSelectionType}", short responses: ${isShortResponseEnabled}`);
 
   // Validate API configuration before proceeding
 
   const agentConfig = selectAgents(agentSelectionType);
-  const agent1Model = 'mistral-small-latest';
+  const agent1Model = agentConfig.agent1.model;
   const agent2Model = 'mistral-small-latest';
-  const agent3Model = 'mistral-small-latest';
+  const agent3Model = agentConfig.agent3.model;
 
   let allSearchResults = [];
   let allSources = [];
@@ -379,7 +393,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
 
   const MAX_TOTAL_SEARCHES = 12; // Total individual search steps (web_search, coingecko, wheat)
   const MAX_TOTAL_SCRAPES = 16; // Total individual sites scraped
-  const MAX_PARALLEL_SCRAPES_PER_TURN = 12; // Max sites scraped in one 'scrape' action
+  const MAX_PARALLEL_SCRAPES_PER_TURN = 8; // Max sites scraped in one 'scrape' action
 
   // Loop for orchestration turns
   while (true) {
@@ -389,12 +403,6 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
     const agent1Input = {
       query: userQuery,
     };
-
-    // // If we have conversation history, add condensed context (DISABLED)
-    // if (conversationHistory && conversationHistory.summary) {
-    //   agent1Input.context = conversationHistory.summary;
-    //   agent1Input.recent_context = conversationHistory.recent_interactions;
-    // }
 
     // console.log("Agent 1: Deciding next action...");
 
@@ -407,16 +415,16 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
       attempt++;
       // console.log(`Agent 1: Attempt ${attempt} to get a valid JSON response.`);
       
-      let currentPrompt = agent1SystemPrompt(false); // History disabled
+      let currentPrompt = agent1SystemPrompt;
       let currentInput = agent1Input;
 
       if (attempt > 1 && agent1ResponseRaw) {
         // If this is a retry, modify the prompt to ask for a fix
         // console.log("Retrying with a request to fix the malformed JSON.");
-        currentPrompt = `${agent1SystemPrompt(false)}\n\nYour previous response was not valid JSON and could not be parsed. Please review the following error and the malformed response, then provide a corrected and valid JSON object. Do not include any text or markdown formatting outside of the JSON object.\n\nMalformed Response:\n${agent1ResponseRaw}`;
+        currentPrompt = `${agent1SystemPrompt}\n\nYour previous response was not valid JSON and could not be parsed. Please review the following error and the malformed response, then provide a corrected and valid JSON object. Do not include any text or markdown formatting outside of the JSON object.\n\nMalformed Response:\n${agent1ResponseRaw}`;
       }
 
-      agent1ResponseRaw = await callAgent(agent1Model, currentPrompt, currentInput, 0, null, userQuery, userName, userLocalTime, null, false);
+      agent1ResponseRaw = await callAgent(agent1Model, currentPrompt, currentInput, 0, null, userQuery, userName, userLocalTime);
 
     if (agent1ResponseRaw instanceof Response && !agent1ResponseRaw.ok) {
         if (agent1ResponseRaw.status === 429) {
@@ -467,7 +475,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
       // We can achieve this by modifying the system prompt for this specific call.
       const directAgent3SystemPrompt = agent3SystemPrompt(isShortResponseEnabled).replace('---END_OF_ANSWER---', '');
 
-      const finalResponse = await callAgent(agent3Model, directAgent3SystemPrompt, { rawQuery: userQuery, query: queryForAgent3, classification: classification, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime, null, true);
+      const finalResponse = await callAgent(agent3Model, directAgent3SystemPrompt, { rawQuery: userQuery, query: queryForAgent3, classification: classification, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime);
       
       // console.log("Final Response Generated by Agent 3. Value from callAgent:", finalResponse);
       if (streamCallback) {
@@ -506,7 +514,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
         const searchPromises = search_plan.map(async (step) => {
           if (logCallback) {
             const toolDisplayName = toolNamesMap[step.tool] || step.tool;
-            logCallback(`<i class="fas fa-cogs"></i> Planning to use ${toolDisplayName} for: "<b>${step.query}</b>"`);
+            logCallback(`<i class="fas fa-tools"></i> Looking up ${toolDisplayName} for: "<b>${step.query}</b>"`);
           }
           if (step.tool === 'serper_web_search' || step.tool === 'serper_news_search') {
             const result = await executeTool(step.tool, step.query, step.params, userQuery, userName, userLocalTime);
@@ -553,21 +561,21 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
         // --- New Agent 2 Workflow ---
         if (webSearchResults.length > 0) {
           console.log("Analyzing search results to decide on scraping...");
-          if (logCallback) logCallback(`<i class="fas fa-stream"></i> Synthesizing search results...`);
+          if (logCallback) logCallback(`<i class="fas fa-filter"></i> Agent 2: Analyzing search results...`);
 
           const agent2Input = {
             query: userQuery,
             serper_results: webSearchResults.map(r => ({ title: r.title, link: r.link, snippet: r.snippet }))
           };
 
-          const agent2ResponseRaw = await callAgent(agent2Model, agent2SystemPrompt, agent2Input, 0, null, userQuery, userName, userLocalTime, null, false);
+          const agent2ResponseRaw = await callAgent(agent2Model, agent2SystemPrompt, agent2Input, 0, null, userQuery, userName, userLocalTime);
           const agent2Response = safeParse(agent2ResponseRaw, true);
 
           console.log("Agent Response:", agent2Response);
 
           if (agent2Response.action === 'scrape' && agent2Response.scrape_plan && agent2Response.scrape_plan.length > 0) {
             const planToExecute = agent2Response.scrape_plan.slice(0, MAX_PARALLEL_SCRAPES_PER_TURN);
-            if (logCallback) logCallback(`<i class="fas fa-cloud-download-alt"></i> Fetching content from ${planToExecute.length} relevant site(s)...`);
+            if (logCallback) logCallback(`<i class="fas fa-spider"></i> Agent 2: Decided to scrape ${planToExecute.length} site(s)...`);
             
             const scrapePromises = planToExecute.map(plan =>
               scrapeWebsite(plan.url, plan.keywords, logCallback)
@@ -588,7 +596,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
            // console.log("Scraped Data (after image processing):", scrapedData);
 
           } else {
-            if (logCallback) logCallback(`<i class="fas fa-check-circle"></i> Content analysis complete. Proceeding to final answer.`);
+            if (logCallback) logCallback(`<i class="fas fa-check-circle"></i> Agent 2: Decided to continue without scraping.`);
           }
         }
 
@@ -611,7 +619,7 @@ export async function orchestrateAgents(userQuery, userName, userLocalTime, agen
       };
 
       // console.log("Sending combined data to Agent 3:", dataForAgent3);
-      const finalResponse = await callAgent(agent3Model, agent3SystemPrompt(isShortResponseEnabled), { ...dataForAgent3, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime, null, true);
+      const finalResponse = await callAgent(agent3Model, agent3SystemPrompt(isShortResponseEnabled), { ...dataForAgent3, isShortResponseEnabled: isShortResponseEnabled }, 0, streamCallback, userQuery, userName, userLocalTime);
 
       return { finalResponse, sources: allSources };
     }

@@ -2,11 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>YouTopia Search - An AI Search Engine by YouTopia Labs</title>
-    <meta name="description" content="YouTopia Search is an AI-powered search engine from YouTopia Labs that curates and orchestrates human-created content to provide accurate, comprehensive, and intelligently structured answers to your questions.">
-    <meta name="keywords" content="YouTopia, YouTopia Search, YouTopia Labs, AI search, AI search engine, orchestration, AI assistant, research tool, intelligent search, Perplexity alternative, Google alternative, Perplexity, ChatGPT">
-    <meta name="author" content="YouTopia Labs">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTopia - Intelligently Human</title>
     <link rel="icon" href="search.ico" type="image/x-icon">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="css/style.css">
@@ -60,11 +57,6 @@
                             <button id="firebase-sign-in-button" class="dropdown-item google-signin-btn" style="display: none;">
                                 <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" xmlns:xlink="http://www.w3.org/1999/xlink" style="display: block; width: 20px; height: 20px;"><g><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.42-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path><path fill="none" d="M0 0h48v48H0z"></path></g></svg>
                                 <span>Sign In with Google</span>
-                            </button>
-                            <!-- History Button (visible when signed in) -->
-                            <button id="history-button" class="dropdown-item" style="display: none;">
-                                <i class="fas fa-history"></i>
-                                <span>Conversation History</span>
                             </button>
                             <!-- Sign Out Button (visible when signed in) -->
                             <button id="signout-button" class="dropdown-item" style="display: none;">Sign Out</button>
@@ -150,6 +142,8 @@
                     <div id="query-heading">
                         <div id="query-text-content"></div>
                         <div class="query-buttons">
+                            <button id="show-more-btn" class="query-btn">Show More</button>
+                            <button id="show-less-btn" class="query-btn">Show Less</button>
                         </div>
                     </div>
                     <div class="tabs">
@@ -210,7 +204,7 @@
                 <div id="rate-limit-developer-message">
                     <p>
                         <span style="font-weight: bold;">If you appreciate this project and the answers it provides, please consider supporting it!</span> This is a solo, self-funded research project by a student (me lol).
-                        Your donations would help to keep running it for everyone (and fund my coffee for improving it). Contributions over $12 qualify you for the 20x Plus Plan, which includes:
+                        Your donations would help to keep running it for everyone (and fund my coffee for improving it). Contributions over $20 qualify you for the 20x Plus Plan, which includes:
                     </p>
                     <ul>
                         <li>✅ 200 AI-powered queries per day</li>
@@ -250,27 +244,8 @@
                     <span>Sign In with Google</span>
                 </button>
             </div>
-    
-        <!-- Conversation History Modal -->
-        <div id="history-modal" class="popup-overlay">
-            <div id="history-modal-content" class="popup-content">
-                <div id="history-modal-header">
-                    <h3>Conversation History</h3>
-                    <button id="close-history-modal">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                <div id="history-list">
-                    <!-- History items will be populated here -->
-                    <div id="history-empty-state">
-                        <i class="fas fa-history"></i>
-                        <p>No conversation history found.</p>
-                    </div>
-                </div>
-            </div>
         </div>
-    
-        </div>
+
     </div>
     
     <script src="js/main.js" type="module"></script>

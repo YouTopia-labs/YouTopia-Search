@@ -2,13 +2,20 @@ import { orchestrateAgents } from '../agents/agent_orchestrator.js';
 import { renderTable, renderChart, parseChartConfig } from './render_tools.js';
 import { updateChartsTheme } from './chart_utils.js';
 import { parseChartConfig as safeParseChartConfig, parseTableConfig } from './json_utils.js';
-// import ConversationManager from './conversation_manager.js'; // History disabled
 
-const WORKER_BASE_URL = window.location.origin.includes('pages.dev') ? `https://youtopia-worker.pages.dev/` : `https://youtopia-worker.youtopialabs.workers.dev/`;
+const WORKER_BASE_URL = 'https://youtopia-worker.youtopialabs.workers.dev/';
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Initialize conversation manager
-    // const conversationManager = new ConversationManager(); // History disabled
+    // Function to set the CSS variable for viewport height
+    const setAppHeight = () => {
+        const doc = document.documentElement;
+        doc.style.setProperty('--app-height', `${window.innerHeight}px`);
+    };
+
+    // Set height on load and resize
+    window.addEventListener('resize', setAppHeight);
+    window.addEventListener('orientationchange', setAppHeight);
+    setAppHeight(); // Initial set
 
     // Dynamic cursor alignment function
     const alignCursorWithPlaceholder = (textareaId) => {
@@ -87,10 +94,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const signoutButton = document.getElementById('signout-button');
     const firebaseSignInButton = document.getElementById('firebase-sign-in-button'); // Firebase Sign-In button
     const firebasePopupSignInButton = document.getElementById('firebase-popup-sign-in-button'); // Firebase Sign-In button in popup
-    const historyButton = document.getElementById('history-button'); // History button
-    const historyModal = document.getElementById('history-modal'); // History modal
-    const closeHistoryModal = document.getElementById('close-history-modal'); // Close history modal button
-    const historyList = document.getElementById('history-list'); // History list container
 
     // Popup elements
     const rateLimitPopupOverlay = document.getElementById('rate-limit-popup-overlay');
@@ -118,6 +121,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Query heading elements
     const queryHeading = document.getElementById('query-heading');
     const queryTextContent = document.getElementById('query-text-content');
+    const showMoreBtn = document.getElementById('show-more-btn');
+    const showLessBtn = document.getElementById('show-less-btn');
     const queryButtons = document.querySelector('.query-buttons');
 
 
@@ -179,51 +184,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-
-    // Function to add show more/less functionality to query text
-    const addShowMoreFunctionality = (element) => {
-        // Remove any existing show more button
-        const existingButton = element.parentNode.querySelector('.show-more-btn');
-        if (existingButton) {
-            existingButton.remove();
-        }
-
-        // Check if text content exceeds 4 lines (approximately 6rem)
-        const lineHeight = parseFloat(getComputedStyle(element).lineHeight);
-        const maxHeight = lineHeight * 4; // 4 lines
-        const actualHeight = element.scrollHeight;
-
-        if (actualHeight > maxHeight) {
-            // Add collapsed class and set max height
-            element.classList.add('query-text-collapsed');
-            element.style.maxHeight = `${lineHeight * 4}px`;
-            
-            // Create show more button
-            const showMoreBtn = document.createElement('button');
-            showMoreBtn.className = 'show-more-btn';
-            showMoreBtn.textContent = 'Show more';
-            showMoreBtn.setAttribute('aria-expanded', 'false');
-            
-            // Add click event
-            showMoreBtn.addEventListener('click', function() {
-                const isExpanded = element.classList.contains('query-text-collapsed');
-                if (isExpanded) {
-                    element.classList.remove('query-text-collapsed');
-                    element.style.maxHeight = 'none';
-                    showMoreBtn.textContent = 'Show less';
-                    showMoreBtn.setAttribute('aria-expanded', 'true');
-                } else {
-                    element.classList.add('query-text-collapsed');
-                    element.style.maxHeight = `${lineHeight * 4}px`;
-                    showMoreBtn.textContent = 'Show more';
-                    showMoreBtn.setAttribute('aria-expanded', 'false');
-                }
-            });
-            
-            // Insert button after the text content
-            element.parentNode.appendChild(showMoreBtn);
-        }
-    };
 
     const applyTheme = (theme) => {
         const isDark = theme === 'dark';
@@ -293,7 +253,6 @@ document.addEventListener('DOMContentLoaded', () => {
             userInfo.style.display = 'flex';
             firebaseSignInButton.style.display = 'none';
             signoutButton.style.display = 'block';
-            historyButton.style.display = 'block'; // Show history button when signed in
             userDropdown.classList.add('signed-in');
 
             try {
@@ -331,22 +290,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error('Failed to fetch user status:', await userStatusResponse.text());
                 }
 
-                // // Fetch and load conversation history (DISABLED)
-                // try {
-                //     const historyResponse = await fetch(`${WORKER_BASE_URL}api/conversation-history?id_token=${idToken}`);
-                //     if (historyResponse.ok) {
-                //         const historyData = await historyResponse.json();
-                //         if (historyData.success && historyData.history) {
-                //             // conversationManager.loadHistory(historyData.history); // History disabled
-                //             // console.log('Conversation history loaded.');
-                //         }
-                //     } else {
-                //         console.error('Failed to fetch conversation history:', await historyResponse.text());
-                //     }
-                // } catch (error) {
-                //     console.error('Error fetching conversation history:', error);
-                // }
-
             } catch (error) {
                 console.error('Error getting ID token or user status:', error);
                 // Handle error, maybe sign the user out
@@ -359,7 +302,6 @@ document.addEventListener('DOMContentLoaded', () => {
             userInfo.style.display = 'none';
             firebaseSignInButton.style.display = 'block';
             signoutButton.style.display = 'none';
-            historyButton.style.display = 'none'; // Hide history button when signed out
             userDropdown.classList.remove('signed-in');
 
             // Clear all user-related data from localStorage
@@ -367,7 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.removeItem('user_email');
             localStorage.removeItem('user_profile_pic');
             localStorage.removeItem('id_token'); // Remove the Firebase token
-
+            
             const userStatusElement = document.getElementById('user-status');
             if (userStatusElement) {
                 userStatusElement.textContent = ''; // Clear status indicator
@@ -423,129 +365,8 @@ document.addEventListener('DOMContentLoaded', () => {
        popupElement.classList.remove('show');
    };
 
-   // --- Toast Function ---
-   const showToast = (message, duration = 3000) => {
-       // Create toast element
-       const toast = document.createElement('div');
-       toast.className = 'toast';
-       toast.textContent = message;
-       
-       // Add to document
-       document.body.appendChild(toast);
-       
-       // Show toast
-       setTimeout(() => {
-           toast.classList.add('show');
-       }, 100);
-       
-       // Hide and remove toast after duration
-       setTimeout(() => {
-           toast.classList.remove('show');
-           setTimeout(() => {
-               if (toast.parentNode) {
-                   toast.parentNode.removeChild(toast);
-               }
-           }, 300);
-       }, duration);
-   };
-
-   // --- History Modal Functions ---
-   const showHistoryModal = () => {
-       // Get conversation history from the conversation manager (DISABLED)
-       const history = []; // History disabled
-       
-       // Clear the history list
-       historyList.innerHTML = '';
-       
-       // Check if there's any history
-       if (history.length === 0) {
-           // Show empty state
-           const emptyState = document.getElementById('history-empty-state');
-           if (emptyState) {
-               emptyState.style.display = 'block';
-           }
-       } else {
-           // Hide empty state
-           const emptyState = document.getElementById('history-empty-state');
-           if (emptyState) {
-               emptyState.style.display = 'none';
-           }
-           
-           // Add history items to the list
-           history.forEach((item, index) => {
-               const historyItem = document.createElement('div');
-               historyItem.classList.add('history-item');
-               
-               // Format timestamp
-               const date = new Date(item.timestamp);
-               const formattedDate = date.toLocaleString();
-               
-               // Get a preview of the response (first 100 characters)
-               const responsePreview = item.response ? item.response.substring(0, 100) + (item.response.length > 100 ? '...' : '') : 'No response yet';
-               
-               historyItem.innerHTML = `
-                   <div class="history-item-title">${item.query}</div>
-                   <div class="history-item-preview">${responsePreview}</div>
-                   <div class="history-item-date">${formattedDate}</div>
-               `;
-               
-               // Add click event to load this conversation
-               historyItem.addEventListener('click', () => {
-                   // Hide the modal
-                   hidePopup(historyModal);
-                   
-                   // Load the conversation into the UI
-                   loadConversation(item);
-               });
-               
-               historyList.appendChild(historyItem);
-           });
-       }
-       
-       // Show the modal
-       showPopup(historyModal);
-   };
-
-   const loadConversation = (item) => {
-       // Clear current results
-       resultsContainer.innerHTML = '';
-       sourcesContainer.innerHTML = '';
-       
-       // Set the query in the heading
-       queryTextContent.textContent = item.query;
-       addShowMoreFunctionality(queryTextContent);
-       
-       // Process and display the response
-       if (item.response) {
-           // Create AI response element
-           const aiResponseElement = document.createElement('div');
-           aiResponseElement.classList.add('ai-response');
-           aiResponseElement.innerHTML = marked.parse(item.response);
-           
-           // Add to results container
-           resultsContainer.appendChild(aiResponseElement);
-           
-           // Process any charts or tables in the response
-           processFinalResponse(aiResponseElement, item.response, item.sources || []);
-       }
-       
-       // Show the results view
-       if (!body.classList.contains('search-active')) {
-           initialViewContent.style.display = 'none';
-           bottomSearchWrapper.style.display = 'flex';
-           body.classList.add('search-active');
-       }
-       
-       // Update the conversation manager with this item (DISABLED)
-       // conversationManager.addInteraction(item.query, item.response, item.sources || []);
-   };
-
    // Initial UI update on page load
-   
-   // Initially hide the history button
-   if (historyButton) {
-       historyButton.style.display = 'none';
-   }
+   updateUserUI();
 
    // Event listeners for user dropdown (now handled by generic dropdown logic in index.html)
    // userIconButton.addEventListener('click', (e) => {
@@ -563,29 +384,6 @@ document.addEventListener('DOMContentLoaded', () => {
    signoutButton.addEventListener('click', window.firebaseSignOut); // Sign out button listener
    rateLimitCloseButton.addEventListener('click', () => hidePopup(rateLimitPopupOverlay)); // "Close" button listener
 
-   // Event listeners for history modal
-   if (historyButton) {
-       historyButton.addEventListener('click', (e) => {
-           e.stopPropagation(); // Prevent closing the dropdown
-           showHistoryModal();
-       });
-   }
-
-   if (closeHistoryModal) {
-       closeHistoryModal.addEventListener('click', () => {
-           hidePopup(historyModal);
-       });
-   }
-
-   // Close modal when clicking outside
-   if (historyModal) {
-       historyModal.addEventListener('click', (e) => {
-           if (e.target === historyModal) {
-               hidePopup(historyModal);
-           }
-       });
-   }
-
 
     // Hide the bottom bar initially
     bottomSearchWrapper.style.display = 'none';
@@ -602,6 +400,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
     
+    const logStep = (message) => {
+        const logList = document.getElementById('log-list');
+        if (logList) {
+            const li = document.createElement('li');
+            li.innerHTML = message; // Use innerHTML to allow icons
+            logList.appendChild(li);
+            logList.scrollTop = logList.scrollHeight; // Scroll to bottom
+        }
+    };
 const renderSourceCards = (sources, container) => {
         container.innerHTML = ''; // Clear previous content
         if (!sources || sources.length === 0) {
@@ -1183,16 +990,6 @@ Generated on: ${currentDate}
         showPopup(rateLimitPopupOverlay);
     };
 
-    // --- Debounce Function ---
-    const debounce = (func, delay) => {
-        let timeout;
-        return function(...args) {
-            const context = this;
-            clearTimeout(timeout);
-            timeout = setTimeout(() => func.apply(context, args), delay);
-        };
-    };
-
     // --- Main Search Handler ---
     const handleSearch = async (query, sourceElement = null) => {
         const userEmail = localStorage.getItem('user_email');
@@ -1214,20 +1011,56 @@ Generated on: ${currentDate}
 
         if (!query.trim()) return;
 
-        // Add query to conversation history (DISABLED)
-        // conversationManager.addUserQuery(query);
-        
-        // Get conversation history (chat context only) (DISABLED)
-        const condensedHistory = null; // History disabled
-
-        // Clear previous results for every query to treat it as a new one
         resultsContainer.innerHTML = '';
         sourcesContainer.innerHTML = '';
 
+        // Check if log container already exists from a previous search
+        let logContainer = document.getElementById('live-log-container');
+        let logList;
+
+        if (logContainer) {
+            // If exists, clear its content and reset its state
+            logList = document.getElementById('log-list');
+            if (logList) logList.innerHTML = ''; // Clear previous log messages
+            logContainer.classList.remove('is-done', 'has-error'); // Clear state
+            logContainer.classList.add('is-active'); // Ensure it's active (blue animation)
+        } else {
+            // If not, create and insert it
+            const logHTML = `
+                <div id="live-log-container" class="is-active">
+                    <div class="log-header" id="log-header-toggle">
+                        <h4>Live Execution Log</h4>
+                        <button id="log-toggle-btn" title="Toggle Log"><i class="fas fa-chevron-up"></i></button>
+                    </div>
+                    <ul id="log-list"></ul>
+                </div>`;
+            
+            const tabsDiv = document.querySelector('.tabs');
+            if (tabsDiv) { // Ensure tabsDiv exists before inserting
+                tabsDiv.insertAdjacentHTML('afterend', logHTML);
+                logContainer = document.getElementById('live-log-container'); // Get reference to the newly created container
+                logList = document.getElementById('log-list'); // Get reference to the new log list
+            }
+        }
+        
+        renderCodeHighlighting(resultsContainer);
+        
+        // Initialize the log
+        logStep('<i class="fas fa-search"></i> Orchestrating a search...');
+        
         if (!body.classList.contains('search-active')) {
             initialViewContent.style.display = 'none';
             bottomSearchWrapper.style.display = 'flex';
             body.classList.add('search-active');
+
+            // Trigger placeholder visibility update for bottom search box
+            const bottomWrapper = queryInputBottom.closest('.textarea-wrapper');
+            if (bottomWrapper) {
+                const bottomPlaceholderText = bottomWrapper.querySelector('.placeholder-text-span');
+                if (bottomPlaceholderText) {
+                    bottomPlaceholderText.classList.remove('hidden');
+                }
+            }
 
             // Change placeholder for follow-up questions
             const bottomPlaceholderSpan = document.querySelector('#bottom-search-wrapper .placeholder-text-span');
@@ -1236,185 +1069,76 @@ Generated on: ${currentDate}
             }
         }
 
-        // For every query (initial or follow-up), create a new log container
-        let existingLogContainer = document.getElementById('live-log-container');
-        if (existingLogContainer) {
-            existingLogContainer.remove();
-        }
-        
-        const logHTML = `
-            <div id="live-log-container" class="is-active">
-                <div class="log-header" id="log-header-toggle">
-                    <h4>Live Execution Log</h4>
-                    <button id="log-toggle-btn" title="Toggle Log"><i class="fas fa-chevron-up"></i></button>
-                </div>
-                <ul id="log-list"></ul>
-            </div>`;
-
-        const tabsDiv = document.querySelector('.tabs');
-        let logList;
-        if (tabsDiv) {
-            tabsDiv.insertAdjacentHTML('afterend', logHTML);
-            logList = document.getElementById('log-list');
-        }
-
-        // Initialize the log for the current query
-        if (logList) {
-            const li = document.createElement('li');
-            li.innerHTML = '<i class="fas fa-search"></i> Orchestrating a search...';
-            logList.appendChild(li);
-        }
-        
         // Display the query as a Markdown heading
-        queryTextContent.textContent = query.trim();
-        addShowMoreFunctionality(queryTextContent);
-        queryHeading.style.display = 'flex';
+        // queryHeading.textContent = `Query: ${query}`; // Will be handled by truncateQueryText
+        
+        const originalQueryText = `${query.trim()}`;
+        queryTextContent.textContent = originalQueryText;
+        // Temporarily remove max-height to get true scrollHeight
+        queryHeading.style.maxHeight = 'none';
+        queryHeading.classList.remove('expanded'); // Ensure not in expanded state
+        // Use a small delay to ensure rendering before checking scrollHeight
+        setTimeout(() => {
+            const currentHeight = queryTextContent.scrollHeight;
+            const lineHeight = parseFloat(getComputedStyle(queryTextContent).lineHeight);
+            const targetMaxHeight = Math.min(120, Math.max(lineHeight * 1.5, currentHeight)); // At least 1.5 lines, up to 120px
+            if (currentHeight > targetMaxHeight) { // Check against desired initial height
+                queryHeading.style.maxHeight = `${targetMaxHeight}px`; // Apply initial max height
+                showMoreBtn.style.display = 'block';
+                showLessBtn.style.display = 'none';
+                queryButtons.classList.add('show-gradient'); // Show gradient
+            } else {
+                queryHeading.style.maxHeight = 'none'; // No max height for short content
+                showMoreBtn.style.display = 'none';
+                showLessBtn.style.display = 'none';
+                queryButtons.classList.remove('show-gradient'); // Hide gradient
+            }
+        }, 0); // Use setTimeout with 0 for next tick execution
         
         // Set button state to loading
         setSendButtonState(true);
         try {
-            if (logList) {
-                const li = document.createElement('li');
-                li.innerHTML = `<i class="fas fa-brain"></i> Generating response for: "<b>${query.trim()}</b>"`;
-                logList.appendChild(li);
-                logList.scrollTo({
-                    top: logList.scrollHeight,
-                    behavior: 'smooth'
-                });
-            }
+            logStep(`<i class="fas fa-brain"></i> Generating response for: "<b>${query.trim()}</b>"`);
 
+            let aiResponseContent = ''; // Accumulate streamed content here
             const aiResponseElement = document.createElement('div');
             aiResponseElement.classList.add('ai-response');
             resultsContainer.appendChild(aiResponseElement);
 
-            // Scroll to the top of the results container
-            resultsContainer.scrollTo({ top: 0, behavior: 'smooth' });
-
-            // --- Ultra-Fast Real-time Character-by-Character Streaming ---
-            let accumulatedContent = '';
-            let textBuffer = '';
-            let lastRenderedContent = '';
-            let renderTimeout = null;
-            let isTyping = false;
-            
-            // Ultra-fast streaming callback for immediate character display
             const streamCallback = (chunk) => {
-                // Add new chunk to accumulated content
-                accumulatedContent += chunk;
-                currentResponseContent = accumulatedContent;
+                aiResponseContent += chunk;
                 
-                // Process each character individually for real-time display
-                for (let char of chunk) {
-                    textBuffer += char;
-                    
-                    // Render immediately for fast, responsive display
-                    if (!isTyping) {
-                        isTyping = true;
-                        renderCharacterByCharacter();
-                    }
+                // Store the current response content for export functions
+                currentResponseContent = aiResponseContent;
+
+                // Render the raw markdown content as it streams
+                aiResponseElement.innerHTML = marked.parse(aiResponseContent);
+
+                // Auto-scroll if the user is near the bottom
+                const isScrolledToBottom = resultsContainer.scrollHeight - resultsContainer.clientHeight <= resultsContainer.scrollTop + 1;
+                if (isScrolledToBottom) {
+                    resultsContainer.scrollTop = resultsContainer.scrollHeight;
                 }
-            };
-            
-            // Character-by-character rendering with debounced markdown parsing
-            const renderCharacterByCharacter = () => {
-                // Clear any existing timeout
-                if (renderTimeout) {
-                    clearTimeout(renderTimeout);
+
+                // Check for the end-of-answer delimiter
+                if (aiResponseContent.includes('---END_OF_ANSWER---')) {
+                    // Stop the main "Answer" tab loading indicator here if needed
+                    // This part is handled by the final processing step now
                 }
-                
-                // Immediate text update for typing effect
-                updateLiveText();
-                
-                // Debounced markdown parsing for performance
-                renderTimeout = setTimeout(() => {
-                    parseAndRenderMarkdown();
-                    isTyping = false;
-                }, 16); // ~60fps for smooth rendering
-            };
-            
-            // Update live text without markdown parsing for instant feedback
-            const updateLiveText = () => {
-                if (textBuffer !== lastRenderedContent) {
-                    // Create a simple text display for immediate feedback
-                    const plainText = textBuffer
-                        .replace(/#{1,6}\s+/g, '') // Remove headers
-                        .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
-                        .replace(/\*(.*?)\*/g, '$1') // Remove italic
-                        .replace(/`(.*?)`/g, '$1') // Remove inline code
-                        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove links, keep text
-                        .replace(/```[\s\S]*?```/g, '[Code Block]'); // Replace code blocks
-                    
-                    // Show plain text with typing indicator
-                    aiResponseElement.innerHTML = `<div class="typing-indicator">${plainText}<span class="cursor">|</span></div>`;
-                    lastRenderedContent = textBuffer;
-                    
-                    // Auto-scroll to keep the latest content in view
-                    resultsContainer.scrollTo({
-                        top: resultsContainer.scrollHeight,
-                        behavior: 'auto'
-                    });
-                }
-            };
-            
-            // Parse and render markdown with optimized performance
-            const parseAndRenderMarkdown = () => {
-                try {
-                    const parsedContent = marked.parse(textBuffer);
-                    
-                    // Only update DOM if content has changed
-                    if (parsedContent !== aiResponseElement.innerHTML.replace(/<div class="typing-indicator">(.+?)<\/div>/s, '$1').replace('<span class="cursor">|</span>', '')) {
-                        aiResponseElement.innerHTML = parsedContent;
-                        
-                        // Apply syntax highlighting to any code blocks
-                        renderCodeHighlighting(aiResponseElement);
-                    }
-                } catch (error) {
-                    console.error('Markdown parsing error:', error);
-                    // Fallback to plain text display
-                    aiResponseElement.innerHTML = `<div class="error-message">Rendering error. Showing plain text:<br><br>${textBuffer.replace(/</g, '<').replace(/>/g, '>')}</div>`;
-                }
-                
-                // Final auto-scroll to ensure latest content is visible
-                resultsContainer.scrollTo({
-                    top: resultsContainer.scrollHeight,
-                    behavior: 'auto'
-                });
             };
 
             const logCallback = (message) => {
-                if (logList) {
-                    const li = document.createElement('li');
-                    li.innerHTML = message; // Use innerHTML to allow icons
-                    logList.appendChild(li);
-                    logList.scrollTop = logList.scrollHeight; // Scroll to bottom
-                }
+                logStep(message);
             };
 
             try {
-                const { finalResponse, sources } = await orchestrateAgents(query, userName, userLocalTime, selectedModel, streamCallback, logCallback, isShortResponseEnabled, condensedHistory);
-
-                // Add interaction to conversation history (DISABLED)
-                // conversationManager.addInteraction(query, finalResponse, sources);
+                const { finalResponse, sources } = await orchestrateAgents(query, userName, userLocalTime, selectedModel, streamCallback, logCallback, isShortResponseEnabled);
 
                 // --- Final Processing Step ---
-                // This code runs after the entire stream is finished to ensure everything is perfect.
-                // The stream processing now handles live updates, so we just do a final cleanup.
-                processFinalResponse(aiResponseElement, finalResponse, sources);
-                
-                // For follow-up queries, scroll to the new content when response is complete
-                if (body.classList.contains('search-active')) {
-                    resultsContainer.scrollTo({
-                        top: resultsContainer.scrollHeight,
-                        behavior: 'smooth'
-                    });
-                }
+                // This code runs after the entire stream is finished.
+                processFinalResponse(aiResponseElement, aiResponseContent, sources);
 
-                if (logList) {
-                    const li = document.createElement('li');
-                    li.innerHTML = '<i class="fas fa-check-circle" style="color: #10B981;"></i> Response completed successfully.';
-                    logList.appendChild(li);
-                    logList.scrollTop = logList.scrollHeight; // Scroll to bottom
-                }
+                logStep('<i class="fas fa-check-circle" style="color: #10B981;"></i> Response completed successfully.');
                 setSendButtonState(false);
                 const logContainer = document.getElementById('live-log-container');
                 if (logContainer) {
@@ -1431,12 +1155,7 @@ Generated on: ${currentDate}
                 if (error instanceof Response && error.status === 429) {
                     const errorData = await error.json();
                     displayRateLimitPopup(errorData.cooldown_end_timestamp, errorData.message_from_developer);
-                    if (logList) {
-                        const li = document.createElement('li');
-                        li.innerHTML = '<i class="fas fa-hourglass-half" style="color: #FBBF24;"></i> Query limit exceeded.';
-                        logList.appendChild(li);
-                        logList.scrollTop = logList.scrollHeight; // Scroll to bottom
-                    }
+                    logStep('<i class="fas fa-hourglass-half" style="color: #FBBF24;"></i> Query limit exceeded.');
                     setSendButtonState(false); // Ensure button is reset
                     const logContainer = document.getElementById('live-log-container');
                     if (logContainer) {
@@ -1459,46 +1178,21 @@ Generated on: ${currentDate}
                 if (errorMessage.includes('JSON.parse')) {
                     errorIcon = 'fas fa-code';
                     userFriendlyMessage = 'There was an issue processing the AI response. This might be a temporary problem with the AI service.';
-                    if (logList) {
-                        const li = document.createElement('li');
-                        li.innerHTML = `<i class="${errorIcon}" style="color: #EF4444;"></i> JSON parsing error in AI response`;
-                        logList.appendChild(li);
-                        logList.scrollTop = logList.scrollHeight; // Scroll to bottom
-                    }
+                    logStep(`<i class="${errorIcon}" style="color: #EF4444;"></i> JSON parsing error in AI response`);
                 } else if (errorMessage.includes('Network Error') || errorMessage.includes('Load failed') || errorMessage.includes('Failed to fetch')) {
                     errorIcon = 'fas fa-wifi';
                     userFriendlyMessage = 'Network connection issue. Please check your internet connection and try again.';
-                    if (logList) {
-                        const li = document.createElement('li');
-                        li.innerHTML = `<i class="${errorIcon}" style="color: #EF4444;"></i> Network connectivity issue`;
-                        logList.appendChild(li);
-                        logList.scrollTop = logList.scrollHeight; // Scroll to bottom
-                    }
+                    logStep(`<i class="${errorIcon}" style="color: #EF4444;"></i> Network connectivity issue`);
                 } else if (errorMessage.includes('Mistral API error') || errorMessage.includes('Serper API error') || errorMessage.includes('Coingecko API error')) {
                     errorIcon = 'fas fa-server';
                     userFriendlyMessage = 'The AI service is currently experiencing issues. Please try again in a moment.';
-                    if (logList) {
-                        const li = document.createElement('li');
-                        li.innerHTML = `<i class="${errorIcon}" style="color: #EF4444;"></i> AI service error`;
-                        logList.appendChild(li);
-                        logList.scrollTop = logList.scrollHeight; // Scroll to bottom
-                    }
+                    logStep(`<i class="${errorIcon}" style="color: #EF4444;"></i> AI service error`);
                 } else if (errorMessage.includes('Empty response') || errorMessage.includes('No content received')) {
                     errorIcon = 'fas fa-inbox';
                     userFriendlyMessage = 'The AI service returned an empty response. Please try rephrasing your query.';
-                    if (logList) {
-                        const li = document.createElement('li');
-                        li.innerHTML = `<i class="${errorIcon}" style="color: #EF4444;"></i> Empty response from AI service`;
-                        logList.appendChild(li);
-                        logList.scrollTop = logList.scrollHeight; // Scroll to bottom
-                    }
+                    logStep(`<i class="${errorIcon}" style="color: #EF4444;"></i> Empty response from AI service`);
                 } else {
-                    if (logList) {
-                        const li = document.createElement('li');
-                        li.innerHTML = `<i class="${errorIcon}" style="color: #EF4444;"></i> Error: ${errorMessage}`;
-                        logList.appendChild(li);
-                        logList.scrollTop = logList.scrollHeight; // Scroll to bottom
-                    }
+                    logStep(`<i class="${errorIcon}" style="color: #EF4444;"></i> Error: ${errorMessage}`);
                 }
 
                 setSendButtonState(false);
@@ -1530,23 +1224,13 @@ Generated on: ${currentDate}
 
             } catch (error) {
             if (error.name === 'AbortError') {
-                if (logList) {
-                    const li = document.createElement('li');
-                    li.innerHTML = '<i class="fas fa-pause-circle" style="color: #FBBF24;"></i> Response paused.';
-                    logList.appendChild(li);
-                    logList.scrollTop = logList.scrollHeight; // Scroll to bottom
-                }
+                logStep('<i class="fas fa-pause-circle" style="color: #FBBF24;"></i> Response paused.');
             } else {
                 // This catch block handles any other errors not caught by the orchestration try-catch
                 console.error('Search failed:', error);
                 if (!error.message.includes('JSON.parse') && !error.message.includes('Mistral API')) {
                     // Only log if it's not already handled above
-                    if (logList) {
-                        const li = document.createElement('li');
-                        li.innerHTML = `<i class="fas fa-exclamation-triangle" style="color: #EF4444;"></i> Unexpected error: ${error.message}`;
-                        logList.appendChild(li);
-                        logList.scrollTop = logList.scrollHeight; // Scroll to bottom
-                    }
+                    logStep(`<i class="fas fa-exclamation-triangle" style="color: #EF4444;"></i> Unexpected error: ${error.message}`);
                 }
             }
 
@@ -1568,16 +1252,16 @@ Generated on: ${currentDate}
 
     // This new function processes the complete response after streaming is done.
     const processFinalResponse = (aiResponseElement, fullContent, sources) => {
-       let mainAnswer = fullContent;
-       
-       // Update the global content for export functions
-       currentResponseContent = mainAnswer;
+        let mainAnswer = fullContent;
+        
+        // Update the global content for export functions
+        currentResponseContent = mainAnswer;
 
-       // The main answer is already rendered by the streamCallback.
-       // This function will now only handle post-processing like charts, tables, and sources.
+        // Render the final main answer content
+        aiResponseElement.innerHTML = marked.parse(mainAnswer);
 
-       // Now, find and render all charts and tables from the final content
-       aiResponseElement.querySelectorAll('pre code.language-chart').forEach((codeBlock, index) => {
+        // Now, find and render all charts and tables from the final content
+        aiResponseElement.querySelectorAll('pre code.language-chart').forEach((codeBlock, index) => {
             const chartContainerId = `chart-container-${Date.now()}-${index}`;
             const chartDiv = document.createElement('div');
             chartDiv.id = chartContainerId;
@@ -1655,97 +1339,229 @@ Generated on: ${currentDate}
      };
 
      const triggerSearchOrPause = (sourceElement) => {
-       const query = sourceElement.value.trim();
-       if (sendBtnTop.classList.contains('loading') || sendBtnBottom.classList.contains('loading')) {
-           // If loading, the button click should pause
-           // Note: Implement pause functionality in orchestrateAgents if desired
-           console.log('Request to pause search');
-           // For now, we can just log it. To fully implement, you'd need an abort controller.
-       } else if (query) {
-           handleSearch(query, sourceElement);
-           sourceElement.value = ''; // Clear input after sending
-           autoResizeTextarea(sourceElement); // Resize to default
-           updatePlaceholderForInput(sourceElement); // Update placeholder
-       }
-   };
+         const query = sourceElement.value.trim();
+         console.log('triggerSearchOrPause called with query:', query, 'from element:', sourceElement.id);
 
-   sendBtnTop.addEventListener('click', () => triggerSearchOrPause(queryInputTop));
-   sendBtnBottom.addEventListener('click', () => triggerSearchOrPause(queryInputBottom));
+         if (!query) {
+             console.log('Query is empty, search not triggered.');
+             return;
+         }
 
-   queryInputTop.addEventListener('keydown', (e) => {
-       if (e.key === 'Enter' && !e.shiftKey) {
-           e.preventDefault();
-           triggerSearchOrPause(queryInputTop);
-       }
-   });
+         // Determine which model selection element to use based on the source
+         const isBottomSearch = sourceElement && sourceElement.id === 'query-input-bottom';
+         let selectedModel;
 
-   queryInputBottom.addEventListener('keydown', (e) => {
-       if (e.key === 'Enter' && !e.shiftKey) {
-           e.preventDefault();
-           triggerSearchOrPause(queryInputBottom);
-       }
-   });
+         if (isBottomSearch) {
+             selectedModel = 'Amaya'; // Bottom search box defaults to Amaya
+         } else {
+             const modelElement = document.getElementById('selected-model');
+             selectedModel = modelElement ? modelElement.textContent : 'Amaya';
+         }
 
-   // Log container toggle
-   document.addEventListener('click', (e) => {
-       const logHeader = e.target.closest('#log-header-toggle');
-       if (logHeader) {
-           const logContainer = logHeader.closest('#live-log-container');
-           if (logContainer) {
-               logContainer.classList.toggle('collapsed');
-           }
-       }
-   });
+         console.log('Calling handleSearch with query:', query, 'and selectedModel:', selectedModel);
+         handleSearch(query, sourceElement);
 
-   // Tab functionality
-   const tabs = document.querySelectorAll('.tab');
-   const tabContents = document.querySelectorAll('.tab-content');
+         // Clear the input after search is triggered
+         sourceElement.value = '';
+         sourceElement.blur();
 
-   tabs.forEach(tab => {
-       tab.addEventListener('click', () => {
-           const tabName = tab.dataset.tab;
+         // Update placeholder visibility after clearing
+         updatePlaceholderForInput(sourceElement);
 
-           tabs.forEach(t => t.classList.remove('active'));
-           tab.classList.add('active');
+         // Hide the pre-release tag
+         const preReleaseTag = document.querySelector('.pre-release-tag');
+         if (preReleaseTag) {
+             preReleaseTag.style.display = 'none';
+         }
+     };
 
-           tabContents.forEach(content => {
-               if (content.id === `${tabName}-content`) {
-                   content.classList.add('active');
-               } else {
-                   content.classList.remove('active');
-               }
-           });
+     document.querySelector('.search-wrapper .send-btn').addEventListener('click', () => {
+         console.log('Top send button clicked.');
+         triggerSearchOrPause(queryInputTop);
+     });
+     queryInputTop.addEventListener('keydown', (e) => {
+         if (e.key === 'Enter' && !e.shiftKey) {
+             e.preventDefault();
+             console.log('Enter key pressed on top input.');
+             triggerSearchOrPause(e.target);
+         }
+     });
+
+     // Fix follow-up search box functionality
+     document.getElementById('send-btn-bottom').addEventListener('click', () => {
+         console.log('Bottom send button clicked.');
+         triggerSearchOrPause(queryInputBottom);
+     });
+     queryInputBottom.addEventListener('keydown', (e) => {
+         if (e.key === 'Enter' && !e.shiftKey) {
+             e.preventDefault();
+             console.log('Enter key pressed on bottom input.');
+             triggerSearchOrPause(e.target);
+         }
+     });
+ 
+     
+     // Code block actions
+     window.copyCode = function(button) {
+         const pre = button.closest('.code-toolbar').querySelector('pre');
+         const code = pre.querySelector('code').innerText;
+         navigator.clipboard.writeText(code).then(() => {
+             button.innerHTML = '<i class="fas fa-check"></i>';
+             button.title = 'Copied!';
+             setTimeout(() => {
+                 button.innerHTML = '<i class="fas fa-copy"></i>';
+                 button.title = 'Copy code';
+             }, 2000);
+         });
+     }
+ 
+     window.downloadCode = function(button, language) {
+         const pre = button.closest('.code-toolbar').querySelector('pre');
+         const code = pre.querySelector('code').innerText;
+         const blob = new Blob([code], { type: 'text/plain' });
+         const url = URL.createObjectURL(blob);
+         const a = document.createElement('a');
+         a.href = url;
+         a.download = `code.${language || 'txt'}`;
+         document.body.appendChild(a);
+         a.click();
+         document.body.removeChild(a);
+         URL.revokeObjectURL(url);
+     }
+ 
+     mainContent.addEventListener('click', (e) => {
+         const logHeaderToggle = e.target.closest('#log-header-toggle');
+         if (logHeaderToggle) {
+             e.preventDefault();
+             e.stopPropagation();
+             
+             const currentLogContainer = document.getElementById('live-log-container');
+             
+             if (currentLogContainer) {
+                 currentLogContainer.classList.toggle('collapsed');
+                 // CSS handles rotation automatically, no need to change icon class
+             }
+         }
+     });
+     
+     document.querySelector('.logo a').addEventListener('click', (e) => {
+         e.preventDefault();
+         if (body.classList.contains('search-active')) {
+             body.classList.remove('search-active');
+             // Clear all results and log messages when navigating home
+             document.getElementById('results-container').innerHTML = '';
+             document.getElementById('query-heading').classList.remove('expanded');
+             document.getElementById('query-text-content').innerHTML = '';
+             document.getElementById('show-more-btn').style.display = 'none';
+             document.getElementById('show-less-btn').style.display = 'none';
+             
+             // Remove the live log container when navigating home
+             const logContainer = document.getElementById('live-log-container');
+             if (logContainer) {
+                 logContainer.remove(); // Remove the entire container since it's positioned after tabs
+             }
+
+             queryInputTop.value = '';
+             queryInputBottom.value = '';
+
+             // Reset textarea heights to default
+             queryInputTop.style.height = '';
+             queryInputTop.style.overflowY = 'hidden';
+             queryInputBottom.style.height = '';
+             queryInputBottom.style.overflowY = 'hidden';
+
+             mainContent.insertBefore(initialViewContent, mainContent.firstChild);
+             bottomSearchWrapper.style.display = 'none';
+ 
+             // Reset the placeholder text
+             const bottomPlaceholderSpan = document.querySelector('#bottom-search-wrapper .placeholder-text-span');
+             if (bottomPlaceholderSpan) {
+                 bottomPlaceholderSpan.textContent = 'type your query';
+             }
+             
+             // Reset placeholder visibility for top search box
+             const topWrapper = queryInputTop.closest('.textarea-wrapper');
+             if (topWrapper) {
+                 const topPlaceholderText = topWrapper.querySelector('.placeholder-text-span');
+                 if (topPlaceholderText) {
+                     topPlaceholderText.classList.remove('hidden');
+                 }
+             }
+         }
        });
-   });
-   
-
-   // --- Elastic Scroll ---
-   let isScrolling = false;
-   let scrollTimeout;
-
-   resultsContainer.addEventListener('scroll', () => {
-       if (!isScrolling) {
-           window.requestAnimationFrame(() => {
-               const queryHeadings = resultsContainer.querySelectorAll('.query-heading');
-               queryHeadings.forEach(heading => {
-                   const rect = heading.getBoundingClientRect();
-                   if (rect.top < 10 && rect.top > -10) {
-                       heading.classList.add('rubber-band-effect');
-                   } else {
-                       heading.classList.remove('rubber-band-effect');
-                   }
-               });
-               isScrolling = false;
-           });
-       }
-       isScrolling = true;
-
-       clearTimeout(scrollTimeout);
-       scrollTimeout = setTimeout(() => {
-           const queryHeadings = resultsContainer.querySelectorAll('.query-heading');
-           queryHeadings.forEach(heading => {
-               heading.classList.remove('rubber-band-effect');
-           });
-       }, 150);
-   });
-});
+ 
+ 
+     // --- Custom Placeholder Logic and Cat Icon Rotation ---
+     const setupPlaceholder = (inputId) => {
+         const input = document.getElementById(inputId);
+         if (!input) return;
+         
+         const wrapper = input.closest('.textarea-wrapper');
+         if (!wrapper) return;
+         
+         const placeholderText = wrapper.querySelector('.placeholder-text-span');
+         const catIcon = wrapper.querySelector('.placeholder-cat-icon');
+         
+         const updatePlaceholderVisibility = () => {
+             const hasText = input.value.trim() !== '';
+             if (placeholderText) {
+                 placeholderText.classList.toggle('hidden', hasText);
+                 // Also update the wrapper class for CSS-based hiding
+                 wrapper.classList.toggle('has-content', hasText);
+             }
+         };
+ 
+         // Handle cat icon rotation on focus/blur
+         input.addEventListener('focus', () => {
+             if (catIcon) {
+                 catIcon.src = 'svg/cat2.svg'; // Change to cat2.svg on focus
+             }
+             updatePlaceholderVisibility(); // Call visibility update on focus
+         });
+         
+         input.addEventListener('blur', () => {
+             if (catIcon) {
+                 catIcon.src = 'svg/cat.svg'; // Change back to cat.svg on blur
+             }
+             updatePlaceholderVisibility(); // Call visibility update on blur
+         });
+         
+         // Initial check in case of pre-filled values
+         updatePlaceholderVisibility();
+     };
+ 
+     setupPlaceholder('query-input');
+     setupPlaceholder('query-input-bottom');
+ 
+     const shortResponseToggle = document.getElementById('short-response-toggle');
+     shortResponseToggle.addEventListener('click', () => {
+         shortResponseToggle.classList.toggle('active');
+     });
+ 
+     // Add event listeners for show more/less buttons
+     showMoreBtn.addEventListener('click', () => {
+         queryHeading.classList.add('expanded');
+         queryHeading.style.maxHeight = '500px'; // Set to expanded max height
+         showMoreBtn.style.display = 'none';
+         showLessBtn.style.display = 'block';
+         queryButtons.classList.remove('show-gradient'); // Hide gradient when expanded
+     });
+ 
+     showLessBtn.addEventListener('click', () => {
+         queryHeading.classList.remove('expanded');
+         const currentHeight = queryTextContent.scrollHeight;
+         const lineHeight = parseFloat(getComputedStyle(queryTextContent).lineHeight);
+         const targetMaxHeight = Math.min(120, Math.max(lineHeight * 1.5, currentHeight)); // At least 1.5 lines, up to 120px
+         queryHeading.style.maxHeight = `${targetMaxHeight}px`; // Revert to initial max height
+         
+         // Re-check if "show more" should be visible after collapsing
+         if (currentHeight > targetMaxHeight) {
+             showMoreBtn.style.display = 'block';
+             queryButtons.classList.add('show-gradient'); // Show gradient if still truncated
+         } else {
+             showMoreBtn.style.display = 'none';
+             queryButtons.classList.remove('show-gradient'); // Hide gradient if not truncated
+         }
+         showLessBtn.style.display = 'none';
+     });
+ });

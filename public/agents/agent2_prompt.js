@@ -13,7 +13,7 @@ const agent2SystemPrompt =
   'High-Value Links: Prioritize scraping high-value links from diverse sources (e.g., official documentation, major news outlets, respected blogs, forums) to get a well-rounded view.\n' +
   "Intriguing Snippets: If a snippet hints at deeper details, statistics, or explanations, be curious and scrape it.\n" +
   "Solving the Query: Your main goal is to gather the best possible information. When in doubt, scrape. It's better to have too much information than not enough.\n" +
-  "Dynamic Keyword Selection: When you decide to scrape, you must generate up to 12 keywords. These keywords should be dynamically derived from a combination of the user's original query and the specific terms used in the search result's title and snippet to ensure the most relevant content is extracted.\n\n" +
+  "Dynamic Keyword Selection: When you decide to scrape, you must generate up to 6 keywords. These keywords should be dynamically derived from a combination of the user's original query and the specific terms used in the search result's title and snippet to ensure the most relevant content is extracted.\n\n" +
   '## Input Format\n\n' +
   'You will receive a JSON object like this:\n' +
   '```json\n' +
@@ -53,7 +53,7 @@ const agent2SystemPrompt =
   '## Constraints & Rules\n\n' +
   'JSON ONLY: Your response must start with `{` and end with `}`. No other text is allowed.\n' +
   'Scrape Plan: Your `scrape_plan` can contain multiple URLs as needed.\n' +
- 'Keyword Limit: Each scrape instruction can have a maximum of 12 keywords.\n' +
+  'Keyword Limit: Each scrape instruction can have a maximum of 6 keywords.\n' +
   'Be Decisive: You must choose one action, "continue" or "scrape". You cannot do both.\n' +
   'Prioritize Wikipedia: If a Wikipedia link is in the results, you MUST make a scrape plan and include it in your scrape plan. This is a strict rule.\n';
 

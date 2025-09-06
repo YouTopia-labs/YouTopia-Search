@@ -429,28 +429,12 @@ body.dark-mode {
 
 html {
     scroll-behavior: smooth;
-    /* Prevent zooming on iOS but allow it on other browsers */
-    -webkit-text-size-adjust: 100%;
-    -ms-text-size-adjust: 100%;
-    text-size-adjust: 100%;
 }
 
 html, body {
     overflow-x: hidden; /* Only prevent horizontal scrolling */
     margin: 0;
     padding: 0;
-    /* Ensure full viewport height */
-    min-height: 100vh;
-    /* Prevent compression on Chrome/Edge */
-    position: relative;
-    width: 100%;
-    /* Ensure consistent box sizing */
-    box-sizing: border-box;
-}
-
-/* Ensure all elements use border-box for consistent sizing */
-* {
-    box-sizing: border-box;
 }
 
 body {
@@ -466,9 +450,6 @@ body {
     -moz-osx-font-smoothing: grayscale;
     line-height: 1.5; /* Adjusted base line height based on feedback */
     transition: background-color 0.3s ease, color 0.3s ease;
-    /* Prevent compression on Chrome/Edge */
-    min-width: 320px; /* Minimum width to prevent extreme compression */
-    overflow-y: auto; /* Allow vertical scrolling */
 }
 
 /* Adjusted typography for AI response content based on feedback */
@@ -523,16 +504,10 @@ body.dark-mode {
 
 /* --- Layout --- */
 .app-wrapper {
-    height: 100vh; /* Use full viewport height */
-    height: var(--app-height, 100vh); /* Fallback to dynamically set height */
+    height: var(--app-height); /* Use the dynamically set height */
     display: flex;
     flex-direction: column;
-    /* Prevent compression on Chrome/Edge */
-    /* Removed min-height to allow dynamic height adjustment on smaller screens */
-    /* Ensure consistent box sizing */
-    box-sizing: border-box;
-    /* Ensure full width */
-    width: 100%;
+    overflow: hidden; /* Prevent any overflow */
 }
 
 .app-container {
@@ -541,9 +516,6 @@ body.dark-mode {
     flex-grow: 1;
     position: relative;
     align-items: center; /* Center content horizontally */
-    /* Prevent compression on Chrome/Edge */
-    min-height: 100%;
-    width: 100%;
 }
 
 .background-glow {
@@ -576,7 +548,7 @@ body.search-active .background-glow {
     position: sticky; /* Changed to sticky for blur effect */
     top: 0;
     background-color: transparent; /* Removed white filling */
-    z-index: 1000; /* Increased z-index to ensure it stays on top */
+    z-index: 10;
     gap: 10px; /* Space between logo and controls */
 }
 
@@ -635,12 +607,11 @@ body.search-active .background-glow {
     width: 100%; /* Span edge-to-edge */
     max-width: none; /* Remove max-width constraint */
     margin: 0; /* Remove margin */
-    padding: 16px 12px; /* Add consistent padding */
+    padding: 0; /* Remove padding */
     position: relative;
     z-index: 1;
-    /* Removed overflow-y: auto; to prevent unintended scrolling of the main content area */
+    overflow-y: auto; /* Allow scrolling within the content area */
     min-height: 0; /* Remove min-height to prevent overflow */
-    box-sizing: border-box; /* Include padding in width calculation */
 }
 
 .initial-view-content {
@@ -668,13 +639,13 @@ body.search-active .background-glow {
     }
     
     .initial-view-content {
-        transform: translateY(-40px); /* Moved section further upward */
+        transform: translateY(-60px); /* Moved section further upward */
     }
 }
 
 @media (min-width: 1440px) {
     .initial-view-content {
-        transform: translateY(-50px); /* Moved section further upward */
+        transform: translateY(-70px); /* Moved section further upward */
     }
     
     html {
@@ -771,7 +742,7 @@ body.search-active .background-glow {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    margin-bottom: -15px; /* Further adjusted to bring "YouTopia Search" closer to the description */
+    margin-bottom: -6px; /* Adjusted to bring "YouTopia Search" closer to the description */
     white-space: nowrap; /* Prevent text wrapping */
     /* Removed padding here, will apply in media query */
 }
@@ -802,30 +773,26 @@ body.search-active .background-glow {
     color: var(--text-secondary);
     opacity: 0.9;
     line-height: 1.6; /* Slightly tighter */
-    margin-bottom: 0px; /* Further reduced for less space between title and description */
+    margin-bottom: 20px; /* Increased for more breathing room */
     text-align: center;
 }
 
 .search-wrapper {
     width: 100%;
     max-width: 800px;
-    margin: 0 auto 16px auto; /* Consistent bottom margin */
+    margin: 0 auto 16px auto; /* Increased for more breathing room */
     display: flex;
     flex-direction: column;
     gap: 12px; /* Space between elements */
     align-self: center;
-    padding: 0 8px; /* Add horizontal padding */
-    box-sizing: border-box; /* Include padding in width calculation */
 }
 
 .example-prompts {
     margin-top: 1rem; /* Increased for more breathing room */
     width: 100%;
     max-width: 800px;
-    margin: 0 auto 20px auto; /* Add consistent bottom margin */
+    margin: 0 auto;
     align-self: center;
-    padding: 0 8px; /* Add horizontal padding */
-    box-sizing: border-box; /* Include padding in width calculation */
 }
 
 .example-prompts-grid {
@@ -838,7 +805,7 @@ body.search-active .background-glow {
 
 @media (min-width: 768px) {
     .main-content {
-        padding: 24px 20px; /* Consistent padding for tablet */
+        padding: 24px 16px; /* Adjusted padding for tablet */
     }
 
     .search-logo {
@@ -864,12 +831,6 @@ body.search-active .background-glow {
 
     .search-wrapper {
         margin: 0 auto 20px auto;
-        padding: 0 12px; /* Consistent horizontal padding */
-    }
-
-    .example-prompts {
-        margin: 0 auto 24px auto; /* Consistent bottom margin */
-        padding: 0 12px; /* Consistent horizontal padding */
     }
 
     .example-prompts-grid {
@@ -907,12 +868,6 @@ body.search-active .background-glow {
 
     .search-wrapper {
         margin: 0 auto 32px auto; /* Increased bottom margin */
-        padding: 0 16px; /* Consistent horizontal padding */
-    }
-
-    .example-prompts {
-        margin: 0 auto 36px auto; /* Consistent bottom margin */
-        padding: 0 16px; /* Consistent horizontal padding */
     }
 
     .example-prompts-grid {
@@ -963,10 +918,6 @@ body.search-active .background-glow {
     padding: 4px; /* Reduced from 6px */
     border: 2px solid var(--border-color);
     box-shadow: var(--shadow-light);
-    /* Ensure consistent box sizing */
-    box-sizing: border-box;
-    /* Prevent compression on small screens */
-    min-height: 52px;
 }
 
 .search-box:focus-within {
@@ -1184,51 +1135,28 @@ body:not(.dark-mode) .placeholder-text-span {
 }
 
 /* Mobile-specific placeholder improvements */
-/* Mobile-specific placeholder improvements - CORRECTED FOR SPACING & CENTERING */
 @media (max-width: 767px) {
-    /* Reduce the overall padding on the main content area for mobile */
-    .main-content {
-        padding: 16px 12px;
+    .site-title-container,
+    .search-wrapper,
+    .example-prompts {
+        padding-left: 12px;
+        padding-right: 12px;
     }
 
-    /* Drastically reduce the upward push of the content on mobile */
-    .initial-view-content {
-        transform: translateY(-55px);
-    }
-
-    /* Tighten spacing between title and description */
     .site-title-container {
         white-space: normal; /* Allow wrapping */
-        margin-bottom: 4px; /* Reduced to decrease space between title and description */
-        padding: 0 12px; /* Consistent horizontal padding */
     }
 
-    /* Reduce description font size and margin */
-    .site-description {
-        font-size: 0.95rem;
-        margin-bottom: 0px;
-    }
-    
-    /* FIX: This is the key fix for the search box centering and spacing */
     .search-wrapper {
-        max-width: 100%;    /* Use full available width */
-        padding: 0 12px;    /* Add consistent padding on the sides */
-        margin: 0 auto 12px auto; /* Center it and reduce bottom margin */
-        box-sizing: border-box; /* Ensure padding is included in the width */
+        max-width: 100%; /* Ensure it resizes */
     }
     
-    /* Also apply the same centering and spacing logic to the example prompts */
     .example-prompts {
-        max-width: 100%;
-        padding: 0 12px;
-        margin: 0 auto 20px auto;
-        box-sizing: border-box;
+        max-width: 100%; /* Ensure it resizes */
     }
 
-    /* Minor adjustment for results view */
     #query-heading {
-        max-width: 100%;
-        margin: 4px auto;
+        max-width: 100%; /* Ensure it resizes */
     }
 }
 
@@ -1529,43 +1457,19 @@ body.dark-mode .send-btn:active {
     width: 100%;
     max-width: 800px; /* Keep max-width for desktop, adjust for mobile in media query */
     align-self: center;
-    overflow-y: auto; /* Make this scrollable */
-    max-height: 140px; /* Limit height to enable scrolling */
     /* Removed padding here, will apply in media query */
 }
 
 .example-prompts-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr); /* Default 2x2 grid for all screens with horizontal space */
-    gap: 12px; /* Consistent spacing */
-    width: 100%; /* Ensure full width usage */
-    max-width: 800px; /* Match max-width of parent container */
-    margin: 0 auto; /* Center the grid */
-    min-height: 80px; /* Ensure minimum height for visibility */
-}
-
-/* For tablets and medium screens */
-@media (min-width: 768px) {
-    .example-prompts-grid {
-        gap: 14px; /* Slightly larger gap for tablets */
-        min-height: 90px; /* Slightly larger minimum height */
-    }
-}
-
-/* For desktop screens */
-@media (min-width: 1024px) {
-    .example-prompts-grid {
-        gap: 16px; /* Optimal spacing for desktop */
-        min-height: 100px; /* Larger minimum height for desktop */
-    }
+    gap: 14px; /* Better spacing */
 }
 
 /* Only switch to single column on mobile when vertical space is very limited */
 @media (max-width: 767px) and (max-height: 700px) {
     .example-prompts-grid {
         grid-template-columns: 1fr; /* Single column only on mobile with limited height */
-        gap: 10px; /* Reduced gap for better spacing */
-        min-height: 70px; /* Maintain minimum height */
     }
 }
 
@@ -1573,28 +1477,6 @@ body.dark-mode .send-btn:active {
 @media (max-width: 480px) {
     .example-prompts-grid {
         grid-template-columns: 1fr; /* Single column for very small screens */
-        gap: 8px; /* Further reduced gap for smaller screens */
-        min-height: 60px; /* Maintain minimum height */
-    }
-}
-
-/* For ultra-narrow screens */
-@media (max-width: 320px) {
-    .example-prompts-grid {
-        gap: 6px; /* Minimal gap for ultra-narrow screens */
-        min-height: 50px; /* Maintain minimum height */
-    }
-}
-
-/* Ensure example prompts are visible on all screen sizes */
-@media (max-height: 650px) and (max-width: 767px) {
-    .example-prompts {
-        margin-top: 0.5rem;
-        margin-bottom: 0.5rem;
-    }
-    
-    .example-prompts-grid {
-        gap: 8px; /* Further reduced gap for very small screens */
     }
 }
 
@@ -1602,87 +1484,36 @@ body.dark-mode .send-btn:active {
     background: color-mix(in srgb, var(--content-bg-color) 70%, transparent);
     border: 2px solid var(--border-color);
     color: var(--text-secondary);
-    padding: 20px 16px; /* Balanced padding for all screen sizes */
+    padding: 32px 24px; /* Further increased vertical padding from 28px to 32px */
     border-radius: 16px;
-    font-size: 0.9rem; /* Consistent font size */
+    font-size: 0.9rem; /* Slightly larger font */
     text-align: left;
     cursor: pointer;
     box-shadow: var(--shadow-light);
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     width: 100%; /* Full width */
-    min-height: 70px; /* Consistent minimum height */
-    transition: all 0.2s ease; /* Smooth transition for hover effects */
-    overflow: hidden; /* Prevent content overflow */
+    min-height: 95px; /* Further increased minimum height from 80px to 95px */
 }
 
 .example-prompt-btn:hover {
     border-color: var(--send-button-grad-start);
 }
 
-/* For tablets and medium screens */
-@media (min-width: 768px) {
-    .example-prompt-btn {
-        padding: 22px 18px; /* Slightly larger padding for tablets */
-        min-height: 75px; /* Slightly larger min-height for tablets */
-        font-size: 0.9rem; /* Consistent font size */
-        gap: 12px; /* Optimal gap for tablets */
-    }
-}
-
-/* For desktop screens */
-@media (min-width: 1024px) {
-    .example-prompt-btn {
-        padding: 24px 20px; /* Larger padding for desktop */
-        min-height: 80px; /* Larger min-height for desktop */
-        font-size: 0.95rem; /* Slightly larger font for desktop */
-        gap: 14px; /* Optimal gap for desktop */
-    }
-}
-
 /* Mobile-specific styling for example prompt buttons */
 @media (max-width: 767px) {
     .example-prompt-btn {
-        padding: 16px 14px; /* Reduced padding for mobile */
-        min-height: 65px; /* Consistent min-height for mobile */
+        padding: 16px 14px; /* Slightly reduced padding for mobile */
+        min-height: 56px; /* Slightly reduced min-height for mobile */
         font-size: 0.85rem; /* Slightly smaller font on mobile */
-        gap: 8px; /* Reduced gap for mobile */
-    }
-    
-    .example-prompt-btn i {
-        font-size: 1rem; /* Consistent icon size */
-    }
-}
-
-/* For very small screens */
-@media (max-width: 480px) {
-    .example-prompt-btn {
-        padding: 14px 12px; /* Further reduced padding for very small screens */
-        min-height: 60px; /* Slightly smaller min-height */
-        font-size: 0.8rem; /* Smaller font for very small screens */
-        gap: 6px; /* Further reduced gap */
-    }
-}
-
-/* For ultra-narrow screens */
-@media (max-width: 320px) {
-    .example-prompt-btn {
-        padding: 12px 10px; /* Minimal padding for ultra-narrow screens */
-        min-height: 50px; /* Minimal height for ultra-narrow screens */
-        font-size: 0.75rem; /* Smaller font for ultra-narrow screens */
-        gap: 5px; /* Minimal gap */
-    }
-    
-    .example-prompt-btn i {
-        font-size: 0.9rem; /* Slightly smaller icon */
     }
 }
 
 
 /* --- Search Active State (Floating Search Box) --- */
 body.search-active {
-    overflow-y: hidden; /* Prevent body from scrolling */
+    overflow-y: hidden; /* Prevent vertical scrolling on body */
 }
 
 body.search-active .app-container {
@@ -1691,13 +1522,12 @@ body.search-active .app-container {
 }
 
 body.search-active .main-content {
-    min-height: 100vh;
+    height: 100vh;
     padding: 0;
     max-width: 100%;
     justify-content: flex-start;
     display: flex;
     flex-direction: column;
-    overflow-y: auto; /* Allow main content to scroll */
 }
 
 /* Hide initial search wrapper when search is active */
@@ -1708,24 +1538,15 @@ body.search-active .search-wrapper:first-of-type {
 /* Bottom Search Wrapper - Move to very bottom */
 body.search-active .search-wrapper:last-of-type {
     position: fixed;
-    background-color: var(--bg-color);
-    bottom: 0;
-    left: 0;
+    bottom: 0; /* Changed from -8px to 0 to remove gap */
+    left: 50%;
+    transform: translateX(-50%);
     z-index: 9999;
     flex-shrink: 0;
     margin: 0;
     padding: 8px;
-    width: 100%;
-    max-width: 100%;
-}
-
-/* Ensure compact search box is centered in search-active state */
-body.search-active .compact-search-box {
-    margin: 0 auto; /* Center the compact search box */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    max-width: 766px; /* Match the max-width of other search boxes */
+    width: 100%; /* Changed from 96% to 100% for full width */
+    max-width: 100%; /* Changed from 750px to 100% for full width */
 }
 
 /* Dropdown adjustments for floating search */
@@ -1742,10 +1563,10 @@ body.search-active .search-wrapper .dropdown-menu {
 
 /* Floating Search Box Styling */
 body.search-active .search-box {
-    max-width: 766px;
+    max-width: 766px; /* Adjusted to 730px */
     margin: 0 auto;
-    transform: none;
-    box-shadow: var(--shadow-top);
+    transform: none; /* Remove scaling for better positioning */
+    box-shadow: var(--shadow-top); /* Add top shadow for readability */
     border-radius: 12px;
 }
 
@@ -1829,70 +1650,91 @@ body.search-active #main-results-area {
     padding: 0 12px 220px 12px; /* Adjusted bottom padding to account for export panel and fixed search box */
 }
 
+/* === REDESIGNED QUERY HEADING === */
 #query-heading {
-    display: none; /* Hidden by default */
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 20px; /* Reduced vertical padding */
     background-color: var(--content-bg-color);
-    border: 1px solid var(--border-color);
-    border-radius: 12px; /* Rounded corners */
-    position: relative; /* Changed from sticky to relative */
-    top: auto; /* Reset top positioning */
-    z-index: 100;
+    border: 2px solid var(--border-color);
+    border-radius: 18px; /* Squircle effect */
+    padding: 8px 12px; /* Uniform horizontal padding */
+    margin: 6px auto; /* Current margin */
+    max-width: 766px; /* Keep max-width for desktop, adjust for mobile in media query */
+    text-align: left;
+    font-size: 1rem; /* Slightly smaller font for slimmer look */
+    font-weight: 500;
+    color: var(--text-primary);
     box-shadow: var(--shadow-light);
-    margin: 5px auto 10px auto; /* Reduced top margin to pull it up */
-    max-width: 766px; /* Match other content widths */
+    display: flex; /* Use flexbox for layout */
+    flex-direction: column; /* Stack content and buttons */
+    /* min-height removed, height will be determined by content */
+    position: relative; /* For positioning the "show more" button */
+    overflow: hidden; /* Hide overflow content */
+    z-index: 11; /* Ensure query heading appears above the header */
+    /* max-height handled by JS */
+}
+
+#query-heading.expanded {
+    max-height: 500px; /* Max height when expanded */
+    overflow-y: hidden; /* Prevent scrolling on the main container */
+    padding-bottom: 40px; /* Space for the fixed "show less" button */
+    position: relative; /* Ensure position context for absolute button */
 }
 
 #query-text-content {
-    font-weight: 500;
-    color: var(--text-primary);
-    font-size: 1.1rem;
-    line-height: 1.2; /* Explicitly set line-height for consistent 4-line calculation */
     white-space: pre-wrap; /* Allow text to wrap */
-    word-wrap: break-word; /* Ensure long words break */
-    overflow: hidden; /* Hide overflow initially */
-    text-overflow: ellipsis; /* Fallback for single line ellipsis if needed, though not strictly necessary with pre-wrap */
+    word-wrap: break-word; /* Break long words */
+    overflow-y: auto; /* Allow scrolling only on the text content */
+    flex-grow: 1; /* Allow content to grow */
+    padding-top: 2px; /* Fine-tune vertical alignment of text */
+    padding-bottom: 2px; /* Fine-tune vertical alignment of text */
+    mask-image: linear-gradient(to bottom, black 95%, transparent 100%); /* Adjusted fade out effect to be shorter */
+    line-height: 1.4; /* Ensure consistent line height */
 }
 
-/* Show more/less button styles */
-.show-more-btn {
-    background: none;
+#query-heading.expanded #query-text-content {
+    overflow-y: auto; /* Ensure scrolling is enabled when expanded */
+}
+
+.query-buttons {
+    position: absolute; /* Position relative to #query-heading */
+    bottom: 0px; /* Stick to the bottom */
+    right: 0px; /* Stick to the right */
+    left: 0px; /* Span full width */
+    display: flex;
+    justify-content: flex-end; /* Align buttons to the right */
+    gap: 8px;
+    z-index: 2; /* Ensure buttons are above content */
+    /* background handled by .show-gradient class */
+    padding: 8px 20px; /* Padding for the buttons area */
+    box-sizing: border-box; /* Include padding in width/height */
+}
+
+.query-buttons.show-gradient {
+    background: linear-gradient(to top, var(--content-bg-color) 85%, transparent); /* Adjusted fade effect to be shorter */
+}
+
+.query-btn {
+    background-color: var(--send-button-grad-start);
+    color: var(--send-button-text);
     border: none;
-    color: var(--send-button-grad-start);
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 0.8rem;
     cursor: pointer;
-    font-size: 0.9rem;
-    font-weight: 500;
-    margin-left: 10px;
-    padding: 0;
-    text-decoration: underline;
-    display: block; /* Change to block to appear below the text */
-    margin-top: 5px; /* Add some space above the button */
-    text-align: right; /* Align button to the right */
+    white-space: nowrap;
 }
 
-.show-more-btn:hover {
-    color: var(--text-primary);
+.query-btn:hover {
+    background-color: var(--send-button-grad-end);
 }
 
-
-/* Collapsed state for query text */
-.query-text-collapsed {
-    max-height: calc(1.1rem * 1.2 * 4); /* Max height for 4 lines (font-size * line-height * 4) */
-    overflow: hidden;
-    position: relative;
+/* Ensure buttons are visible in dark mode */
+body.dark-mode .query-btn {
+    background-color: var(--send-button-grad-start);
+    color: var(--send-button-text);
 }
-/* Gradient overlay for collapsed state */
-.query-text-collapsed::after {
-    content: "";
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 2rem;
-    background: linear-gradient(to bottom, transparent, var(--content-bg-color));
-    pointer-events: none; /* Allow clicks to pass through to the text */
+
+body.dark-mode .query-btn:hover {
+    background-color: var(--send-button-grad-end);
 }
 
 
@@ -1953,45 +1795,6 @@ body.search-active #main-results-area {
     transition: color 0.3s ease;
     max-width: 766px; /* Match the max-width of the search box and results area */
     margin: 0 auto; /* Center the response */
-}
-
-/* Conversation pair styling */
-.conversation-pair {
-    margin-bottom: 20px;
-    padding-bottom: 20px;
-}
-
-.conversation-pair:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-}
-
-
-.query-heading h3 {
-    margin: 0;
-    font-size: 1.1rem;
-    color: var(--text-primary);
-    font-weight: 500;
-}
-
-/* Sticky effect for query headings */
-.query-heading.sticky {
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    box-shadow: 0 2px 10px rgba(0, 0, 0.1);
-    transition: all 0.3s ease;
-}
-
-/* Elastic scrolling effect */
-@keyframes elasticScroll {
-    0% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
-    100% { transform: translateY(0); }
-}
-
-.elastic-effect {
-    animation: elasticScroll 0.5s ease;
 }
 
 /* Adjust padding for lists within the AI response */
@@ -2621,7 +2424,7 @@ body.dark-mode .google-signin-btn-enhanced:hover {
 /* Social Media Footer */
 .social-footer {
     position: fixed;
-    bottom: 10px;
+    bottom: 0px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 100;
@@ -2720,7 +2523,7 @@ body.search-active .social-footer {
 /* Mobile adjustments for social footer */
 @media (max-width: 768px) {
     .social-footer {
-        bottom: 10px;
+        bottom: 0px;
     }
     
     .social-links {
@@ -2745,11 +2548,11 @@ body.search-active .social-footer {
 /* Ultra-narrow screens (Galaxy Fold and similar) */
 @media (max-width: 320px) {
     .main-content {
-        padding: 8px 4px; /* Consistent minimal padding */
+        padding: 4px 4px; /* Minimal padding */
     }
 
     .initial-view-content {
-        transform: translateY(-20px); /* Less upward transform */
+        transform: translateY(-10px); /* Less upward transform */
     }
 
     .site-title-container {
@@ -2757,7 +2560,6 @@ body.search-active .social-footer {
         flex-direction: column; /* Stack logo and title vertically */
         gap: 0px; /* Reduced gap */
         margin-bottom: 4px; /* Reduced margin */
-        padding: 0 4px; /* Consistent padding */
     }
 
     .search-logo {
@@ -2785,9 +2587,8 @@ body.search-active .social-footer {
     }
 
     .search-wrapper {
-        margin: 0 auto 8px auto; /* Consistent bottom margin */
+        margin: 0 auto 2px auto; /* Further reduced margin */
         gap: 2px; /* Further reduced gap */
-        padding: 0 4px; /* Consistent padding */
     }
 
     .search-box {
@@ -2828,8 +2629,7 @@ body.search-active .social-footer {
 
     .example-prompts {
         margin-top: 0.05rem; /* Further reduced margin */
-        margin-bottom: 8px; /* Consistent bottom margin */
-        padding: 0 4px; /* Consistent padding */
+        margin-bottom: 2px; /* Added small bottom margin */
     }
 
     .example-prompts-grid {
@@ -2930,13 +2730,13 @@ body.search-active .social-footer {
         font-size: 11px; /* Even smaller base font size */
     }
     .main-content {
-        padding: 4px 8px 50px 8px; /* Further reduced padding, added bottom padding for social footer */
+        padding: 4px 8px; /* Further reduced padding */
         min-height: 0; /* Allow content to define height */
         justify-content: center; /* Center content vertically */
     }
 
     .initial-view-content {
-        transform: translateY(-10px);
+        transform: translateY(0px);
         justify-content: center; /* Center content vertically */
         flex-grow: 0; /* Don't grow to fill space */
         width: 100%;
@@ -2984,8 +2784,6 @@ body.search-active .social-footer {
     .example-prompts {
         margin-top: 0.5vh; /* Further reduced margin */
         margin-bottom: 0.5vh; /* Further reduced margin */
-        max-height: 90px; /* Make example prompts scrollable on short screens */
-        overflow-y: auto; /* Ensure scrolling is enabled */
     }
 
     .example-prompts-grid {
@@ -3003,7 +2801,7 @@ body.search-active .social-footer {
     }
 
     .social-footer {
-        /* position: static; Consider making this fixed if overlap persists */
+        position: static; /* Let it be part of the flow */
         transform: none;
         margin-top: 0.5vh; /* Further reduced margin */
         padding-bottom: 0.5vh; /* Further reduced padding */
@@ -3027,13 +2825,12 @@ body.search-active .social-footer {
 /* Ultra-narrow AND short screens (hide description, preserve social icons) */
 @media (max-width: 320px) and (max-height: 600px) {
     .main-content {
-        padding: 4px 6px 50px 6px; /* Added bottom padding for social footer */
-        /* Removed min-height to allow content to define height */
+        padding: 4px 6px;
+        min-height: calc(100vh - 40px);
     }
 
     .initial-view-content {
-        transform: translateY(-10px); /* No upward transform for ultra-narrow and short screens */
-        flex-grow: 0; /* Prevent it from expanding unnecessarily */
+        transform: translateY(0px); /* No upward transform for ultra-narrow and short screens */
     }
 
     .site-title {
@@ -3054,8 +2851,6 @@ body.search-active .social-footer {
     .example-prompts {
         margin-top: 0.125rem;
         margin-bottom: 15px; /* Reduced margin since social icons are preserved */
-        max-height: 90px; /* Make example prompts scrollable on ultra-narrow and short screens */
-        overflow-y: auto; /* Ensure scrolling is enabled */
     }
 
     .example-prompts-grid {
@@ -3065,7 +2860,7 @@ body.search-active .social-footer {
     .example-prompt-btn {
         padding: 8px;
         font-size: 0.7rem;
-        min-height: 0; /* Allow example prompt buttons to shrink */
+        min-height: 36px;
     }
 
     /* Keep social footer visible and properly positioned */
@@ -3095,24 +2890,17 @@ body.search-active .social-footer {
     border-radius: 16px !important; /* Increased border-radius for more squircleness */
     min-height: 16px !important;
     box-shadow: none !important;
-    display: flex;
-    align-items: center;
-    justify-content: center; /* Center the content */
 }
 
 .compact-search-box .search-input-container {
     display: flex !important;
     align-items: center !important;
-    gap: 2px !important;
-    width: 100%;
-    justify-content: center;
+    gap: 2px !important; /* Further reduced from 4px */
 }
 
 .compact-search-box .textarea-wrapper {
     flex: 1 !important;
     min-height: 14px !important;
-    display: flex;
-    align-items: center;
 }
 
 #bottom-search-wrapper .placeholder-content {
@@ -3123,18 +2911,13 @@ body.search-active .social-footer {
     margin: 0 !important;
     padding: 0 !important;
     border: 0 !important;
-    position: absolute;
-    top: 50%;
-    left: 0;
-    width: 100%;
-    transform: translateY(-50%);
 }
 
 #bottom-search-wrapper .placeholder-cat-icon {
     width: 28px !important; /* Reduced from 32px */
     height: 28px !important; /* Reduced from 32px */
     left: 6px !important; /* Adjusted for smaller size */
-    top: 50% !important; /* Center vertically */
+    top: 150% !important; /* Moved further down from 60% for better positioning */
     transform: translateY(-50%) !important;
     /* CRITICAL: Remove any spacing that could affect positioning */
     margin: 0 !important;
@@ -3147,7 +2930,7 @@ body.search-active .social-footer {
     width: 16px !important; /* Reduced from 18px */
     height: 16px !important; /* Reduced from 18px */
     left: 36px !important; /* Moved left from 40px */
-    top: 50% !important; /* Center vertically */
+    top: 150% !important; /* Moved further down from 60% to align with cat icon */
     transform: translateY(-50%) !important;
     /* CRITICAL: Remove any spacing that could affect positioning */
     margin: 0 !important;
@@ -3159,7 +2942,7 @@ body.search-active .social-footer {
 #bottom-search-wrapper .placeholder-text-span {
     /* CRITICAL: This MUST match textarea's left padding exactly */
     left: 58px !important; /* Moved left from 62px */
-    top: 50% !important; /* Center vertically */
+    top: 150% !important; /* Adjusted to align cursor with 'A' in placeholder text */
     transform: translateY(-50%) !important;
     /* CRITICAL: Font properties MUST match textarea exactly */
     font-size: 0.9rem !important; /* Increased from 0.8rem */
@@ -3195,7 +2978,7 @@ body.search-active .social-footer {
     vertical-align: baseline !important;
     /* Position textarea to align with placeholder text */
     position: relative !important;
-    top: 0 !important; /* Reset top positioning */
+    top: 7px !important; /* Adjusted top to align with placeholder text */
 }
 
 #send-btn-bottom {
@@ -3210,8 +2993,7 @@ body.search-active .social-footer {
     align-items: center !important;
     justify-content: center !important;
     flex-shrink: 0 !important;
-    transform: none !important; /* Remove transform that was moving it left */
-    margin-left: 4px; /* Add proper margin instead of transform */
+    transform: translateX(-4px) !important; /* Moved left by 4px */
 }
 
 /* --- Chart.js Styling --- */
@@ -3920,543 +3702,4 @@ body.dark-mode .google-signin-btn:hover {
     width: auto; /* Allow it to fit content */
     margin: 8px 15px; /* Add some margin */
     padding: 8px 12px; /* Slightly smaller padding */
-}
-
-/* Chrome/Edge specific fixes to prevent compression */
-@media screen and (-webkit-min-device-pixel-ratio:0) and (min-resolution: .001dpcm) {
-    .app-wrapper {
-        /* Removed min-height for flexible layout in Webkit browsers */
-        height: 100vh;
-    }
-    
-    .app-container {
-        min-height: 100%;
-        height: 100%;
-    }
-    
-    .main-content {
-        min-height: calc(100vh - 65px); /* Account for header height */
-    }
-    
-    .initial-view-content {
-        min-height: 400px;
-    }
-    
-    /* Ensure example prompts are properly sized */
-    .example-prompts {
-        overflow-y: visible;
-    }
-    
-    .example-prompts-grid {
-        min-height: 100px;
-    }
-    
-    /* Fix for search box compression */
-    .search-wrapper {
-        min-height: 80px;
-    }
-    
-    .search-box {
-        min-height: 60px;
-    }
-    
-    .textarea-wrapper {
-        min-height: 44px;
-    }
-    
-    /* Ensure social footer stays visible */
-    .social-footer {
-        min-height: 50px;
-    }
-    
-    /* Responsive adjustments for Chrome/Edge */
-    @media (max-width: 768px) {
-        .app-wrapper {
-            min-height: 500px;
-        }
-        
-        .main-content {
-            min-height: calc(100vh - 60px);
-        }
-        
-        .initial-view-content {
-            min-height: 300px;
-        }
-        
-        .example-prompts {
-            min-height: 100px;
-            max-height: 200px;
-        }
-    }
-    
-    @media (max-width: 480px) {
-        .app-wrapper {
-            min-height: 400px;
-        }
-        
-        .main-content {
-            min-height: calc(100vh - 55px);
-        }
-        
-        .initial-view-content {
-            min-height: 250px;
-        }
-        
-        .example-prompts {
-            min-height: 80px;
-            max-height: 150px;
-        }
-    }
-}
-
-/* Firefox specific fixes */
-@-moz-document url-prefix() {
-    .app-wrapper {
-        /* Removed min-height for flexible layout in Mozilla browsers */
-        height: 100vh;
-    }
-    
-    .main-content {
-        min-height: calc(100vh - 65px);
-    }
-    
-    .initial-view-content {
-        min-height: 400px;
-    }
-    
-    /* Ensure example prompts are properly sized */
-    .example-prompts {
-        overflow-y: visible;
-    }
-    
-    .example-prompts-grid {
-        min-height: 100px;
-    }
-    
-    /* Fix for search box compression */
-    .search-wrapper {
-        min-height: 80px;
-    }
-    
-    .search-box {
-        min-height: 60px;
-    }
-    
-    .textarea-wrapper {
-        min-height: 44px;
-    }
-    
-    /* Ensure social footer stays visible */
-    .social-footer {
-        min-height: 50px;
-    }
-}
-
-/* --- MOBILE & SMALL SCREEN FIXES --- */
-@media (max-width: 767px) {
-    /*
-     * Fix for search box centering and spacing.
-     * Ensures the search box and prompts use the full available width
-     * with consistent padding, preventing them from becoming too distanced
-     * or misaligned on small screens.
-     */
-    .search-wrapper,
-    .example-prompts {
-        max-width: 100%;    /* Use full available width */
-        padding: 0 12px;    /* Add consistent padding on the sides */
-        margin-left: auto;
-        margin-right: auto;
-        box-sizing: border-box; /* Ensure padding is included in the width */
-    }
-
-    .search-wrapper {
-        margin-bottom: 16px; /* Consistent bottom margin */
-    }
-
-    .example-prompts {
-        margin-bottom: 20px; /* Consistent bottom margin */
-    }
-
-    /*
-     * Drastically reduce the upward push of the content on mobile
-     * to ensure it remains centered and does not create awkward spacing.
-     */
-    .initial-view-content {
-        transform: translateY(-15px);
-    }
-
-    /*
-     * Adjust title container to allow wrapping and add appropriate
-     * spacing for mobile view.
-     */
-    .site-title-container {
-        white-space: normal; /* Allow wrapping */
-        margin-bottom: -5px; /* Further adjusted to bring "YouTopia Search" closer on mobile */
-    }
-
-    /* Reduce description font size and margin for better fit */
-    .site-description {
-        font-size: 0.95rem;
-        margin-bottom: 8px; /* Increased margin for mobile */
-    }
-}
-
-/* --- Conversation History Modal --- */
-#history-modal {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0.6);
-    z-index: 10000;
-    backdrop-filter: blur(5px);
-    -webkit-backdrop-filter: blur(5px);
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.3s ease, visibility 0.3s ease;
-}
-
-#history-modal.show {
-    opacity: 1;
-    visibility: visible;
-}
-
-#history-modal-content {
-    background-color: var(--content-bg-color);
-    border-radius: 12px;
-    padding: 30px;
-    box-shadow: var(--shadow-heavy);
-    width: 90%;
-    max-width: 600px;
-    max-height: 80vh;
-    overflow-y: auto;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) translateY(20px);
-    opacity: 0;
-    transition: transform 0.3s ease, opacity 0.3s ease;
-    border: 1px solid var(--border-color);
-}
-
-#history-modal.show #history-modal-content {
-    transform: translate(-50%, -50%) translateY(0);
-    opacity: 1;
-}
-
-#history-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 15px;
-    border-bottom: 1px solid var(--border-color);
-}
-
-#history-modal-header h3 {
-    font-size: 1.5rem;
-    color: var(--text-primary);
-    margin: 0;
-}
-
-#close-history-modal {
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 0;
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    transition: background-color 0.2s ease;
-}
-
-#close-history-modal:hover {
-    background-color: var(--hover-bg-color);
-    color: var(--text-primary);
-}
-
-#history-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.history-item {
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 12px;
-    background-color: var(--secondary-bg-color);
-    border: 1px solid var(--border-color);
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.history-item:hover {
-    background-color: var(--hover-bg-color);
-    border-color: var(--send-button-grad-start);
-    transform: translateY(-2px);
-}
-
-.history-item:last-child {
-    margin-bottom: 0;
-}
-
-.history-item-title {
-    font-size: 1rem;
-    font-weight: 500;
-    color: var(--text-primary);
-    margin-bottom: 8px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.history-item-preview {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    margin-bottom: 10px;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.history-item-date {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    text-align: right;
-}
-
-/* Empty state */
-#history-empty-state {
-    text-align: center;
-    padding: 40px 20px;
-    color: var(--text-secondary);
-}
-
-#history-empty-state i {
-    font-size: 3rem;
-    margin-bottom: 15px;
-    opacity: 0.5;
-}
-
-#history-empty-state p {
-    font-size: 1rem;
-    margin: 0;
-}
-
-/* Responsive adjustments for history modal */
-@media (max-width: 768px) {
-    #history-modal-content {
-        width: 95%;
-        padding: 20px;
-        max-height: 85vh;
-    }
-    
-    #history-modal-header h3 {
-        font-size: 1.3rem;
-    }
-    
-    .history-item {
-        padding: 12px;
-    }
-    
-    .history-item-title {
-        font-size: 0.95rem;
-    }
-    
-    .history-item-preview {
-        font-size: 0.8rem;
-    }
-}
-
-/* Style the history button to match other dropdown items */
-#history-button {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    cursor: pointer;
-    font-size: 0.85rem;
-    background-color: var(--content-bg-color);
-    border: none;
-    width: 100%;
-    text-align: left;
-    color: var(--text-primary);
-}
-
-#history-button:hover {
-    background-color: var(--hover-bg-color);
-}
-
-#history-button i {
-    font-size: 0.9rem;
-    width: 16px;
-    text-align: center;
-}
-
-#history-button span {
-    font-weight: 500;
-    color: var(--text-primary);
-}
-
-/* Toast Notification Styles */
-.toast {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background-color: #333;
-  color: white;
-  padding: 16px 24px;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 10001;
-  opacity: 0;
-  transform: translateY(-20px);
-  transition: opacity 0.3s, transform 0.3s;
-  font-size: 0.9rem;
-  pointer-events: none;
-}
-
-.toast.show {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.toast.hide {
-  opacity: 0;
-  transform: translateY(-20px);
-}
-
-.rubber-band-effect {
-    transition: transform 0.2s ease-out;
-}
-
-
-/* Real-time streaming response styles */
-.typing-indicator {
-    display: inline-block;
-    position: relative;
-}
-
-.typing-indicator .cursor {
-    display: inline-block;
-    width: 2px;
-    height: 1.2em;
-    background-color: var(--text-primary, #333);
-    animation: blink 1s infinite;
-    margin-left: 2px;
-    vertical-align: text-bottom;
-}
-
-@keyframes blink {
-    0%, 49% { opacity: 1; }
-    50%, 100% { opacity: 0; }
-}
-
-.streaming-markdown {
-    transition: all 0.1s ease-out;
-}
-
-.streaming-markdown p,
-.streaming-markdown li,
-.streaming-markdown h1,
-.streaming-markdown h2,
-.streaming-markdown h3,
-.streaming-markdown h4,
-.streaming-markdown h5,
-.streaming-markdown h6,
-.streaming-markdown pre,
-.streaming-markdown code,
-.streaming-markdown blockquote {
-    margin-bottom: 0.5em;
-    line-height: 1.5;
-}
-
-.streaming-markdown pre {
-    background-color: var(--content-bg-color);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 1em;
-    overflow-x: auto;
-    font-family: 'SF Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
-    font-size: 0.95rem;
-    margin-bottom: 1em;
-}
-
-.streaming-markdown code {
-    background-color: rgba(0, 0, 0, 0.05);
-    padding: 0.2em 0.4em;
-    border-radius: 3px;
-    font-family: 'SF Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
-    font-size: 0.9em;
-}
-
-body.dark-mode .streaming-markdown code {
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-.streaming-markdown ul,
-.streaming-markdown ol {
-    margin-left: 1.5em;
-    margin-bottom: 0.5em;
-}
-
-.streaming-markdown li {
-    margin-bottom: 0.3em;
-}
-
-.streaming-markdown h1,
-.streaming-markdown h2,
-.streaming-markdown h3,
-.streaming-markdown h4,
-.streaming-markdown h5,
-.streaming-markdown h6 {
-    margin-top: 0.8em;
-    margin-bottom: 0.4em;
-    font-weight: 600;
-}
-
-.streaming-markdown blockquote {
-    border-left: 4px solid var(--border-color);
-    padding-left: 1em;
-    margin: 1em 0;
-    color: var(--text-secondary);
-    font-style: italic;
-}
-
-.streaming-markdown a {
-    color: var(--send-button-grad-start);
-    text-decoration: none;
-}
-
-.streaming-markdown a:hover {
-    text-decoration: underline;
-}
-
-.streaming-markdown table {
-    border-collapse: collapse;
-    width: 100%;
-    margin: 1em 0;
-    border: 1px solid var(--border-color);
-}
-
-.streaming-markdown th,
-.streaming-markdown td {
-    border: 1px solid var(--border-color);
-    padding: 0.5em 1em;
-    text-align: left;
-}
-
-.streaming-markdown th {
-    background-color: var(--secondary-bg-color);
-    font-weight: 600;
 }
