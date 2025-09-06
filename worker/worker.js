@@ -1,8 +1,10 @@
 // Helper to add CORS headers to a response
 const allowedOrigins = [
   'https://youtopia.co.in',
-  'https://youtopia-search-e7z.pages.dev',
-  'https://youtopia-worker.youtopialabs.workers.dev',
+  'https://youtopia-search-e7z.pages.dev', // Cloudflare Pages deployment
+  'https://youtopia-search.pages.dev', // Generic Cloudflare Pages domain
+  'https://youtopia-worker.youtopialabs.workers.dev', // Cloudflare Worker domain
+  'https://youtopia-worker.pages.dev', // Generic Cloudflare Worker domain
   'http://localhost:8788', // For local development with wrangler
   'http://127.0.0.1:8788'
 ];
@@ -26,7 +28,7 @@ async function handleApiRequest(request, env) {
       console.error('Outbound connectivity test failed:', e);
       return new Response(JSON.stringify({ success: false, error: e.message }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' }))
       });
     }
   }
@@ -72,10 +74,7 @@ export default {
       console.error('Unhandled fatal error in fetch handler:', error.stack);
       const errorResponse = new Response(JSON.stringify({ error: `A fatal and unhandled error occurred: ${error.message}` }), {
         status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
-        }
+        headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' }))
       });
       return errorResponse;
     }
@@ -97,6 +96,17 @@ function handleOptions(request, headers) {
   return new Response(null, { headers });
 }
 
+// Helper function to add CORS headers to any response
+function addCorsHeaders(request, headers) {
+  const origin = request.headers.get('Origin');
+  if (origin && allowedOrigins.includes(origin)) {
+    headers.set('Access-Control-Allow-Origin', origin);
+  } else {
+    headers.set('Access-Control-Allow-Origin', '*'); // Fallback for non-listed origins or if origin is null
+  }
+  return headers;
+}
+
 // --- Proxy Functions ---
 async function proxySerper(api_payload, env) {
   const serperApiUrl = api_payload.type === 'search' ? 'https://google.serper.dev/search' : 'https://google.serper.dev/news';
@@ -105,7 +115,7 @@ async function proxySerper(api_payload, env) {
     console.error('SERPER_API_KEY is not set in environment variables.');
     return new Response(JSON.stringify({ error: 'SERPER_API_KEY is missing.' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' }))
     });
   }
 
@@ -124,36 +134,30 @@ async function proxySerper(api_payload, env) {
       console.error(`Serper API error: ${serperResponse.status} - ${errorText}`);
       return new Response(JSON.stringify({ error: `Serper API error: ${serperResponse.status}`, details: errorText }), {
         status: serperResponse.status,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' }))
       });
     }
 
     const serperData = await serperResponse.json();
     return new Response(JSON.stringify(serperData), {
       status: serperResponse.status,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
+      headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' })),
     });
   } catch (error) {
     console.error('Error in proxySerper:', error.stack);
     return new Response(JSON.stringify({ error: `Error proxying to Serper: ${error.message}` }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' }))
     });
   }
 }
 
 async function proxyMistral(request, api_payload, env) {
-  const mistralApiKey = "TcTEMn3IxCjzq759GMAtTaLevjpjJqR2"; // Hardcoded for debugging
+  const mistralApiKey = env.MISTRAL_API_KEY;
   if (!mistralApiKey) {
     return new Response(JSON.stringify({ error: 'MISTRAL_API_KEY is not set.' }), {
       status: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
+      headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' }))
     });
   }
 
@@ -175,6 +179,8 @@ async function proxyMistral(request, api_payload, env) {
     const origin = request.headers.get('Origin');
     if (origin && allowedOrigins.includes(origin)) {
       responseHeaders.set('Access-Control-Allow-Origin', origin);
+    } else {
+      responseHeaders.set('Access-Control-Allow-Origin', '*'); // Fallback for non-listed origins
     }
     
     // Enhanced logging for the request being sent
@@ -183,7 +189,7 @@ async function proxyMistral(request, api_payload, env) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer TcTEMn3IxCjzq759GMAtTaLevjpjJqR2',
+        'Authorization': `Bearer ${mistralApiKey}`,
       },
       body: JSON.stringify(api_payload.body),
     };
@@ -209,10 +215,7 @@ async function proxyMistral(request, api_payload, env) {
       
       return new Response(errorText || JSON.stringify({ error: `Mistral API error: ${mistralResponse.status}` }), {
         status: mistralResponse.status,
-        headers: {
-          'Content-Type': mistralResponse.headers.get('Content-Type') || 'application/json',
-          'Access-Control-Allow-Origin': '*'
-        }
+        headers: addCorsHeaders(request, new Headers({ 'Content-Type': mistralResponse.headers.get('Content-Type') || 'application/json' }))
       });
     }
 
@@ -225,7 +228,7 @@ async function proxyMistral(request, api_payload, env) {
         console.error('Mistral API returned a response with no body.');
         return new Response(JSON.stringify({ error: 'The Mistral API returned a response with no body.' }), {
             status: 500,
-            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+            headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' }))
         });
     }
 
@@ -250,10 +253,7 @@ async function proxyMistral(request, api_payload, env) {
     console.error('Error in Mistral API proxy:', error);
     return new Response(JSON.stringify({ error: `Proxy error: ${error.message}` }), {
       status: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
+      headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' }))
     });
   }
 }
@@ -264,7 +264,7 @@ async function proxyCoingecko(api_payload, env) {
     console.error('COINGECKO_API_KEY is not set in environment variables.');
     return new Response(JSON.stringify({ error: 'COINGECKO_API_KEY is missing.' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' }))
     });
   }
 
@@ -284,7 +284,7 @@ async function proxyCoingecko(api_payload, env) {
       console.error(`CoinGecko API error: ${coingeckoResponse.status} - ${errorText}`);
       return new Response(JSON.stringify({ error: `CoinGecko API error: ${coingeckoResponse.status}`, details: errorText }), {
         status: coingeckoResponse.status,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' }))
       });
     }
 
@@ -293,15 +293,15 @@ async function proxyCoingecko(api_payload, env) {
       status: coingeckoResponse.status,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
       },
+      headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' })),
     });
     return response;
   } catch (error) {
     console.error('Error in proxyCoingecko:', error.stack);
     return new Response(JSON.stringify({ error: `Error proxying to CoinGecko: ${error.message}` }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' }))
     });
   }
 }
@@ -493,11 +493,11 @@ async function handleQueryProxy(request, env) {
       const tokenInfo = await verifyGoogleToken(id_token, env);
       if (tokenInfo.email !== user_email) {
         console.error('Security Alert: Email mismatch between ID token and request body. Token email:', tokenInfo.email, 'Request email:', user_email);
-        return new Response(JSON.stringify({ error: 'Security alert: Token-email mismatch.' }), { status: 403, headers: headers });
+        return new Response(JSON.stringify({ error: 'Security alert: Token-email mismatch.' }), { status: 403, headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' })) });
       }
     } catch (error) {
       console.error('Authentication error in handleQueryProxy:', error.message);
-      return new Response(JSON.stringify({ error: `Authentication failed: ${error.message}` }), { status: 401, headers: headers });
+      return new Response(JSON.stringify({ error: `Authentication failed: ${error.message}` }), { status: 401, headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' })) });
     }
 
     // Check if user is whitelisted
@@ -507,7 +507,7 @@ async function handleQueryProxy(request, env) {
     if (api_target === 'status_check') {
         return new Response(JSON.stringify({ success: true, is_whitelisted_20x_plan }), {
           status: 200,
-          headers: headers
+          headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' }))
         });
     }
 
@@ -553,7 +553,7 @@ async function handleQueryProxy(request, env) {
           proxyResponse = await proxyCoingecko(api_payload, env);
           break;
         default:
-          return new Response(JSON.stringify({ error: 'Invalid API target.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+          return new Response(JSON.stringify({ error: 'Invalid API target.' }), { status: 400, headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' })) });
       }
 
       // Update the query entry with the response
@@ -616,7 +616,7 @@ Thank you for your support, it truly makes a difference to allow this project to
         error: 'Query limit exceeded.',
         cooldown_end_timestamp: userData.cooldown_end_timestamp,
         message_from_developer: messageFromDeveloper
-      }), { status: 429, headers: headers });
+      }), { status: 429, headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' })) });
     }
 
     if (queryCount >= FREE_RATE_LIMIT) {
@@ -629,7 +629,7 @@ Thank you for your support, it truly makes a difference to allow this project to
         error: 'Query limit exceeded.',
         cooldown_end_timestamp: userData.cooldown_end_timestamp,
         message_from_developer: messageFromDeveloper
-      }), { status: 429, headers: headers });
+      }), { status: 429, headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' })) });
     }
 
     // Increment query count and save user data for free users
@@ -668,7 +668,7 @@ Thank you for your support, it truly makes a difference to allow this project to
         proxyResponse = await proxyCoingecko(api_payload, env);
         break;
       default:
-        return new Response(JSON.stringify({ error: 'Invalid API target.' }), { status: 400, headers: headers });
+        return new Response(JSON.stringify({ error: 'Invalid API target.' }), { status: 400, headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' })) });
     }
 
     // Update the query entry with the response
@@ -704,9 +704,7 @@ Thank you for your support, it truly makes a difference to allow this project to
     console.error('Error in handleQueryProxy:', error.stack);
     return new Response(JSON.stringify({ error: `Error processing proxy request: ${error.message}` }), {
       status: 400, // Bad Request for parsing errors
-      headers: {
-        'Content-Type': 'application/json'
-      }
+      headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' }))
     });
   }
 }
@@ -720,7 +718,7 @@ async function handleKvData(request, env) {
 
     // Only allow authorized users to view KV data
     if (!tokenInfo.email || !authorizedEmails.includes(tokenInfo.email)) {
-      return new Response(JSON.stringify({ error: 'Unauthorized: Your email is not authorized to view this data.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: 'Unauthorized: Your email is not authorized to view this data.' }), { status: 403, headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' })) });
     }
 
     const listResponse = await env.YOUTOPIA_DATA.list();
@@ -736,14 +734,14 @@ async function handleKvData(request, env) {
 
     return new Response(JSON.stringify({ success: true, data: kvData }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' })),
     });
 
   } catch (error) {
     console.error('Error in handleKvData:', error.stack);
     return new Response(JSON.stringify({ error: `Error retrieving KV data: ${error.message}` }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' })),
     });
   }
 }
@@ -771,14 +769,14 @@ async function handleConversationHistory(request, env) {
     }
 
     if (!id_token) {
-      return new Response(JSON.stringify({ error: 'Bad Request: Missing id_token.' }), { status: 400, headers });
+      return new Response(JSON.stringify({ error: 'Bad Request: Missing id_token.' }), { status: 400, headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' })) });
     }
 
     const tokenInfo = await verifyGoogleToken(id_token, env);
     const user_email = tokenInfo.email;
 
     if (!user_email) {
-      return new Response(JSON.stringify({ error: 'Unauthorized: Invalid user email.' }), { status: 403, headers });
+      return new Response(JSON.stringify({ error: 'Unauthorized: Invalid user email.' }), { status: 403, headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' })) });
     }
 
     const historyKey = `history:${user_email}`;
@@ -787,28 +785,28 @@ async function handleConversationHistory(request, env) {
       const storedHistory = await env.YOUTOPIA_DATA.get(historyKey, { type: 'json' });
       return new Response(JSON.stringify({ success: true, history: storedHistory || [] }), {
         status: 200,
-        headers: headers,
+        headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' })),
       });
     }
 
     if (request.method === 'POST') {
       if (!history) {
-        return new Response(JSON.stringify({ error: 'Bad Request: Missing history data.' }), { status: 400, headers });
+        return new Response(JSON.stringify({ error: 'Bad Request: Missing history data.' }), { status: 400, headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' })) });
       }
       await env.YOUTOPIA_DATA.put(historyKey, JSON.stringify(history));
       return new Response(JSON.stringify({ success: true }), {
         status: 200,
-        headers: headers,
+        headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' })),
       });
     }
     
-    return new Response('Invalid request method.', { status: 400, headers });
+    return new Response('Invalid request method.', { status: 400, headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' })) });
 
   } catch (error) {
     console.error('Error in handleConversationHistory:', error.stack);
     return new Response(JSON.stringify({ error: `Error handling conversation history: ${error.message}` }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers: addCorsHeaders(request, new Headers({ 'Content-Type': 'application/json' })),
     });
   }
 }

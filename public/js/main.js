@@ -4,7 +4,7 @@ import { updateChartsTheme } from './chart_utils.js';
 import { parseChartConfig as safeParseChartConfig, parseTableConfig } from './json_utils.js';
 // import ConversationManager from './conversation_manager.js'; // History disabled
 
-const WORKER_BASE_URL = 'https://youtopia-worker.youtopialabs.workers.dev/';
+const WORKER_BASE_URL = window.location.origin.includes('pages.dev') ? `https://youtopia-worker.pages.dev/` : `https://youtopia-worker.youtopialabs.workers.dev/`;
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize conversation manager
