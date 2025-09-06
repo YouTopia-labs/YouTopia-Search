@@ -1679,7 +1679,7 @@ Generated on: ${currentDate}
                         logList.appendChild(li);
                         logList.scrollTop = logList.scrollHeight; // Scroll to bottom
                     }
-                } else if (errorMessage.includes('Network Error') || errorMessage.includes('Load failed') || errorMessage.includes('Failed to fetch')) {
+                } else if (errorMessage.includes('Network Error') || errorMessage.includes('Load failed') || errorMessage.includes('Failed to fetch') || errorMessage.includes('fetch')) {
                     errorIcon = 'fas fa-wifi';
                     userFriendlyMessage = 'Network connection issue. Please check your internet connection and try again.';
                     if (logList) {
