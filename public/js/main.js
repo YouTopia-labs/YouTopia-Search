@@ -287,7 +287,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 } else {
-                    console.error('Failed to fetch user status:', await userStatusResponse.text());
+                    const errorText = await userStatusResponse.text();
+                    console.error('Failed to fetch user status:', errorText);
+                    if (userStatusResponse.status === 401) {
+                        // If the token is expired or invalid, sign the user out
+                        window.firebaseSignOut();
+                    }
                 }
 
             } catch (error) {
@@ -318,13 +323,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Firebase Auth state change listener
-    window.firebaseAuth.onAuthStateChanged(async (user) => {
-        await updateUserUI(user);
-        if (user) {
-            hidePopup(signinRequiredPopupOverlay); // Hide sign-in popup if it was open
-        }
-    });
 
     // Event listener for Firebase Sign-In button
     firebaseSignInButton.addEventListener('click', async () => {
