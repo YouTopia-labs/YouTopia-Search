@@ -265,7 +265,7 @@
         // Import the functions you need from the SDKs you need
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-analytics.js";
-        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
 
 
         // Your web app's Firebase configuration
@@ -286,17 +286,7 @@
         const provider = new GoogleAuthProvider();
 
         // Expose Firebase functions globally for main.js to use
-        window.firebaseSignIn = () => {
-            return setPersistence(auth, browserLocalPersistence)
-                .then(() => {
-                    console.log('Firebase auth persistence set to local.');
-                    return signInWithPopup(auth, provider);
-                })
-                .catch((error) => {
-                    console.error('Error setting Firebase auth persistence:', error);
-                    throw error; // Propagate the error to be caught by the caller
-                });
-        };
+        window.firebaseSignIn = () => signInWithPopup(auth, provider);
         window.firebaseSignOut = () => firebaseSignOut(auth);
         window.firebaseAuth = auth; // Expose auth object to listen for state changes
     </script>

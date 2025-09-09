@@ -323,6 +323,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // Firebase Auth state change listener
+    let tokenRefreshInterval;
+
+    window.firebaseAuth.onAuthStateChanged(async (user) => {
+        await updateUserUI(user);
+        if (user) {
+            hidePopup(signinRequiredPopupOverlay); // Hide sign-in popup if it was open
+            
+            // Clear any existing timer
+            if (tokenRefreshInterval) {
+                clearInterval(tokenRefreshInterval);
+            }
+
+            // Set up a timer to refresh the token periodically
+            tokenRefreshInterval = setInterval(async () => {
+                try {
+                    const idToken = await user.getIdToken(true); // Force refresh
+                    localStorage.setItem('id_token', idToken);
+                    console.log('Firebase ID token refreshed automatically.');
+                } catch (error) {
+                    console.error('Failed to refresh token, signing out:', error);
+                    window.firebaseSignOut(); // Sign out if refresh fails
+                }
+            }, 10 * 60 * 1000); // Refresh every 10 minutes
+
+        } else {
+            // If user is signed out, clear the interval
+            if (tokenRefreshInterval) {
+                clearInterval(tokenRefreshInterval);
+            }
+        }
+    });
+
 
     // Event listener for Firebase Sign-In button
     firebaseSignInButton.addEventListener('click', async () => {
